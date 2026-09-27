@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plank</title>
+<meta name="description" content="A small compiled language whose whole compiler is one file you can read in an evening. Native binaries through LLVM.">
+<meta property="og:title" content="Plank">
+<meta property="og:description" content="A compiled language you can read in an evening.">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="https://heyitsmejosh.com/tokens.css">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg, #fafafa); color: var(--text, #111); font-family: var(--font-body, -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  main { max-width: 900px; margin: 0 auto; padding: 4rem 1rem 6rem; }
+  header { display: flex; align-items: center; gap: .75rem; margin-bottom: 4rem; }
+  header img { width: 32px; height: 32px; }
+  header span { font-weight: 700; letter-spacing: -.02em; }
+  header nav { margin-left: auto; display: flex; gap: 1.25rem; font-size: .95rem; }
+  header nav a { text-decoration: none; color: var(--text2, #555); }
+  header nav a:hover { color: var(--text, #111); }
+  h1 { font-size: clamp(2.4rem, 6vw, 4rem); line-height: 1.05; letter-spacing: -.03em; font-weight: 700; max-width: 14ch; }
+  .lede { font-size: 1.25rem; color: var(--text2, #555); max-width: 44ch; margin: 1.25rem 0 3rem; }
+  .demo { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 5rem; }
+  .win { border: 1px solid var(--border2, #ddd); border-radius: var(--radius-md, 12px); background: var(--bg2, #f5f5f5); overflow: hidden; box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06)); }
+  .bar { display: flex; gap: 6px; padding: .6rem .8rem; border-bottom: 1px solid var(--border, #eee); }
+  .bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--border2, #ccc); }
+  .bar b { margin-left: auto; font-weight: 400; font-size: .75rem; color: var(--text2, #777); }
+  pre { font-family: var(--font-code, ui-monospace, "SF Mono", Menlo, monospace); font-size: .88rem; line-height: 1.55; padding: 1rem 1.1rem; overflow-x: auto; white-space: pre; min-height: 14.5rem; }
+  .k { color: var(--text2, #666); }
+  .cursor::after { content: ""; display: inline-block; width: .55em; height: 1em; background: var(--text, #111); vertical-align: -.15em; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  section { margin-bottom: 4rem; max-width: 60ch; }
+  h2 { font-size: 1.5rem; letter-spacing: -.02em; margin-bottom: .75rem; }
+  p + p { margin-top: 1rem; }
+  .run pre { min-height: 0; border: 1px solid var(--border2, #ddd); border-radius: var(--radius-md, 12px); background: var(--bg2, #f5f5f5); }
+  .run p { margin-bottom: 1rem; }
+  footer { border-top: 1px solid var(--border, #eee); padding-top: 1.5rem; font-size: .9rem; color: var(--text2, #555); }
+  @media (max-width: 720px) { .demo { grid-template-columns: 1fr; } pre { min-height: 0; } header nav { display: none; } }
+  @media (prefers-reduced-motion: reduce) { .cursor::after { animation: none; } }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <img src="icon.svg" alt="">
+  <span>Plank</span>
+  <nav><a href="https://github.com/nulljosh/plank/blob/main/docs/SPEC.md">Reference</a><a href="https://github.com/nulljosh/plank">GitHub</a></nav>
+</header>
+
+<h1>A compiled language you can read in an evening.</h1>
+<p class="lede">Functions, ints, floats, bools, strings, loops. One file turns them into a native binary. LLVM does the hard part. You get to read the rest.</p>
+
+<div class="demo">
+  <div class="win">
+    <div class="bar"><i></i><i></i><i></i><b>fib.pk</b></div>
+<pre><span class="k">fn</span> fib(n: <span class="k">int</span>) -> <span class="k">int</span> {
+  <span class="k">if</span> n &lt; 2 { <span class="k">return</span> n }
+  <span class="k">return</span> fib(n - 1) + fib(n - 2)
+}
+
+<span class="k">fn</span> main() {
+  <span class="k">for</span> i <span class="k">in</span> 0..15 {
+    print(fib(i))
+  }
+}</pre>
+  </div>
+  <div class="win">
+    <div class="bar"><i></i><i></i><i></i><b>Terminal</b></div>
+    <pre id="term"></pre>
+  </div>
+</div>
+
+<section>
+  <h2>Why it exists</h2>
+  <p>Building a language sounds like a year of work. Real compilers are a hundred thousand lines you will never finish. Tutorials stop right before the part where a binary comes out. Plank is the missing middle: a real compiler, native output, small enough that the whole thing fits in your head.</p>
+  <p>No interpreter, no bytecode. Source becomes LLVM IR, LLVM optimizes it, your system linker finishes the job. The same road a production compiler takes, in a much smaller car.</p>
+</section>
+
+<section>
+  <h2>What is in the box</h2>
+  <p>Four types: int, float, bool, str. No implicit conversions, so no surprises. <code>let</code> binds once, <code>var</code> can change. if, else, while, for over a range, break and continue. Functions in any order, recursion included. Errors that name the file and line and tell you what to do instead.</p>
+  <p>The compiler is one Python file on llvmlite. Lexer, parser, codegen, optimizer, link. Each is a plain function or class you can point at.</p>
+</section>
+
+<section class="run">
+  <h2>Run it</h2>
+  <p>Needs uv and a C compiler for linking. The first run installs llvmlite on its own.</p>
+<pre>git clone https://github.com/nulljosh/plank && cd plank
+./plank examples/fib.pk
+./plank build examples/fib.pk
+./plank emit examples/fib.pk</pre>
+</section>
+
+<footer>MIT. Made by <a href="https://heyitsmejosh.com">Josh</a>.</footer>
+</main>
+<script>
+  const lines = ["$ plank fib.pk", "0","1","1","2","3","5","8","13","21","34","55","89","144","233","377", "$ "];
+  const term = document.getElementById("term");
+  let i = 0, shown = [];
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function step() {
+    shown.push(lines[i++]);
+    term.textContent = shown.join("\n");
+    term.className = i === lines.length ? "cursor" : "";
+    if (i < lines.length) setTimeout(step, i === 1 ? 700 : 90);
+  }
+  if (still) { shown = lines; i = lines.length; term.textContent = lines.join("\n"); term.className = "cursor"; } else step();
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+name = "plank"
+compatibility_date = "2025-01-01"
+
+[assets]
+directory = "./site"
+
+[[routes]]
+pattern = "plank.heyitsmejosh.com"
+custom_domain = true
+
+[observability]
+enabled = true

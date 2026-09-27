@@ -1,0 +1,15 @@
+# Floats and conversions. Newton's method, no libm.
+fn sqrt(x: float) -> float {
+  var guess = x / 2.0
+  for i in 0..20 {
+    guess = (guess + x / guess) / 2.0
+  }
+  return guess
+}
+
+fn main() {
+  print(sqrt(2.0))
+  print(sqrt(144.0))
+  print(int(sqrt(float(1000000))))
+  print(-sqrt(9.0) < 0.0)
+}
