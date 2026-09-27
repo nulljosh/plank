@@ -10,6 +10,8 @@ for name in order:
     src = open(f"examples/{name}.pk").read()
     out = open(f"examples/{name}.out").read()
     ir = subprocess.run(["./plank", "emit", f"examples/{name}.pk"], capture_output=True, text=True, check=True).stdout
+    # ponytail: the triple names the host, drop it so the demo is identical on Mac and Linux CI
+    ir = "\n".join(l for l in ir.split("\n") if not l.startswith("target triple"))
     examples.append({"name": name, "src": src, "out": out, "ir": ir})
 version = subprocess.run(["./plank", "--version"], capture_output=True, text=True).stdout.split()[-1]
 js = "window.PLANK_DEMO = " + json.dumps({"version": version, "examples": examples}, ensure_ascii=False) + ";\n"
