@@ -15,15 +15,16 @@
   a { color: inherit; }
   main { max-width: 900px; margin: 0 auto; padding: 4rem 1rem 6rem; }
   header { display: flex; align-items: center; gap: .75rem; margin-bottom: 4rem; }
-  header img { width: 32px; height: 32px; }
+  header svg { width: 28px; height: 28px; display: block; }
+  code { font-family: var(--font-code, ui-monospace, "SF Mono", Menlo, monospace); font-size: .9em; background: var(--color-code-bg, #eee); padding: .1em .35em; border-radius: 4px; }
   header span { font-weight: 700; letter-spacing: -.02em; }
   header nav { margin-left: auto; display: flex; gap: 1.25rem; font-size: .95rem; }
   header nav a { text-decoration: none; color: var(--text2, #555); }
   header nav a:hover { color: var(--text, #111); }
   h1 { font-size: clamp(2.4rem, 6vw, 4rem); line-height: 1.05; letter-spacing: -.03em; font-weight: 700; max-width: 14ch; }
   .lede { font-size: 1.25rem; color: var(--text2, #555); max-width: 44ch; margin: 1.25rem 0 3rem; }
-  .demo { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 5rem; }
-  .win { border: 1px solid var(--border2, #ddd); border-radius: var(--radius-md, 12px); background: var(--bg2, #f5f5f5); overflow: hidden; box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06)); }
+  .demo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; margin-bottom: 5rem; }
+  .win { min-width: 0; border: 1px solid var(--border2, #ddd); border-radius: var(--radius-md, 12px); background: var(--bg2, #f5f5f5); overflow: hidden; box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06)); }
   .bar { display: flex; gap: 6px; padding: .6rem .8rem; border-bottom: 1px solid var(--border, #eee); }
   .bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--border2, #ccc); }
   .bar b { margin-left: auto; font-weight: 400; font-size: .75rem; color: var(--text2, #777); }
@@ -44,7 +45,7 @@
 <body>
 <main>
 <header>
-  <img src="icon.svg" alt="">
+  <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="8" y="18" width="48" height="11" rx="2.5" fill="currentColor"/><rect x="8" y="36" width="34" height="11" rx="2.5" fill="currentColor"/></svg>
   <span>Plank</span>
   <nav><a href="https://github.com/nulljosh/plank/blob/main/docs/SPEC.md">Reference</a><a href="https://github.com/nulljosh/plank">GitHub</a></nav>
 </header>
@@ -80,7 +81,7 @@
 
 <section>
   <h2>What is in the box</h2>
-  <p>Four types: int, float, bool, str. No implicit conversions, so no surprises. <code>let</code> binds once, <code>var</code> can change. if, else, while, for over a range, break and continue. Functions in any order, recursion included. Errors that name the file and line and tell you what to do instead.</p>
+  <p>Four types: int, float, bool, str. No implicit conversions, so no surprises. <code>let</code> binds once, <code>var</code> can change. if, else, while, for over a range, break and continue. Functions in any order, recursion included. Errors that name the file and line and tell you what to do instead. Compiled output is real machine code: fib(35) runs in a few hundredths of a second.</p>
   <p>The compiler is one Python file on llvmlite. Lexer, parser, codegen, optimizer, link. Each is a plain function or class you can point at.</p>
 </section>
 

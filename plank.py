@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -30,8 +30,8 @@ class PlankError(Exception):
 KEYWORDS = {"fn", "let", "var", "if", "else", "while", "for", "in", "return",
             "break", "continue", "true", "false", "and", "or", "not"}
 TOKEN_RE = re.compile(r"""
-    (?P<ws>[ \t]+) | (?P<comment>\#[^\n]*) | (?P<nl>\n) |
-    (?P<float>\d+\.\d+) | (?P<int>\d+) | (?P<str>"(?:[^"\\]|\\.)*") |
+    (?P<ws>[ \t\r]+) | (?P<comment>\#[^\n]*) | (?P<nl>\n) |
+    (?P<float>\d+\.\d+(?:[eE][+-]?\d+)?) | (?P<int>\d+) | (?P<str>"(?:[^"\\]|\\.)*") |
     (?P<name>[A-Za-z_]\w*) |
     (?P<op>->|\.\.|==|!=|<=|>=|[-+*/%<>=(){}:,])
 """, re.X)
@@ -42,6 +42,23 @@ class Tok:
     kind: str
     val: object
     line: int
+
+
+ESCAPES = {"n": "\n", "t": "\t", '"': '"', "\\": "\\", "0": "\0"}
+
+
+def unescape(body, line):
+    out, i = [], 0
+    while i < len(body):
+        c = body[i]
+        if c == "\\":
+            i += 1
+            if body[i] not in ESCAPES:
+                raise PlankError(line, f"unknown escape \\{body[i]}")
+            c = ESCAPES[body[i]]
+        out.append(c)
+        i += 1
+    return "".join(out)
 
 
 def lex(src):
@@ -63,7 +80,7 @@ def lex(src):
         elif kind == "float":
             toks.append(Tok("float", float(text), line))
         elif kind == "str":
-            toks.append(Tok("str", bytes(text[1:-1], "utf-8").decode("unicode_escape"), line))
+            toks.append(Tok("str", unescape(text[1:-1], line), line))
         elif kind == "name":
             toks.append(Tok(text if text in KEYWORDS else "name", text, line))
         else:
@@ -235,7 +252,11 @@ class Parser:
         cond = self.expr()
         then = self.block()
         other = []
-        if self.at("else"):
+        mark = self.i
+        self.skip_nl()
+        if not self.at("else"):
+            self.i = mark
+        else:
             self.next()
             other = [self.if_()] if self.at("if") else self.block()
         return If(line, cond, then, other)
@@ -292,6 +313,7 @@ LL = {"int": ir.IntType(64), "float": ir.DoubleType(), "bool": ir.IntType(1),
 INT_OPS = {"+": "add", "-": "sub", "*": "mul", "/": "sdiv", "%": "srem"}
 FLOAT_OPS = {"+": "fadd", "-": "fsub", "*": "fmul", "/": "fdiv", "%": "frem"}
 CMP = {"==", "!=", "<", ">", "<=", ">="}
+BUILTINS = {"print", "int", "float"}
 
 
 @dataclass
@@ -345,6 +367,8 @@ class Codegen:
         for f in fns:
             if f.name in self.fns:
                 raise PlankError(f.line, f"function {f.name!r} defined twice")
+            if f.name in BUILTINS:
+                raise PlankError(f.line, f"{f.name!r} is a built-in, pick another name")
             fty = ir.FunctionType(LL[f.ret], [LL[t] for _, t in f.params])
             self.fns[f.name] = (ir.Function(self.module, fty, "pk_" + f.name),
                                 [t for _, t in f.params], f.ret)
@@ -443,12 +467,14 @@ class Codegen:
         self.builder.position_at_end(cond_bb)
         self.builder.cbranch(self.cond(s.cond), body_bb, end_bb)
         self.builder.position_at_end(body_bb)
-        self.loops.append((cond_bb, end_bb))
+        self.loops.append([cond_bb, end_bb, False])
         self.stmts(s.body)
-        self.loops.pop()
+        _, _, broke = self.loops.pop()
         if not self.builder.block.is_terminated:
             self.builder.branch(cond_bb)
         self.builder.position_at_end(end_bb)
+        if isinstance(s.cond, Bool) and s.cond.val and not broke:  # `while true` with no break never ends
+            self.builder.unreachable()
 
     def s_For(self, s):
         start, t1 = self.expr(s.start)
@@ -467,7 +493,7 @@ class Codegen:
         cur = self.builder.load(i)
         self.builder.cbranch(self.builder.icmp_signed("<", cur, stop), body_bb, end_bb)
         self.builder.position_at_end(body_bb)
-        self.loops.append((step_bb, end_bb))
+        self.loops.append([step_bb, end_bb, False])
         self.stmts(s.body)
         self.loops.pop()
         if not self.builder.block.is_terminated:
@@ -481,6 +507,7 @@ class Codegen:
     def s_Break(self, s):
         if not self.loops:
             raise PlankError(s.line, "break outside a loop")
+        self.loops[-1][2] = True
         self.builder.branch(self.loops[-1][1])
 
     def s_Continue(self, s):
@@ -567,7 +594,7 @@ class Codegen:
             if len(args) != 1:
                 raise PlankError(e.line, "print takes one argument")
             val, ty = args[0]
-            fmt = {"int": "%lld\n", "float": "%g\n", "str": "%s\n", "bool": "%s\n"}[ty]
+            fmt = {"int": "%lld\n", "float": "%.15g\n", "str": "%s\n", "bool": "%s\n"}[ty]
             if ty == "bool":
                 val = b.select(val, self.cstr("true"), self.cstr("false"))
             b.call(self.printf, [self.cstr(fmt), val])
@@ -589,7 +616,7 @@ class Codegen:
             raise PlankError(e.line, f"unknown function {e.name!r}")
         func, ptypes, ret = self.fns[e.name]
         if len(args) != len(ptypes):
-            raise PlankError(e.line, f"{e.name}() takes {len(ptypes)} arguments, got {len(args)}")
+            raise PlankError(e.line, f"{e.name}() takes {len(ptypes)} argument{'s' * (len(ptypes) != 1)}, got {len(args)}")
         for i, ((_, got), want) in enumerate(zip(args, ptypes)):
             if got != want:
                 raise PlankError(e.line, f"{e.name}() argument {i + 1} should be {want}, got {got}")

@@ -1,0 +1,33 @@
+# while true with break, else on its own line, nested loops, continue.
+fn first_square_over(limit: int) -> int {
+  var n = 1
+  while true {
+    if n * n > limit { return n }
+    n = n + 1
+  }
+}
+
+fn main() {
+  var i = 0
+  while true {
+    i = i + 1
+    if i == 3 { break }
+  }
+  print(i)
+
+  if i > 5 {
+    print("big")
+  }
+  else {
+    print("small")
+  }
+
+  for a in 0..3 {
+    for b in 0..3 {
+      if b == 1 { continue }
+      if a == 2 { break }
+      print(a * 10 + b)
+    }
+  }
+  print(first_square_over(50))
+}

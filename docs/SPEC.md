@@ -23,9 +23,11 @@ Functions can be declared in any order. A function with a return type must retur
 | Type | Machine | Literals |
 |---|---|---|
 | `int` | signed 64-bit | `42`, `0` |
-| `float` | 64-bit double | `3.14`, `2.0` |
+| `float` | 64-bit double | `3.14`, `2.0`, `1.5e3` |
 | `bool` | 1 bit | `true`, `false` |
-| `str` | C string | `"hello\n"` |
+| `str` | C string, UTF-8 | `"hello\n"`, `"世界"` |
+
+String escapes are `\n`, `\t`, `\"`, `\\` and `\0`. Anything else after a backslash is an error. A float literal needs digits on both sides of the dot.
 
 There are no implicit conversions. `1 + 2.0` is an error. Use `int(x)` and `float(x)`: float to int truncates, bool to int gives 0 or 1.
 
@@ -66,11 +68,11 @@ for i in 0..10 {   # 0 through 9, the bounds are evaluated once
 }
 ```
 
-Conditions must be `bool`. The `for` variable is an `int` and is a `let` inside the body.
+Conditions must be `bool`. The `for` variable is an `int` and is a `let` inside the body. `else` can sit on the same line as the closing brace or on the next one. A `while true` with no `break` counts as never finishing, so a function can end with one and still satisfy the return check.
 
 ## Built-ins
 
-`print(x)` prints any of the four types followed by a newline. `int(x)` and `float(x)` convert. That is the whole standard library for now.
+`print(x)` prints any of the four types followed by a newline. Floats print with 15 significant digits, so `0.1 + 0.2` shows `0.3` and `1.0 / 3.0` shows `0.333333333333333`. You cannot define a function named `print`, `int` or `float`. `int(x)` and `float(x)` convert. That is the whole standard library for now.
 
 ## Errors
 
