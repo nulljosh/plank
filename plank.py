@@ -605,7 +605,7 @@ def optimize(module_text, level=2):
     binding.initialize_native_target()
     binding.initialize_native_asmprinter()
     target = binding.Target.from_triple(TRIPLE)
-    tm = target.create_target_machine(opt=level, codemodel="default")
+    tm = target.create_target_machine(opt=level, reloc="pic", codemodel="default")
     mod = binding.parse_assembly(module_text)
     mod.verify()
     pto = binding.create_pipeline_tuning_options(speed_level=level)
