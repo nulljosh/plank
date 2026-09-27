@@ -9,7 +9,8 @@ One file does the work. Everything else is examples, tests and docs.
 | `examples/*.pk` | One program per feature: hello, fib, fizzbuzz, primes, sqrt, strings, loops. Each has a `.out` with its expected output. |
 | `test.py` | Compiles every example, diffs the output, and checks one bad program fails with a line number. CI runs it on macOS and Ubuntu. |
 | `docs/SPEC.md` | The language reference. |
-| `index.html`, `icon.svg`, `wrangler.toml` | The landing page at plank.heyitsmejosh.com, deployed as Cloudflare static assets. |
+| `site/index.html`, `site/icon.svg`, `wrangler.toml` | The landing page at plank.heyitsmejosh.com, deployed as Cloudflare static assets. Drifting-plank canvas, hero, and a demo window that plays the real examples. |
+| `tools/gen-demo.py`, `site/demo.js` | The generator reads every example, its `.out`, and `plank emit` output into `demo.js`. `test.py` fails if `demo.js` is stale, so the landing can never show output the compiler did not produce. |
 | `roadmap.md`, `MONEY.md`, `CLAUDE.md` | What is next, what it earns (nothing, on purpose), and notes for the agent. |
 
 ## The pipeline

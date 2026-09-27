@@ -17,4 +17,10 @@ bad = subprocess.run(["./plank", "run", "/dev/stdin"], input="fn main() {\n  x =
 ok = bad.returncode == 1 and ":2: unknown variable 'x'" in bad.stderr
 fails += not ok
 print(("ok   " if ok else "FAIL ") + "error message")
-sys.exit(1 if fails else 0)
+if fails:
+    sys.exit(1)
+
+# the landing demo must match the compiler's real output
+fresh = subprocess.run([sys.executable, "tools/gen-demo.py", "--check"], capture_output=True, text=True)
+print(("ok   " if fresh.returncode == 0 else "FAIL ") + "site/demo.js is current")
+sys.exit(1 if fresh.returncode else 0)

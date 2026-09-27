@@ -3,89 +3,161 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Plank</title>
-<meta name="description" content="A small compiled language whose whole compiler is one file you can read in an evening. Native binaries through LLVM.">
+<title>Plank, a compiled language you can read in an evening</title>
+<meta name="description" content="A small compiled language whose whole compiler is one file. Functions, ints, floats, bools, strings, loops. Native binaries through LLVM.">
 <meta property="og:title" content="Plank">
 <meta property="og:description" content="A compiled language you can read in an evening.">
 <link rel="icon" href="icon.svg">
 <link rel="stylesheet" href="https://heyitsmejosh.com/tokens.css">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg, #fafafa); color: var(--text, #111); font-family: var(--font-body, -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg, #fafafa); color: var(--text, #111); font-family: var(--font-body, -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
   a { color: inherit; }
-  main { max-width: 900px; margin: 0 auto; padding: 4rem 1rem 6rem; }
-  header { display: flex; align-items: center; gap: .75rem; margin-bottom: 4rem; }
-  header svg { width: 28px; height: 28px; display: block; }
+  h1, h2, h3 { text-wrap: balance; }
+  p { text-wrap: pretty; }
   code { font-family: var(--font-code, ui-monospace, "SF Mono", Menlo, monospace); font-size: .9em; background: var(--color-code-bg, #eee); padding: .1em .35em; border-radius: 4px; }
-  header span { font-weight: 700; letter-spacing: -.02em; }
-  header nav { margin-left: auto; display: flex; gap: 1.25rem; font-size: .95rem; }
-  header nav a { text-decoration: none; color: var(--text2, #555); }
-  header nav a:hover { color: var(--text, #111); }
-  h1 { font-size: clamp(2.4rem, 6vw, 4rem); line-height: 1.05; letter-spacing: -.03em; font-weight: 700; max-width: 14ch; }
-  .lede { font-size: 1.25rem; color: var(--text2, #555); max-width: 44ch; margin: 1.25rem 0 3rem; }
-  .demo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; margin-bottom: 5rem; }
-  .win { min-width: 0; border: 1px solid var(--border2, #ddd); border-radius: var(--radius-md, 12px); background: var(--bg2, #f5f5f5); overflow: hidden; box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06)); }
-  .bar { display: flex; gap: 6px; padding: .6rem .8rem; border-bottom: 1px solid var(--border, #eee); }
-  .bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--border2, #ccc); }
-  .bar b { margin-left: auto; font-weight: 400; font-size: .75rem; color: var(--text2, #777); }
-  pre { font-family: var(--font-code, ui-monospace, "SF Mono", Menlo, monospace); font-size: .88rem; line-height: 1.55; padding: 1rem 1.1rem; overflow-x: auto; white-space: pre; min-height: 14.5rem; }
-  .k { color: var(--text2, #666); }
+
+  /* drifting planks behind everything */
+  #bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
+
+  .sheet-rule { display: flex; align-items: center; gap: 16px; padding: 14px 20px 0; font-size: 11px; letter-spacing: .22em; text-transform: uppercase; font-weight: 500; color: var(--text2, #666); white-space: nowrap; }
+  .sheet-rule::before { content: ""; order: 1; flex: 1; height: 1px; background: var(--border, #ddd); }
+  .sheet-rule > :first-child { order: 0; }
+  .sheet-rule > :last-child { order: 2; }
+  .sheet-rule a { text-decoration: none; }
+  .sheet-rule a:hover { text-decoration: underline; }
+
+  .hero { text-align: center; padding: 96px 20px 56px; display: flex; flex-direction: column; align-items: center; }
+  .mark { width: 56px; height: 56px; color: var(--text, #111); }
+  .hero h1 { font-size: clamp(2.6rem, 8vw, 5rem); line-height: 1.02; letter-spacing: -.035em; font-weight: 700; margin-top: 18px; }
+  .hero h1 .brand { display: block; }
+  .eyebrow { margin-top: 14px; font-size: 13px; text-transform: uppercase; letter-spacing: .14em; font-weight: 600; }
+  .eyebrow a { text-decoration: none; }
+  .lede { font-size: 1.2rem; color: var(--text2, #555); max-width: 46ch; margin: 22px auto 0; }
+  .cta { margin-top: 28px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .btn { display: inline-block; padding: 10px 18px; border-radius: var(--radius-pill, 999px); border: 1px solid var(--text, #111); text-decoration: none; font-size: .95rem; font-weight: 500; }
+  .btn.solid { background: var(--text, #111); color: var(--bg, #fff); }
+  .btn:hover { opacity: .85; }
+
+  /* the demo: the product, fed by real compiler output */
+  .stage { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+  .win { border: 1px solid var(--border2, #ddd); border-radius: 14px; background: var(--bg2, #f5f5f5); overflow: hidden; box-shadow: var(--shadow-lg, 0 20px 60px rgba(0,0,0,.12)); }
+  .bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border, #eee); }
+  .bar i { width: 11px; height: 11px; border-radius: 50%; background: var(--border2, #ccc); }
+  .tabs { margin-left: 14px; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button, .mode button { font: inherit; font-size: .8rem; color: var(--text2, #666); background: none; border: 0; padding: 4px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+  .tabs button[aria-selected="true"], .mode button[aria-pressed="true"] { color: var(--text, #111); background: var(--border, #e8e8e8); }
+  .mode { margin-left: auto; display: flex; gap: 2px; }
+  .panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .pane { min-width: 0; }
+  .pane + .pane { border-left: 1px solid var(--border, #eee); }
+  .pane h3 { font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; color: var(--text2, #777); font-weight: 600; padding: 10px 16px 0; }
+  pre { font-family: var(--font-code, ui-monospace, "SF Mono", Menlo, monospace); font-size: .86rem; line-height: 1.55; padding: 10px 16px 16px; overflow: auto; white-space: pre; height: 26rem; tab-size: 4; }
+  .k { color: var(--text2, #777); }
   .cursor::after { content: ""; display: inline-block; width: .55em; height: 1em; background: var(--text, #111); vertical-align: -.15em; animation: blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
-  section { margin-bottom: 4rem; max-width: 60ch; }
-  h2 { font-size: 1.5rem; letter-spacing: -.02em; margin-bottom: .75rem; }
-  p + p { margin-top: 1rem; }
-  .run pre { min-height: 0; border: 1px solid var(--border2, #ddd); border-radius: var(--radius-md, 12px); background: var(--bg2, #f5f5f5); }
-  .run p { margin-bottom: 1rem; }
-  footer { border-top: 1px solid var(--border, #eee); padding-top: 1.5rem; font-size: .9rem; color: var(--text2, #555); }
-  @media (max-width: 720px) { .demo { grid-template-columns: 1fr; } pre { min-height: 0; } header nav { display: none; } }
-  @media (prefers-reduced-motion: reduce) { .cursor::after { animation: none; } }
+  .plate-cap { margin: 14px 0 0; text-align: center; font-size: 11px; letter-spacing: .22em; text-transform: uppercase; font-weight: 500; color: var(--text2, #666); }
+
+  .wrap { max-width: 640px; margin: 0 auto; padding: 0 20px; }
+  .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; max-width: 760px; margin: 80px auto 0; padding: 0 20px; }
+  .fact { border: 1px solid var(--border, #e5e5e5); border-radius: 12px; padding: 16px 14px; background: var(--bg2, #f5f5f5); text-align: center; }
+  .fact b { display: block; font-size: 1.6rem; letter-spacing: -.03em; line-height: 1.1; }
+  .fact span { font-size: .8rem; color: var(--text2, #666); }
+  section.copy { padding: 72px 0 0; }
+  section.copy h2 { font-size: 1.7rem; letter-spacing: -.025em; margin-bottom: 14px; }
+  section.copy p + p { margin-top: 14px; }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 22px; }
+  .step { border-top: 2px solid var(--accent, #b5502c); padding-top: 10px; }
+  .step b { display: block; font-size: .95rem; }
+  .step span { font-size: .85rem; color: var(--text2, #666); }
+  .run pre { height: auto; border: 1px solid var(--border2, #ddd); border-radius: 12px; background: var(--bg2, #f5f5f5); padding: 14px 16px; margin-top: 14px; }
+  footer { margin: 96px 0 40px; }
+  footer .sheet-rule { padding-top: 0; }
+
+  .reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+
+  @media (max-width: 720px) {
+    .hero { padding: 64px 16px 40px; }
+    .panes { grid-template-columns: 1fr; }
+    .pane + .pane { border-left: 0; border-top: 1px solid var(--border, #eee); }
+    pre { height: 15rem; }
+    .facts, .steps { grid-template-columns: 1fr 1fr; }
+    .mode { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cursor::after { animation: none; }
+    .reveal { opacity: 1; transform: none; transition: none; }
+  }
 </style>
 </head>
 <body>
-<main>
-<header>
-  <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="8" y="18" width="48" height="11" rx="2.5" fill="currentColor"/><rect x="8" y="36" width="34" height="11" rx="2.5" fill="currentColor"/></svg>
-  <span>Plank</span>
-  <nav><a href="https://github.com/nulljosh/plank/blob/main/docs/SPEC.md">Reference</a><a href="https://github.com/nulljosh/plank">GitHub</a></nav>
+<canvas id="bg" aria-hidden="true"></canvas>
+
+<div class="sheet-rule" aria-hidden="true"><span>Plank</span><span><a href="https://github.com/nulljosh/plank">GitHub</a></span></div>
+
+<header class="hero">
+  <svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><rect x="6" y="17" width="52" height="12" rx="3" fill="currentColor"/><rect x="6" y="36" width="36" height="12" rx="3" fill="currentColor"/></svg>
+  <h1>Introducing <span class="brand">Plank.</span></h1>
+  <p class="eyebrow"><a href="https://github.com/nulljosh/plank/releases">v<span id="ver">0.1</span></a></p>
+  <p class="lede">A compiled language you can read in an evening. One file turns functions, ints, floats, bools and strings into a native binary. LLVM does the hard part. You get to read the rest.</p>
+  <div class="cta">
+    <a class="btn solid" href="#run">Run it</a>
+    <a class="btn" href="https://github.com/nulljosh/plank/blob/main/docs/SPEC.md">Read the reference</a>
+  </div>
 </header>
 
-<h1>A compiled language you can read in an evening.</h1>
-<p class="lede">Functions, ints, floats, bools, strings, loops. One file turns them into a native binary. LLVM does the hard part. You get to read the rest.</p>
-
-<div class="demo">
-  <div class="win">
-    <div class="bar"><i></i><i></i><i></i><b>fib.pk</b></div>
-<pre><span class="k">fn</span> fib(n: <span class="k">int</span>) -> <span class="k">int</span> {
-  <span class="k">if</span> n &lt; 2 { <span class="k">return</span> n }
-  <span class="k">return</span> fib(n - 1) + fib(n - 2)
-}
-
-<span class="k">fn</span> main() {
-  <span class="k">for</span> i <span class="k">in</span> 0..15 {
-    print(fib(i))
-  }
-}</pre>
+<div class="stage">
+  <div class="win" id="demo">
+    <div class="bar">
+      <i></i><i></i><i></i>
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <div class="mode">
+        <button type="button" id="m-run" aria-pressed="true">plank run</button>
+        <button type="button" id="m-emit" aria-pressed="false">plank emit</button>
+      </div>
+    </div>
+    <div class="panes">
+      <div class="pane"><h3 id="srcname">fib.pk</h3><pre id="src"></pre></div>
+      <div class="pane"><h3>Terminal</h3><pre id="term"></pre></div>
+    </div>
   </div>
-  <div class="win">
-    <div class="bar"><i></i><i></i><i></i><b>Terminal</b></div>
-    <pre id="term"></pre>
-  </div>
+  <p class="plate-cap">Fig. 1 &middot; Real programs, real output, straight from the compiler</p>
 </div>
 
-<section>
+<div class="facts reveal" aria-label="Plank in numbers">
+  <div class="fact"><b>4</b><span>types, no implicit casts</span></div>
+  <div class="fact"><b>1</b><span>file is the whole compiler</span></div>
+  <div class="fact"><b>2</b><span>platforms, macOS and Linux</span></div>
+  <div class="fact"><b>0.03s</b><span>to run fib(35) natively</span></div>
+</div>
+
+<section class="copy wrap reveal">
   <h2>Why it exists</h2>
-  <p>Building a language sounds like a year of work. Real compilers are a hundred thousand lines you will never finish. Tutorials stop right before the part where a binary comes out. Plank is the missing middle: a real compiler, native output, small enough that the whole thing fits in your head.</p>
+  <p>Building a language sounds like a year of work. Real compilers are a hundred thousand lines you will never finish reading. Tutorials stop right before the part where a binary comes out. Plank is the missing middle: a real compiler, native output, small enough that the whole thing fits in your head.</p>
   <p>No interpreter, no bytecode. Source becomes LLVM IR, LLVM optimizes it, your system linker finishes the job. The same road a production compiler takes, in a much smaller car.</p>
 </section>
 
-<section>
-  <h2>What is in the box</h2>
-  <p>Four types: int, float, bool, str. No implicit conversions, so no surprises. <code>let</code> binds once, <code>var</code> can change. if, else, while, for over a range, break and continue. Functions in any order, recursion included. Errors that name the file and line and tell you what to do instead. Compiled output is real machine code: fib(35) runs in a few hundredths of a second.</p>
-  <p>The compiler is one Python file on llvmlite. Lexer, parser, codegen, optimizer, link. Each is a plain function or class you can point at.</p>
+<section class="copy wrap reveal">
+  <h2>How a program becomes a binary</h2>
+  <p>Four steps, each a plain function or class in the file, in the same order you read them.</p>
+  <div class="steps">
+    <div class="step"><b>Lex</b><span>One regex turns text into tokens. Newlines end statements.</span></div>
+    <div class="step"><b>Parse</b><span>Recursive descent for statements, Pratt for expressions.</span></div>
+    <div class="step"><b>Generate</b><span>One walk emits LLVM IR and checks types as it goes.</span></div>
+    <div class="step"><b>Link</b><span>LLVM optimizes, your C compiler links against libc.</span></div>
+  </div>
 </section>
 
-<section class="run">
+<section class="copy wrap reveal">
+  <h2>What is in the box</h2>
+  <p>int, float, bool, str. <code>let</code> binds once, <code>var</code> can change. if, else, while, for over a range, break and continue. Functions in any order, recursion included. UTF-8 strings. Errors that name the file and line and tell you what to do instead.</p>
+  <p>Missing on purpose: arrays, structs, string operations. They are next, and each one has to earn its lines.</p>
+</section>
+
+<section class="copy wrap run reveal" id="run">
   <h2>Run it</h2>
   <p>Needs uv and a C compiler for linking. The first run installs llvmlite on its own.</p>
 <pre>git clone https://github.com/nulljosh/plank && cd plank
@@ -94,20 +166,84 @@
 ./plank emit examples/fib.pk</pre>
 </section>
 
-<footer>MIT. Made by <a href="https://heyitsmejosh.com">Josh</a>.</footer>
-</main>
+<footer><div class="sheet-rule"><span>MIT</span><span><a href="https://heyitsmejosh.com">Josh</a></span></div></footer>
+
+<script src="demo.js"></script>
 <script>
-  const lines = ["$ plank fib.pk", "0","1","1","2","3","5","8","13","21","34","55","89","144","233","377", "$ "];
-  const term = document.getElementById("term");
-  let i = 0, shown = [];
-  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  function step() {
-    shown.push(lines[i++]);
-    term.textContent = shown.join("\n");
-    term.className = i === lines.length ? "cursor" : "";
-    if (i < lines.length) setTimeout(step, i === 1 ? 700 : 90);
+(function () {
+  var still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var D = window.PLANK_DEMO || { version: "0.1", examples: [] };
+  document.getElementById("ver").textContent = D.version;
+
+  // background: slow planks drifting, in the page's own ink at low alpha
+  var c = document.getElementById("bg"), ctx = c.getContext("2d"), planks = [], W, H;
+  function ink() { return getComputedStyle(document.body).color; }
+  function resize() {
+    W = c.width = innerWidth * devicePixelRatio; H = c.height = innerHeight * devicePixelRatio;
+    planks = [];
+    for (var i = 0; i < 26; i++) planks.push({ x: Math.random() * W, y: Math.random() * H, w: (120 + Math.random() * 260) * devicePixelRatio, h: (10 + Math.random() * 14) * devicePixelRatio, v: (0.08 + Math.random() * 0.25) * devicePixelRatio * (Math.random() < 0.5 ? -1 : 1), a: 0.02 + Math.random() * 0.03 });
   }
-  if (still) { shown = lines; i = lines.length; term.textContent = lines.join("\n"); term.className = "cursor"; } else step();
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = ink();
+    var sy = scrollY * devicePixelRatio * 0.15;
+    planks.forEach(function (p) {
+      p.x += p.v; if (p.x > W + p.w) p.x = -p.w; if (p.x < -p.w) p.x = W + p.w;
+      var y = ((p.y - sy) % (H + p.h) + H + p.h) % (H + p.h) - p.h;
+      ctx.globalAlpha = p.a; ctx.beginPath(); ctx.roundRect(p.x, y, p.w, p.h, p.h / 2); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    if (!still) requestAnimationFrame(draw);
+  }
+  addEventListener("resize", resize); resize(); draw();
+  if (still) addEventListener("scroll", draw, { passive: true });
+
+  // reveal on scroll
+  var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }); }, { rootMargin: "0px 0px -10% 0px" });
+  document.querySelectorAll(".reveal").forEach(function (el) { io.observe(el); });
+
+  // demo
+  var KW = /\b(fn|let|var|if|else|while|for|in|return|break|continue|true|false|and|or|not|int|float|bool|str)\b/g;
+  var tabs = document.getElementById("tabs"), src = document.getElementById("src"), term = document.getElementById("term"), srcname = document.getElementById("srcname");
+  var cur = 1, mode = "run", timer = null, auto = true, autoTimer = null;
+  function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+  function show(i) {
+    cur = i; var ex = D.examples[i];
+    tabs.querySelectorAll("button").forEach(function (b, j) { b.setAttribute("aria-selected", j === i); });
+    srcname.textContent = ex.name + ".pk";
+    src.innerHTML = esc(ex.src).replace(/#[^\n]*/g, '<span class="k">$&</span>').replace(KW, '<span class="k">$1</span>');
+    var cmd = "$ plank " + (mode === "emit" ? "emit " : "") + ex.name + ".pk";
+    var body = (mode === "emit" ? ex.ir : ex.out).replace(/\n$/, "");
+    clearTimeout(timer);
+    if (still) { term.textContent = cmd + "\n" + body + "\n$ "; term.className = "cursor"; return; }
+    var lines = body.split("\n"), n = 0;
+    term.textContent = cmd; term.className = "cursor";
+    (function tick() {
+      if (n < lines.length) {
+        var chunk = mode === "emit" ? lines.slice(n, n + 4) : [lines[n]];
+        n += chunk.length;
+        term.textContent += "\n" + chunk.join("\n");
+        term.scrollTop = term.scrollHeight;
+        timer = setTimeout(tick, mode === "emit" ? 40 : 110);
+      } else { term.textContent += "\n$ "; term.scrollTop = term.scrollHeight; }
+    })();
+  }
+  D.examples.forEach(function (ex, i) {
+    var b = document.createElement("button"); b.type = "button"; b.setAttribute("role", "tab"); b.textContent = ex.name;
+    b.onclick = function () { auto = false; clearInterval(autoTimer); show(i); };
+    tabs.appendChild(b);
+  });
+  document.getElementById("m-run").onclick = document.getElementById("m-emit").onclick = function () {
+    mode = this.id === "m-emit" ? "emit" : "run"; auto = false; clearInterval(autoTimer);
+    document.getElementById("m-run").setAttribute("aria-pressed", mode === "run");
+    document.getElementById("m-emit").setAttribute("aria-pressed", mode === "emit");
+    show(cur);
+  };
+  if (D.examples.length) {
+    show(Math.min(1, D.examples.length - 1));
+    if (!still) autoTimer = setInterval(function () { if (auto) show((cur + 1) % D.examples.length); }, 9000);
+  }
+})();
 </script>
 </body>
 </html>
