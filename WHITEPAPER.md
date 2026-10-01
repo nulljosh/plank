@@ -12,7 +12,7 @@ Each expression's code generator returns two things, the LLVM value and the Plan
 
 ## No implicit conversions
 
-`1 + 2.0` is an error. This is the single decision that keeps the type rules small enough to fit on one page of the spec. Two conversion functions, `int()` and `float()`, cover every case a beginner hits, and the error message tells them which one to use.
+`1 + 2.0` is an error. This is the single decision that keeps the type rules small enough to fit on one page of the spec. Three conversion functions, `int()`, `float()` and `str()`, cover every case a beginner hits, and the error message tells them which one to use.
 
 ## Straight to native code
 
@@ -22,6 +22,14 @@ Most first languages are tree-walking interpreters because an interpreter is eas
 
 The compiler is Python because Python is the language most people can already read. Speed of the compiler does not matter at this size; speed of the output does, and LLVM handles that.
 
-## What is deliberately missing
+## A small runtime
 
-Arrays, structs, string operations, a module system, generics, a garbage collector. Each one is a real feature with a real place in the roadmap, and each one is also a chapter a reader would have to get through. Version 0 is the smallest thing that is honestly a compiled language. Everything after it has to earn its lines.
+LLVM gives you arithmetic and branches. It does not give you a string that grows or a list you can append to. Real languages ship a runtime for that, and so does Plank: a few dozen lines of C, kept as a string inside plank.py and compiled next to every program. Joining strings, counting characters, growing a list. Anything that can be plain IR, like a bounds check, stays IR so LLVM can see through it.
+
+## Lists share, like Python
+
+A list is a pointer to one struct. Pass it to a function and the function changes the same list. Swift copies instead, which is safer and needs copy-on-write machinery Plank would have to explain. Sharing is one sentence in the spec.
+
+## Where it is going
+
+The target is a language that feels like Python, Ruby or Swift for everyday programs: lists, structs with methods, dicts, enums with pattern matching, optionals, closures. `docs/COMPARE.md` is the scorecard. Each feature still has to earn its lines, and the file still has to read in an evening.

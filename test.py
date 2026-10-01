@@ -11,12 +11,19 @@ for src in sorted(glob.glob("examples/*.pk")):
     if not ok:
         print(got.stdout + got.stderr)
 
-# one bad program must fail with a line number, not a traceback
-bad = subprocess.run(["./plank", "run", "/dev/stdin"], input="fn main() {\n  x = 1\n}\n",
-                     capture_output=True, text=True)
-ok = bad.returncode == 1 and ":2: unknown variable 'x'" in bad.stderr
-fails += not ok
-print(("ok   " if ok else "FAIL ") + "error message")
+# bad programs fail with a line number, not a traceback, at compile time and at run time
+BAD = [
+    ("fn main() {\n  x = 1\n}\n", ":2: unknown variable 'x'"),
+    ("fn main() {\n  let xs = [1, 2]\n  print(xs[2])\n}\n", ":3: index 2 is out of range for a list of 2"),
+    ("fn main() {\n  print(int(\"4x\"))\n}\n", ":2: int() got text that is not a whole number"),
+]
+for src, want in BAD:
+    bad = subprocess.run(["./plank", "run", "/dev/stdin"], input=src, capture_output=True, text=True)
+    ok = bad.returncode == 1 and want in bad.stderr
+    fails += not ok
+    print(("ok   " if ok else "FAIL ") + "error" + want)
+    if not ok:
+        print(bad.stdout + bad.stderr)
 if fails:
     sys.exit(1)
 

@@ -1,0 +1,39 @@
+# Lists: literals, indexing, append, pop, for-in, lists of lists.
+fn sum(xs: [int]) -> int {
+  var total = 0
+  for x in xs {
+    total += x
+  }
+  return total
+}
+
+fn squares(n: int) -> [int] {
+  let out: [int] = []
+  for i in 1..n + 1 {
+    out.append(i * i)
+  }
+  return out
+}
+
+fn main() {
+  let primes = [2, 3, 5, 7, 11]
+  print(primes, len(primes), sum(primes))
+  print("first \(primes[0]), last \(primes[-1])")
+
+  let sq = squares(6)
+  sq[0] = 100
+  sq[1] += 1
+  print(sq, sq.pop(), sq)
+
+  let words = ["swift", "ruby",
+               "python"]
+  words.append("plank")
+  for w in words {
+    print(w, len(w))
+  }
+  print(words)
+
+  let grid = [[1, 2], [3, 4]]
+  grid[1].append(5)
+  print(grid, grid[1][2], [true, false], [0.5])
+}

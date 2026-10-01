@@ -4,7 +4,7 @@ import glob, json, os, subprocess, sys
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(root)
-order = ["hello", "fib", "fizzbuzz", "primes", "sqrt", "strings", "text", "loops"]
+order = ["hello", "fib", "fizzbuzz", "primes", "sqrt", "strings", "text", "lists", "loops"]
 examples = []
 for name in order:
     src = open(f"examples/{name}.pk").read()

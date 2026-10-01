@@ -25,6 +25,7 @@ Functions can be declared in any order. A function with a return type must retur
 | `int` | signed 64-bit | `42`, `0` |
 | `float` | 64-bit double | `3.14`, `2.0`, `1.5e3` |
 | `bool` | 1 bit | `true`, `false` |
+| `[T]` | list of any type, shared | `[1, 2, 3]`, `["a"]`, `[[1], [2, 3]]` |
 | `str` | C string, UTF-8 | `"hello\n"`, `"世界"`, `"n is \(n)"` |
 
 String escapes are `\n`, `\t`, `\"`, `\\` and `\0`. Anything else after a backslash is an error, except `\(`, which starts an interpolation: `"\(name) has \(len(name)) letters"` drops the value of any expression into the string. Ints, floats and bools turn into text the same way `print` shows them. The expression inside can hold its own strings. A float literal needs digits on both sides of the dot.
@@ -44,6 +45,24 @@ count = count + 1
 `x += 1` is `x = x + 1`. The same goes for `-=`, `*=`, `/=` and `%=`, and `+=` joins strings.
 
 Blocks open a scope. A name cannot be declared twice in the same scope, but an inner block can shadow an outer one.
+
+## Lists
+
+A list holds one type. Write the type as `[int]`, `[str]`, `[[float]]`. An empty list needs its type spelled out once: `let xs: [int] = []`.
+
+```
+let xs = [3, 1, 4]
+xs.append(1)        # [3, 1, 4, 1]
+print(xs[0], xs[-1]) # 3 1, negative counts from the end
+xs[1] += 10         # [3, 11, 4, 1]
+let last = xs.pop() # 1
+print(len(xs), xs)  # 3 [3, 11, 4]
+for x in xs {
+  print(x)
+}
+```
+
+Lists are shared, like Python's: pass one to a function and the function sees and changes the same list. `let` stops the name from pointing at a new list, not the list from changing. An index past either end stops the program with the line number. `print` and `str` show lists the way you would type them, strings in quotes. Lines can break freely inside `[ ]`.
 
 ## Operators
 
@@ -70,7 +89,7 @@ for i in 0..10 {   # 0 through 9, the bounds are evaluated once
 }
 ```
 
-Conditions must be `bool`. The `for` variable is an `int` and is a `let` inside the body. `else` can sit on the same line as the closing brace or on the next one. A `while true` with no `break` counts as never finishing, so a function can end with one and still satisfy the return check.
+`for x in xs` walks a list from the front. Conditions must be `bool`. The `for` variable is an `int` and is a `let` inside the body. `else` can sit on the same line as the closing brace or on the next one. A `while true` with no `break` counts as never finishing, so a function can end with one and still satisfy the return check.
 
 ## Built-ins
 
@@ -78,7 +97,7 @@ Conditions must be `bool`. The `for` variable is an `int` and is a `let` inside 
 |---|---|
 | `print(a, b, ...)` | Prints its arguments separated by spaces, then a newline. `print()` is a blank line. |
 | `str(x)`, `int(x)`, `float(x)` | Convert, see Types. |
-| `len(s)` | Length of a string in characters, so `len("世界")` is 2. |
+| `len(x)` | Items in a list, or characters in a string, so `len("世界")` is 2. |
 | `input(prompt)` | Prints the optional prompt, reads one line, drops the newline. Empty at end of input. |
 | `min(a, b)`, `max(a, b)`, `abs(x)` | Two ints or two floats in, the same type out. |
 | `sqrt`, `floor`, `ceil`, `round`, `pow(x, y)` | Float math from libm. |
