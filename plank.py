@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -713,7 +713,7 @@ class Codegen:
         if lt == "str" and e.op == "+":
             return self.call_c("pk_concat", "str", lhs, rhs), "str"
         if lt == "str" and e.op in CMP:
-            diff = self.call_c("strcmp", "int", lhs, rhs)
+            diff = b.call(self.c("strcmp", ir.IntType(32), LL["str"], LL["str"]), [lhs, rhs])  # C int, 32 bits
             return b.icmp_signed(e.op, diff, ir.Constant(diff.type, 0)), "bool"
         if e.op in CMP:
             if lt == "float":
