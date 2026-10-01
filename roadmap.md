@@ -12,5 +12,4 @@
 - [ ] Mobile QA: scrolling breaks the animated background.
 - [ ] Add more examples of capabilities.
 - [ ] Remove the brown theme; pick a color from clrs.cc.
-- [x] Needs a logo.
 - [ ] Needs a why.md etc.
