@@ -1,0 +1,12 @@
+age 36
+age 7
+rejected "abc": int() got text that is not a whole number
+rejected "200": 200 is not an age
+caught: index 10 is out of range for a list of 3 after 1 try
+caught: key "bob" is not in this dict
+caught: unwrapped nil with !
+8
+caught: no even number
+inner caught inner
+outer caught outer from inner
+still running

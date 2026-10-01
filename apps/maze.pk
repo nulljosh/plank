@@ -1,0 +1,75 @@
+# Shortest path through a maze with breadth-first search, drawn back onto the map.
+struct Point {
+  x: int
+  y: int
+}
+
+fn solve(grid: [str]) -> [Point]? {
+  let h = len(grid)
+  let w = len(grid[0])
+  var start = Point(0, 0)
+  var goal = Point(0, 0)
+  for y in 0..h {
+    for x in 0..w {
+      if grid[y][x] == "S" { start = Point(x, y) }
+      if grid[y][x] == "G" { goal = Point(x, y) }
+    }
+  }
+  let came: [int: int] = [start.y * w + start.x: -1]
+  let queue = [start]
+  var head = 0
+  while head < len(queue) {
+    let p = queue[head]
+    head += 1
+    if p.x == goal.x and p.y == goal.y {
+      var path: [Point] = []
+      var at = p.y * w + p.x
+      while at != -1 {
+        path.append(Point(at % w, at / w))
+        at = came[at]
+      }
+      return path
+    }
+    for step in [Point(1, 0), Point(-1, 0), Point(0, 1), Point(0, -1)] {
+      let n = Point(p.x + step.x, p.y + step.y)
+      let key = n.y * w + n.x
+      if n.x >= 0 and n.y >= 0 and n.x < w and n.y < h and grid[n.y][n.x] != "#" and not (key in came) {
+        came[key] = p.y * w + p.x
+        queue.append(n)
+      }
+    }
+  }
+  return nil
+}
+
+fn main() {
+  let grid = [
+    "S.#.......",
+    ".##.####..",
+    "....#..#.#",
+    "##.##.##..",
+    "...#...#.G",
+  ]
+  if let path = solve(grid) {
+    let on: [int: bool] = [:]
+    for p in path {
+      on[p.y * 100 + p.x] = true
+    }
+    for y in 0..len(grid) {
+      var row = ""
+      for x in 0..len(grid[y]) {
+        let c = grid[y][x]
+        if c == "." and (y * 100 + x) in on {
+          row += "*"
+        } else {
+          row += c
+        }
+      }
+      print(row)
+    }
+    print("steps:", len(path) - 1)
+  } else {
+    print("no way through")
+  }
+  print(solve(["S#G"]) == nil)
+}

@@ -1,13 +1,11 @@
 # Roadmap
 
-## Next (the scorecard in docs/COMPARE.md, one release each)
-- [ ] 1.0 try/catch, use-case examples, polish
+## Next
+- [ ] Free memory while a program runs: an arena per call or reference counts, the last no on docs/COMPARE.md
+- [ ] `if` as an expression, so `let x = if a { 1 } else { 2 }` works
+- [ ] Generic functions over lists, so one `fn` works for `[int]` and `[str]`
 - [ ] `plank fmt`
-- [ ] a Homebrew formula so `brew install plank` works
+- [ ] A Homebrew formula so `brew install plank` works
 
 ## Ingested 2026-10-01
-- [ ] Work on QA and CI.
-- [ ] Mobile QA: scrolling breaks the animated background.
-- [ ] Add more examples of capabilities.
 - [ ] Remove the brown theme; pick a color from clrs.cc.
-- [ ] Needs a why.md etc.

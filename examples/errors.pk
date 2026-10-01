@@ -1,0 +1,73 @@
+# try and catch: every runtime error can be caught, and throw raises your own.
+fn parse_age(text: str) -> int {
+  let n = int(text.trim())
+  if n < 0 or n > 150 {
+    throw "\(n) is not an age"
+  }
+  return n
+}
+
+fn first_even(xs: [int]) -> int {
+  for x in xs {
+    try {
+      if x % 2 == 0 {
+        return x
+      }
+    } catch err {
+      print("never")
+    }
+  }
+  throw "no even number"
+}
+
+fn main() {
+  for text in ["36", " 7 ", "abc", "200"] {
+    try {
+      print("age", parse_age(text))
+    } catch err {
+      print("rejected \"\(text)\":", err)
+    }
+  }
+
+  var tries = 0
+  let xs = [1, 2, 3]
+  try {
+    tries += 1
+    print(xs[10])
+  } catch err {
+    print("caught:", err, "after", tries, "try")
+  }
+
+  let ages = ["ada": 36]
+  try {
+    print(ages["bob"])
+  } catch err {
+    print("caught:", err)
+  }
+
+  var missing: int? = nil
+  try {
+    print(missing!)
+  } catch err {
+    print("caught:", err)
+  }
+
+  print(first_even([3, 5, 8, 9]))
+  try {
+    print(first_even([1, 3]))
+  } catch err {
+    print("caught:", err)
+  }
+
+  try {
+    try {
+      throw "inner"
+    } catch err {
+      print("inner caught", err)
+      throw "outer from \(err)"
+    }
+  } catch err {
+    print("outer caught", err)
+  }
+  print("still running")
+}

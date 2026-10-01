@@ -1,0 +1,119 @@
+# A calculator: a tokenizer, a recursive-descent parser and an evaluator.
+# A small language, written in Plank.
+enum Tok {
+  num(v: float)
+  op(c: str)
+  done
+}
+
+struct Lexer {
+  toks: [Tok] = []
+  at: int = 0
+
+  fn peek() -> Tok {
+    return self.toks[self.at]
+  }
+
+  fn next() -> Tok {
+    self.at += 1
+    return self.toks[self.at - 1]
+  }
+}
+
+fn tokenize(src: str) -> Lexer {
+  let lx = Lexer()
+  var digits = ""
+  for c in src + " " {
+    if c >= "0" and c <= "9" or c == "." {
+      digits += c
+      continue
+    }
+    if len(digits) > 0 {
+      lx.toks.append(Tok.num(float(digits)))
+      digits = ""
+    }
+    if c in "+-*/()" {
+      lx.toks.append(Tok.op(c))
+    } else if c != " " {
+      throw "unexpected character \(c)"
+    }
+  }
+  lx.toks.append(Tok.done)
+  return lx
+}
+
+fn is_op(t: Tok, want: str) -> bool {
+  match t {
+    .op(c) { return c == want }
+    else { return false }
+  }
+}
+
+# expr = term (("+" | "-") term)*, term = factor (("*" | "/") factor)*, factor = num | "-" factor | "(" expr ")"
+fn expr(lx: Lexer) -> float {
+  var v = term(lx)
+  while is_op(lx.peek(), "+") or is_op(lx.peek(), "-") {
+    if is_op(lx.next(), "+") {
+      v += term(lx)
+    } else {
+      v -= term(lx)
+    }
+  }
+  return v
+}
+
+fn term(lx: Lexer) -> float {
+  var v = factor(lx)
+  while is_op(lx.peek(), "*") or is_op(lx.peek(), "/") {
+    if is_op(lx.next(), "*") {
+      v *= factor(lx)
+    } else {
+      let d = factor(lx)
+      if d == 0.0 {
+        throw "division by zero"
+      }
+      v /= d
+    }
+  }
+  return v
+}
+
+fn factor(lx: Lexer) -> float {
+  let t = lx.next()
+  match t {
+    .num(v) { return v }
+    .op(c) {
+      if c == "-" {
+        return -factor(lx)
+      }
+      if c == "(" {
+        let v = expr(lx)
+        if not is_op(lx.next(), ")") {
+          throw "missing )"
+        }
+        return v
+      }
+      throw "unexpected \(c)"
+    }
+    .done { throw "the expression ends too early" }
+  }
+}
+
+fn eval(src: str) -> float {
+  let lx = tokenize(src)
+  let v = expr(lx)
+  match lx.peek() {
+    .done { return v }
+    else { throw "extra input after the expression" }
+  }
+}
+
+fn main() {
+  for src in ["1 + 2 * 3", "(1 + 2) * 3", "-4 / (2 - 0.5)", "2 * (3 + 4) * 5", "1 / 0", "2 +", "3 $ 4", "(1 + 2"] {
+    try {
+      print(src, "=", eval(src))
+    } catch err {
+      print(src, "-> error:", err)
+    }
+  }
+}

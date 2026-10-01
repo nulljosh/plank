@@ -30,6 +30,10 @@ LLVM gives you arithmetic and branches. It does not give you a string that grows
 
 A list is a pointer to one struct. Pass it to a function and the function changes the same list. Swift copies instead, which is safer and needs copy-on-write machinery Plank would have to explain. Sharing is one sentence in the spec.
 
-## Where it is going
+## Errors jump
 
-The target is a language that feels like Python, Ruby or Swift for everyday programs: lists, structs with methods, dicts, enums with pattern matching, optionals, closures. `docs/COMPARE.md` is the scorecard. Each feature still has to earn its lines, and the file still has to read in an evening.
+A runtime error in Plank goes through one C function. Without a `try` open it prints the file and line and exits. With one open it jumps back to the `try` with `longjmp`, and the catch block gets the message. One mechanism serves bounds checks, missing keys, bad numbers and your own `throw`. The price is that a function holding a `try` keeps its variables in memory instead of registers, so the jump cannot lose a value.
+
+## Where it stands
+
+1.0 does what Python, Ruby and Swift programs do every day: strings, lists, dicts, structs, enums with an exhaustive match, optionals, closures, imports, files, and errors you can catch. `docs/COMPARE.md` is the scorecard, 22 of 23. The missing one is reclaiming memory while a program runs, which is the next big piece. Each feature still has to earn its lines, and the file still has to read in a sitting.

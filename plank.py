@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "0.10.0"
+VERSION = "1.0.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -35,7 +35,7 @@ def locate(line, files):
 
 
 # ---------------------------------------------------------------- lexer
-KEYWORDS = {"fn", "import", "struct", "enum", "match", "nil", "let", "var", "if", "else", "while", "for", "in", "return",
+KEYWORDS = {"fn", "import", "try", "catch", "throw", "struct", "enum", "match", "nil", "let", "var", "if", "else", "while", "for", "in", "return",
             "break", "continue", "true", "false", "and", "or", "not"}
 TOKEN_RE = re.compile(r"""
     (?P<ws>[ \t\r]+) | (?P<comment>\#[^\n]*) | (?P<nl>\n) |
@@ -197,6 +197,10 @@ class Field(Node): target: Node; name: str
 class Return(Node): expr: Node
 @dataclass
 class Break(Node): pass
+@dataclass
+class Try(Node): body: list; name: str; handler: list
+@dataclass
+class Throw(Node): expr: Node
 @dataclass
 class Continue(Node): pass
 @dataclass
@@ -452,6 +456,16 @@ class Parser:
         if self.at("return"):
             self.next()
             return Return(t.line, None if self.at("nl", "}") else self.expr())
+        if self.at("try"):
+            self.next()
+            body = self.block()
+            self.skip_nl()
+            self.expect("catch")
+            name = self.expect("name").val
+            return Try(t.line, body, name, self.block())
+        if self.at("throw"):
+            self.next()
+            return Throw(t.line, self.expr())
         if self.at("break"):
             self.next()
             return Break(t.line)
@@ -666,10 +680,33 @@ RUNTIME = r"""
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <setjmp.h>
 #include <time.h>
 #include <unistd.h>
 
+/* try blocks form a stack; a panic with a try open jumps to it instead of exiting */
+typedef struct PkTry { jmp_buf jb; struct PkTry *prev; } PkTry;
+static PkTry *pk_try_top;
+static const char *pk_caught_msg = "";
+
+void *pk_try_push(void) {
+    PkTry *t = malloc(sizeof *t);
+    t->prev = pk_try_top;
+    pk_try_top = t;
+    return t->jb;
+}
+
+void pk_try_pop(void) { PkTry *t = pk_try_top; pk_try_top = t->prev; free(t); }
+
+const char *pk_caught(void) { return pk_caught_msg; }
+
 void pk_panic(const char *file, long long line, const char *msg) {
+    if (pk_try_top) {
+        PkTry *t = pk_try_top;
+        pk_try_top = t->prev;
+        pk_caught_msg = msg;
+        longjmp(t->jb, 1);  /* t stays allocated: its jmp_buf is in use; one small leak per catch */
+    }
     fflush(stdout);
     fprintf(stderr, "%s:%lld: %s\n", file, line, msg);
     exit(1);
@@ -780,7 +817,7 @@ static void pk_reindex(PkDict *d) {
 }
 
 static void pk_missing(PkDict *d, long long key, const char *file, long long line) {
-    char msg[160];
+    static char msg[160];
     if (d->isstr) snprintf(msg, sizeof msg, "key \"%.100s\" is not in this dict", (char *)key);
     else snprintf(msg, sizeof msg, "key %lld is not in this dict", key);
     pk_panic(file, line, msg);
@@ -911,7 +948,7 @@ char *pk_str_slice(const char *s, long long a, long long b) {
 char *pk_char_at(const char *s, long long i, const char *file, long long line) {
     long long n = pk_len(s), at = i < 0 ? i + n : i;
     if (at < 0 || at >= n) {
-        char msg[96];
+        static char msg[96];
         snprintf(msg, sizeof msg, "index %lld is out of range for a string of %lld", i, n);
         pk_panic(file, line, msg);
     }
@@ -1070,7 +1107,7 @@ long long pk_random_int(long long lo, long long hi) {
 double pk_random_float(void) { return (pk_next() >> 11) * (1.0 / 9007199254740992.0); }
 
 void pk_index_panic(const char *file, long long line, long long i, long long len) {
-    char msg[96];
+    static char msg[96];
     snprintf(msg, sizeof msg, "index %lld is out of range for a list of %lld", i, len);
     pk_panic(file, line, msg);
 }
@@ -1213,6 +1250,7 @@ class Codegen:
         self.strings = {}
         self.builder = self.fn_ret = None
         self.captured = set()   # names some closure in the current function uses
+        self.has_try, self.tries = False, 0  # does this function use try; how many are open here
         self.lambdas = 0
         self.printf = self.c("printf", ir.IntType(32), LL["str"], var_arg=True)
 
@@ -1301,7 +1339,7 @@ class Codegen:
     def declare(self, name, ty, mutable, line):
         if name in self.scopes[-1]:
             raise PlankError(line, f"{name!r} already declared in this scope")
-        if name in self.captured:  # a closure may outlive this call, so the variable lives on the heap
+        if name in self.captured or self.has_try:  # a closure may outlive this call; a try's jump would lose registers
             cell = self.call_c("pk_alloc", "str", ir.Constant(LL["int"], 8))
             ptr = self.builder.bitcast(cell, self.ll(ty).as_pointer(), name=name)
         else:
@@ -1364,6 +1402,7 @@ class Codegen:
         self.builder = ir.IRBuilder(func.append_basic_block("entry"))
         self.scopes = [{}]
         self.captured = captures(f.body)
+        self.has_try, self.tries = any(isinstance(n, Try) for n in walk(f.body)), 0
         for (name, ty), arg in zip(sig.params, func.args):
             arg.name = name
             self.builder.store(arg, self.declare(name, ty, False, f.line))
@@ -1423,12 +1462,54 @@ class Codegen:
         if s.expr is None:
             if self.fn_ret != "void":
                 raise PlankError(s.line, f"return needs a {self.fn_ret} value")
+            self.leave(self.tries)
             self.builder.ret_void()
             return
         val, ty = self.expr(s.expr, hint=self.fn_ret)
         if not fits(ty, self.fn_ret):
             raise PlankError(s.line, f"returning {ty} from a function that returns {self.fn_ret}")
-        self.builder.ret(self.coerce(val, ty, self.fn_ret))
+        val = self.coerce(val, ty, self.fn_ret)
+        self.leave(self.tries)
+        self.builder.ret(val)
+
+    def leave(self, n):
+        """Close n open try blocks before jumping out of them."""
+        for _ in range(n):
+            self.builder.call(self.c("pk_try_pop", ir.VoidType()), [])
+
+    def s_Try(self, s):
+        b = self.builder
+        jb = self.call_c("pk_try_push", "str")
+        setjmp = self.c("_setjmp", I32, LL["str"])
+        setjmp.attributes.add("returns_twice")
+        first = b.icmp_signed("==", b.call(setjmp, [jb]), ir.Constant(I32, 0))
+        body_bb, catch_bb, merge = (b.append_basic_block(n) for n in ("try", "catch", "endtry"))
+        b.cbranch(first, body_bb, catch_bb)
+        b.position_at_end(body_bb)
+        self.tries += 1
+        self.stmts(s.body)
+        self.tries -= 1
+        live = False
+        if not b.block.is_terminated:
+            self.leave(1)
+            b.branch(merge)
+            live = True
+        b.position_at_end(catch_bb)
+        self.scopes.append({})
+        b.store(self.call_c("pk_caught", "str"), self.declare(s.name, "str", False, s.line))
+        live |= self.arm(s.handler, merge)
+        self.scopes.pop()
+        b.position_at_end(merge)
+        if not live:
+            b.unreachable()
+
+    def s_Throw(self, s):
+        val, ty = self.expr(s.expr)
+        if ty != "str":
+            raise PlankError(s.line, f"throw takes a str message, got {ty}")
+        panic = self.c("pk_panic", ir.VoidType(), LL["str"], LL["int"], LL["str"])
+        self.builder.call(panic, self.where(s.line) + [val])
+        self.builder.unreachable()
 
     def cond(self, e):
         val, ty = self.expr(e)
@@ -1558,9 +1639,9 @@ class Codegen:
         self.builder.position_at_end(cond_bb)
         self.builder.cbranch(self.cond(s.cond), body_bb, end_bb)
         self.builder.position_at_end(body_bb)
-        self.loops.append([cond_bb, end_bb, False])
+        self.loops.append([cond_bb, end_bb, False, self.tries])
         self.stmts(s.body)
-        _, _, broke = self.loops.pop()
+        _, _, broke, _ = self.loops.pop()
         if not self.builder.block.is_terminated:
             self.builder.branch(cond_bb)
         self.builder.position_at_end(end_bb)
@@ -1584,7 +1665,7 @@ class Codegen:
         cur = self.builder.load(i)
         self.builder.cbranch(self.builder.icmp_signed("<", cur, stop), body_bb, end_bb)
         self.builder.position_at_end(body_bb)
-        self.loops.append([step_bb, end_bb, False])
+        self.loops.append([step_bb, end_bb, False, self.tries])
         self.stmts(s.body)
         self.loops.pop()
         if not self.builder.block.is_terminated:
@@ -1616,7 +1697,7 @@ class Codegen:
         b.cbranch(b.icmp_signed("<", b.load(i), self.list_len(items)), body_bb, end_bb)
         b.position_at_end(body_bb)
         b.store(b.load(self.slot(items, b.load(i), ty[1:-1])), x)
-        self.loops.append([step_bb, end_bb, False])
+        self.loops.append([step_bb, end_bb, False, self.tries])
         self.stmts(s.body)
         self.loops.pop()
         if not b.block.is_terminated:
@@ -1631,11 +1712,13 @@ class Codegen:
         if not self.loops:
             raise PlankError(s.line, "break outside a loop")
         self.loops[-1][2] = True
+        self.leave(self.tries - self.loops[-1][3])
         self.builder.branch(self.loops[-1][1])
 
     def s_Continue(self, s):
         if not self.loops:
             raise PlankError(s.line, "continue outside a loop")
+        self.leave(self.tries - self.loops[-1][3])
         self.builder.branch(self.loops[-1][0])
 
     # -- expressions: each returns (llvm value, plank type)
@@ -2271,9 +2354,10 @@ class Codegen:
         fty = ir.FunctionType(self.ll(ret or "void"), [LL["str"]] + [self.ll(t, e.line) for _, t in params])
         func = ir.Function(self.module, fty, f"lambda.{self.lambdas}")
         func.linkage = "private"
-        saved = self.builder, self.scopes, self.fn_ret, self.loops, self.captured
+        saved = self.builder, self.scopes, self.fn_ret, self.loops, self.captured, self.has_try, self.tries
         self.builder = ir.IRBuilder(func.append_basic_block("entry"))
         self.scopes, self.fn_ret, self.loops = [{}], ret, []
+        self.has_try, self.tries = any(isinstance(n, Try) for n in walk(e.body)), 0
         self.captured = captures(e.body) | self.captured
         b = self.builder
         slots = b.bitcast(func.args[0], LL["str"].as_pointer())
@@ -2295,7 +2379,7 @@ class Codegen:
                         raise PlankError(e.line, f"this fn returns {ret} but can reach its end without returning")
                     self.builder.ret_void()
         finally:
-            self.builder, self.scopes, self.fn_ret, self.loops, self.captured = saved
+            self.builder, self.scopes, self.fn_ret, self.loops, self.captured, self.has_try, self.tries = saved
         return func
 
     def e_Unary(self, e):

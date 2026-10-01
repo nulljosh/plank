@@ -272,6 +272,26 @@ for i in 0..10 {   # 0 through 9, the bounds are evaluated once
 
 Floats print with 15 significant digits, so `0.1 + 0.2` shows `0.3` and `1.0 / 3.0` shows `0.333333333333333`. `print`, `str`, `int`, `float`, `len` and `input` are reserved. The math names are not: define your own `sqrt` and yours wins.
 
+## Catching errors
+
+Anything that would stop the program at run time can be caught: an index out of range, a missing dict key, `int("x")`, `nil!`, `pop()` on an empty list, and your own `throw`.
+
+```
+fn parse_age(text: str) -> int {
+  let n = int(text)
+  if n < 0 { throw "\(n) is not an age" }
+  return n
+}
+
+try {
+  print(parse_age(input("age? ")))
+} catch err {
+  print("no good:", err)   # err is the message, a str
+}
+```
+
+`throw` takes a str. A `try` can hold `return`, `break` and `continue`, and tries nest: a throw inside a `catch` goes to the next `try` out. An error nobody catches stops the program with the file, line and message, exit code 1.
+
 ## Errors
 
 Every error names the file and line:

@@ -1,0 +1,42 @@
+# Budget ledger: parse CSV lines, total by category, flag overspending.
+struct Entry {
+  date: str
+  category: str
+  amount: float
+}
+
+fn parse(line: str) -> Entry {
+  let parts = line.split(",")
+  if len(parts) != 3 {
+    throw "expected date,category,amount: \(line)"
+  }
+  return Entry(parts[0].trim(), parts[1].trim(), float(parts[2]))
+}
+
+fn money(x: float) -> str {
+  return "$" + fixed(x, 2)
+}
+
+fn main() {
+  let csv = "2026-10-01, rent, 1450.00\n2026-10-02, food, 62.40\n2026-10-03, food, 18.25\n2026-10-03, transit, 3.15\nnot a line\n2026-10-05, food, 120.80\n2026-10-06, fun, 45.00"
+  let budget = ["rent": 1500.0, "food": 150.0, "transit": 100.0, "fun": 80.0]
+  let totals: [str: float] = [:]
+  for line in csv.split("\n") {
+    try {
+      let e = parse(line)
+      totals[e.category] = totals.get(e.category, 0.0) + e.amount
+    } catch err {
+      print("skipped:", err)
+    }
+  }
+  var spent = 0.0
+  for cat in totals.keys().sorted() {
+    var row = "\(cat) \(money(totals[cat])) of \(money(budget[cat]))"
+    if totals[cat] > budget.get(cat, 0.0) {
+      row += ", over budget"
+    }
+    print(row)
+    spent += totals[cat]
+  }
+  print("total", money(spent))
+}

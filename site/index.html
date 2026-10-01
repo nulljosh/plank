@@ -76,6 +76,13 @@
   .step { border-top: 2px solid var(--accent, #b5502c); padding-top: 10px; }
   .step b { display: block; font-size: .95rem; }
   .step span { font-size: .85rem; color: var(--text2, #666); }
+  .apps { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 22px; }
+  .app { border: 1px solid var(--border, #e5e5e5); border-radius: 12px; background: var(--bg2, #f5f5f5); padding: 14px 16px; min-width: 0; }
+  .app h3 { font-size: .95rem; display: flex; justify-content: space-between; align-items: baseline; }
+  .app h3 a { font-size: .75rem; font-weight: 500; color: var(--text2, #666); text-decoration: none; }
+  .app h3 a:hover { text-decoration: underline; }
+  .app p { font-size: .85rem; color: var(--text2, #666); margin-top: 4px; }
+  .app pre { height: auto; max-height: 9.5rem; padding: 10px 0 0; font-size: .75rem; overflow: hidden; }
   .run pre { height: auto; border: 1px solid var(--border2, #ddd); border-radius: 12px; background: var(--bg2, #f5f5f5); padding: 14px 16px; margin-top: 14px; }
   footer { margin: 96px 0 40px; }
   footer .sheet-rule { padding-top: 0; }
@@ -89,6 +96,7 @@
     .pane + .pane { border-left: 0; border-top: 1px solid var(--border, #eee); }
     pre { height: 15rem; }
     .facts, .steps { grid-template-columns: 1fr 1fr; }
+    .apps { grid-template-columns: minmax(0, 1fr); }
     .mode { display: none; }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -132,7 +140,7 @@
 </div>
 
 <div class="facts reveal" aria-label="Plank in numbers">
-  <div class="fact"><b>21/23</b><span>everyday features Python, Ruby and Swift have</span></div>
+  <div class="fact"><b>22/23</b><span>everyday features Python, Ruby and Swift have</span></div>
   <div class="fact"><b>1</b><span>file is the whole compiler</span></div>
   <div class="fact"><b>2</b><span>platforms, macOS and Linux</span></div>
   <div class="fact"><b>0.03s</b><span>to run fib(35) natively</span></div>
@@ -158,7 +166,13 @@
 <section class="copy wrap reveal">
   <h2>What is in the box</h2>
   <p>int, float, bool, str. <code>let</code> binds once, <code>var</code> can change. if, else, while, for over a range, break and continue. Functions in any order, recursion included. UTF-8 strings that join, compare and interpolate: <code>"\(name) has \(len(name)) letters"</code>. Errors that name the file and line and tell you what to do instead.</p>
-  <p>Lists too: <code>[1, 2, 3]</code>, <code>xs.append(4)</code>, <code>for x in xs</code>, bounds checked. Structs with methods, default and named arguments. Dicts that keep their order: <code>["a": 1]</code>, <code>in</code>, <code>get</code>. Enums that carry values and a <code>match</code> that refuses to forget a case. Optionals the compiler makes you check: <code>int?</code>, <code>if let</code>, <code>??</code>. Closures that capture, <code>map</code>, <code>filter</code>, <code>reduce</code>, <code>sort(by:)</code>. Strings that split, join, trim, replace and slice by character. Imports, files, arguments, the clock and dice. The goal is a language that feels like Swift or Python and still reads in an evening.</p>
+  <p>Lists too: <code>[1, 2, 3]</code>, <code>xs.append(4)</code>, <code>for x in xs</code>, bounds checked. Structs with methods, default and named arguments. Dicts that keep their order: <code>["a": 1]</code>, <code>in</code>, <code>get</code>. Enums that carry values and a <code>match</code> that refuses to forget a case. Optionals the compiler makes you check: <code>int?</code>, <code>if let</code>, <code>??</code>. Closures that capture, <code>map</code>, <code>filter</code>, <code>reduce</code>, <code>sort(by:)</code>. Strings that split, join, trim, replace and slice by character. Imports, files, arguments, the clock and dice. <code>try</code> and <code>catch</code> for every runtime error, and <code>throw</code> for your own. The goal is a language that feels like Swift or Python and still reads in an evening.</p>
+</section>
+
+<section class="copy wrap reveal" id="build">
+  <h2>What you can build</h2>
+  <p>Real programs from the repo. The test suite compiles and runs every one of them on every push, and the output under each is theirs.</p>
+  <div class="apps" id="apps"></div>
 </section>
 
 <section class="copy wrap run reveal" id="run">
@@ -227,8 +241,20 @@
   var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }); }, { rootMargin: "0px 0px -10% 0px" });
   document.querySelectorAll(".reveal").forEach(function (el) { io.observe(el); });
 
+  // apps: name, what it is, and the first lines of its real output
+  var appsEl = document.getElementById("apps");
+  (D.apps || []).forEach(function (a) {
+    var card = document.createElement("div"); card.className = "app";
+    var h = document.createElement("h3"); h.textContent = a.name + ".pk";
+    var link = document.createElement("a"); link.href = "https://github.com/nulljosh/plank/blob/main/apps/" + a.name + ".pk"; link.textContent = "Source";
+    h.appendChild(link);
+    var p = document.createElement("p"); p.textContent = a.about;
+    var pre = document.createElement("pre"); pre.textContent = a.out.split("\n").slice(0, 7).join("\n");
+    card.appendChild(h); card.appendChild(p); card.appendChild(pre); appsEl.appendChild(card);
+  });
+
   // demo
-  var KW = /\b(fn|let|var|if|else|while|for|in|return|break|continue|true|false|and|or|not|int|float|bool|str)\b/g;
+  var KW = /\b(fn|let|var|if|else|while|for|in|return|break|continue|true|false|and|or|not|int|float|bool|str|struct|enum|match|nil|import|try|catch|throw)\b/g;
   var tabs = document.getElementById("tabs"), src = document.getElementById("src"), term = document.getElementById("term"), srcname = document.getElementById("srcname");
   var cur = 1, mode = "run", timer = null, auto = true, autoTimer = null;
   function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;"); }

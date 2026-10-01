@@ -1,0 +1,33 @@
+# Word frequency: the top words in a text file, or in a built-in sample.
+# plank run apps/wordfreq.pk some.txt
+fn words(text: str) -> [str] {
+  var out: [str] = []
+  for w in text.lower().split() {
+    var clean = ""
+    for c in w {
+      if c >= "a" and c <= "z" or c == "'" {
+        clean += c
+      }
+    }
+    if len(clean) > 0 {
+      out.append(clean)
+    }
+  }
+  return out
+}
+
+fn main() {
+  var text = "It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness."
+  if len(args()) > 0 {
+    text = read_file(args()[0]) ?? text
+  }
+  let counts: [str: int] = [:]
+  for w in words(text) {
+    counts[w] = counts.get(w, 0) + 1
+  }
+  let ranked = counts.keys().sorted(by: fn(a, b) => counts[a] > counts[b])
+  print(len(words(text)), "words,", len(counts), "different")
+  for w in ranked[..5] {
+    print(counts[w], w)
+  }
+}

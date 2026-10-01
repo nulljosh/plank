@@ -1,0 +1,65 @@
+# A to-do list for the command line, saved to a file between runs.
+#   plank run apps/todo.pk add "buy milk"
+#   plank run apps/todo.pk done 1
+#   plank run apps/todo.pk
+# With no arguments it plays a short scripted session in a scratch file.
+enum Command {
+  add(text: str)
+  done(n: int)
+  clear
+  show
+}
+
+fn parse(words: [str]) -> Command {
+  if len(words) == 0 {
+    return Command.show
+  }
+  match words[0] {
+    "add" { return Command.add(words[1..].join(" ")) }
+    "done" { return Command.done(int(words[1])) }
+    "clear" { return Command.clear }
+    else { throw "unknown command \(words[0]); try add, done, clear" }
+  }
+}
+
+fn load(path: str) -> [str] {
+  let text = read_file(path) ?? ""
+  return text.split("\n").filter(fn(line) => len(line) > 0)
+}
+
+fn run(cmd: Command, path: str) {
+  var items = load(path)
+  match cmd {
+    .add(text) { items.append("[ ] " + text) }
+    .done(n) {
+      if n < 1 or n > len(items) {
+        throw "there is no item \(n)"
+      }
+      items[n - 1] = "[x] " + items[n - 1][4..]
+    }
+    .clear { items = items.filter(fn(i) => i.starts_with("[ ]")) }
+    .show { }
+  }
+  write_file(path, items.join("\n") + "\n")
+  for i in 0..len(items) {
+    print("\(i + 1). \(items[i])")
+  }
+}
+
+fn main() {
+  var path = (env("HOME") ?? "/tmp") + "/.plank-todo"
+  var session = [args()]
+  if len(args()) == 0 {
+    path = "/tmp/plank-todo-demo"
+    write_file(path, "")
+    session = [["add", "buy", "milk"], ["add", "ship", "plank", "1.0"], ["done", "2"], ["done", "9"], ["fly"], ["clear"]]
+  }
+  for words in session {
+    print("$ todo", words.join(" "))
+    try {
+      run(parse(words), path)
+    } catch err {
+      print("todo:", err)
+    }
+  }
+}

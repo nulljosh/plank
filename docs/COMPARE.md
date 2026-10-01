@@ -23,7 +23,7 @@ The goal: write the programs you would write in Python, Ruby or Swift, in Plank,
 | Closures, first-class functions | yes | blocks | yes | yes (0.8) |
 | map, filter, reduce, sort | yes | yes | yes | yes (0.8) |
 | String methods: split, join, contains, slices | yes | yes | yes | yes (0.9) |
-| Errors you can catch | try | rescue | try | no |
+| Errors you can catch | try | rescue | try | yes (1.0) |
 | Multiple files, imports | yes | yes | yes | yes (0.10) |
 | Files and command-line args | yes | yes | yes | yes (0.10) |
 | Memory reclaimed | GC | GC | ARC | no, freed at exit |
@@ -32,4 +32,4 @@ Out of scope for now, on purpose: threads and async, a package manager, a REPL, 
 
 ## Score
 
-21 of 23. The loop that builds Plank works down this table one release at a time.
+22 of 23. The one no is memory: Plank frees everything when the program exits, which suits tools and scripts that run and finish, and not a server that runs for a month. That is the next big piece.

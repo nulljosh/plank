@@ -1,0 +1,14 @@
+$ todo add buy milk
+1. [ ] buy milk
+$ todo add ship plank 1.0
+1. [ ] buy milk
+2. [ ] ship plank 1.0
+$ todo done 2
+1. [ ] buy milk
+2. [x] ship plank 1.0
+$ todo done 9
+todo: there is no item 9
+$ todo fly
+todo: unknown command fly; try add, done, clear
+$ todo clear
+1. [ ] buy milk

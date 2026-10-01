@@ -1,0 +1,79 @@
+# Conway's Game of Life on a small wrapping board, printed a few generations at a time.
+struct Board {
+  w: int
+  h: int
+  cells: [bool] = []
+
+  fn at(x: int, y: int) -> bool {
+    return self.cells[((y + self.h) % self.h) * self.w + (x + self.w) % self.w]
+  }
+
+  fn neighbours(x: int, y: int) -> int {
+    var n = 0
+    for dy in -1..2 {
+      for dx in -1..2 {
+        if (dx != 0 or dy != 0) and self.at(x + dx, y + dy) {
+          n += 1
+        }
+      }
+    }
+    return n
+  }
+
+  fn step() -> Board {
+    let next = Board(self.w, self.h)
+    for y in 0..self.h {
+      for x in 0..self.w {
+        let n = self.neighbours(x, y)
+        next.cells.append(n == 3 or (n == 2 and self.at(x, y)))
+      }
+    }
+    return next
+  }
+
+  fn show() -> str {
+    var rows: [str] = []
+    for y in 0..self.h {
+      var row = ""
+      for x in 0..self.w {
+        if self.at(x, y) {
+          row += "#"
+        } else {
+          row += "."
+        }
+      }
+      rows.append(row)
+    }
+    return rows.join("\n")
+  }
+}
+
+fn parse(picture: [str]) -> Board {
+  let b = Board(len(picture[0]), len(picture))
+  for row in picture {
+    for c in row {
+      b.cells.append(c == "#")
+    }
+  }
+  return b
+}
+
+fn main() {
+  var b = parse([
+    ".#......",
+    "..#.....",
+    "###.....",
+    "........",
+    "........",
+    "........",
+  ])
+  for gen in 0..4 {
+    print("generation \(gen)")
+    print(b.show())
+    b = b.step()
+  }
+  for i in 4..20 {
+    b = b.step()
+  }
+  print("alive after 20:", len(b.cells.filter(fn(c) => c)))
+}

@@ -1,0 +1,8 @@
+1 + 2 * 3 = 7
+(1 + 2) * 3 = 9
+-4 / (2 - 0.5) = -2.66666666666667
+2 * (3 + 4) * 5 = 70
+1 / 0 -> error: division by zero
+2 + -> error: the expression ends too early
+3 $ 4 -> error: unexpected character $
+(1 + 2 -> error: missing )
