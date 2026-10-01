@@ -1,0 +1,23 @@
+# String tools: split, join, trim, case, replace, find, slices, characters.
+fn main() {
+  let line = "  ada,linus , grace,  "
+  let names = line.split(",").map(fn(s) => s.trim()).filter(fn(s) => len(s) > 0)
+  print(names, names.join(" & "))
+  print("the quick  brown fox".split(), "a-b-c".split("-"))
+
+  let title = "plank language"
+  print(title.upper(), "LOUD".lower(), title.replace("language", "compiler"))
+  print(title.find("lang"), title.find("rust"), title.starts_with("pl"), title.ends_with("age"))
+
+  let word = "héllo, 世界"
+  print(word[0], word[1], word[-1], word[..5], word[7..], len(word))
+  var reversed = ""
+  for c in word {
+    reversed = c + reversed
+  }
+  print(reversed, word.chars()[7..])
+
+  let xs = [10, 20, 30, 40, 50]
+  print(xs[1..3], xs[..2], xs[3..], xs[-2..], xs[4..99])
+  print(fixed(3.14159, 2), fixed(2.0 / 3.0, 4), "$" + fixed(1234.5, 2))
+}

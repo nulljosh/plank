@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "0.8.1"
+VERSION = "0.9.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -179,6 +179,8 @@ class List(Node): items: list
 class Dict(Node): keys: list; vals: list
 @dataclass
 class Index(Node): target: Node; index: Node
+@dataclass
+class Slice(Node): target: Node; start: Node; stop: Node   # either end may be None
 @dataclass
 class Method(Node): target: Node; name: str; args: list; labels: list
 @dataclass
@@ -501,7 +503,13 @@ class Parser:
                 e = Unwrap(line, e)
                 continue
             if self.toks[self.i - 1].kind == "[":
-                e = Index(line, e, self.expr())
+                start = None if self.at("..") else self.expr()
+                if self.at(".."):
+                    self.next()
+                    stop = None if self.at("]") else self.expr()
+                    e = Slice(line, e, start, stop)
+                else:
+                    e = Index(line, e, start)
                 self.expect("]")
                 continue
             name = self.expect("name").val
@@ -853,6 +861,132 @@ void pk_list_sort(PkList *l, long long size, PkLess less, void *env) {
     free(tmp);
 }
 
+/* ---- strings: UTF-8 in, characters counted as code points */
+static long long pk_skip(const char *s, long long n) {  /* byte offset of character n */
+    const char *p = s;
+    while (*p && n > 0) { p++; while (((unsigned char)*p & 0xC0) == 0x80) p++; n--; }
+    return p - s;
+}
+
+static char *pk_strndup(const char *s, long long n) {
+    char *r = pk_alloc(n + 1);
+    memcpy(r, s, n);
+    r[n] = 0;
+    return r;
+}
+
+static void pk_clamp(long long len, long long *a, long long *b) {
+    if (*a < 0) *a += len;
+    if (*b < 0) *b += len;
+    if (*a < 0) *a = 0;
+    if (*b > len) *b = len;
+    if (*a > *b) *a = *b;
+}
+
+char *pk_str_slice(const char *s, long long a, long long b) {
+    pk_clamp(pk_len(s), &a, &b);
+    long long from = pk_skip(s, a);
+    return pk_strndup(s + from, pk_skip(s + from, b - a));
+}
+
+char *pk_char_at(const char *s, long long i, const char *file, long long line) {
+    long long n = pk_len(s), at = i < 0 ? i + n : i;
+    if (at < 0 || at >= n) {
+        char msg[96];
+        snprintf(msg, sizeof msg, "index %lld is out of range for a string of %lld", i, n);
+        pk_panic(file, line, msg);
+    }
+    return pk_str_slice(s, at, at + 1);
+}
+
+PkList *pk_chars(const char *s) {
+    PkList *l = pk_list_new(pk_len(s), 8);
+    while (*s) {
+        long long n = pk_skip(s, 1);
+        *(char **)pk_list_push(l, 8) = pk_strndup(s, n);
+        s += n;
+    }
+    return l;
+}
+
+PkList *pk_split(const char *s, const char *sep) {
+    PkList *l = pk_list_new(4, 8);
+    size_t k = strlen(sep);
+    if (!k) {  /* no separator: split on runs of whitespace, like Python */
+        while (*s) {
+            while (*s && isspace((unsigned char)*s)) s++;
+            const char *start = s;
+            while (*s && !isspace((unsigned char)*s)) s++;
+            if (s > start) *(char **)pk_list_push(l, 8) = pk_strndup(start, s - start);
+        }
+        return l;
+    }
+    for (const char *hit; (hit = strstr(s, sep)); s = hit + k)
+        *(char **)pk_list_push(l, 8) = pk_strndup(s, hit - s);
+    *(char **)pk_list_push(l, 8) = pk_strndup(s, strlen(s));
+    return l;
+}
+
+char *pk_join(PkList *l, const char *sep) {
+    size_t n = 1, k = strlen(sep);
+    char **items = (char **)l->data;
+    for (long long i = 0; i < l->len; i++) n += strlen(items[i]) + k;
+    char *r = pk_alloc(n), *p = r;
+    for (long long i = 0; i < l->len; i++) {
+        if (i) { memcpy(p, sep, k); p += k; }
+        size_t m = strlen(items[i]);
+        memcpy(p, items[i], m);
+        p += m;
+    }
+    *p = 0;
+    return r;
+}
+
+char *pk_trim(const char *s) {
+    while (isspace((unsigned char)*s)) s++;
+    size_t n = strlen(s);
+    while (n && isspace((unsigned char)s[n - 1])) n--;
+    return pk_strndup(s, n);
+}
+
+char *pk_case(const char *s, long long upper) {  /* ASCII letters only; other characters pass through */
+    char *r = pk_strndup(s, strlen(s));
+    for (char *p = r; *p; p++) *p = upper ? toupper((unsigned char)*p) : tolower((unsigned char)*p);
+    return r;
+}
+
+char *pk_replace(const char *s, const char *a, const char *b) {
+    if (!*a) return pk_strndup(s, strlen(s));
+    PkList *parts = pk_split(s, a);
+    return pk_join(parts, b);
+}
+
+long long pk_find(const char *s, const char *x) {
+    const char *hit = strstr(s, x);
+    return hit ? pk_len(pk_strndup(s, hit - s)) : -1;
+}
+
+long long pk_starts(const char *s, const char *p) { return strncmp(s, p, strlen(p)) == 0; }
+
+long long pk_ends(const char *s, const char *p) {
+    size_t n = strlen(s), k = strlen(p);
+    return k <= n && strcmp(s + n - k, p) == 0;
+}
+
+char *pk_fixed(double v, long long digits) {
+    char *r = pk_alloc(64);
+    snprintf(r, 64, "%.*f", (int)(digits < 0 ? 0 : digits > 30 ? 30 : digits), v);
+    return r;
+}
+
+PkList *pk_list_slice(PkList *l, long long size, long long a, long long b) {
+    pk_clamp(l->len, &a, &b);
+    PkList *r = pk_list_new(b - a, size);
+    memcpy(r->data, l->data + a * size, (b - a) * size);
+    r->len = b - a;
+    return r;
+}
+
 void pk_index_panic(const char *file, long long line, long long i, long long len) {
     char msg[96];
     snprintf(msg, sizeof msg, "index %lld is out of range for a list of %lld", i, len);
@@ -1127,7 +1261,7 @@ class Codegen:
                 raise PlankError(f.line, f"{key!r} is a built-in or a struct, pick another name")
             params = recv + f.params
             fty = ir.FunctionType(self.ll(f.ret, f.line), [self.ll(t, f.line) for _, t in params])
-            self.fns[key] = Sig(ir.Function(self.module, fty, "pk_" + key), params, f.ret, f.defaults)
+            self.fns[key] = Sig(ir.Function(self.module, fty, "pk." + key), params, f.ret, f.defaults)  # the dot keeps them apart from C and the runtime
         main = self.fns.get("main")
         if not main or main.params or main.ret != "void":
             raise PlankError(1, "need a `fn main()` with no parameters and no return type")
@@ -1380,6 +1514,8 @@ class Codegen:
         items, ty = self.expr(s.items)
         if dict_kv(ty):
             items, ty = self.call_c("pk_dict_keys", LIST, items), f"[{dict_kv(ty)[0]}]"
+        if ty == "str":
+            items, ty = self.call_c("pk_chars", LIST, items), "[str]"
         if not is_list(ty) or ty == "[]":
             raise PlankError(s.line, f"for ... in needs a list or a range, got {ty}")
         b = self.builder
@@ -1465,9 +1601,11 @@ class Codegen:
         slot = self.builder.call(self.c(fn, slot_ty, *[a.type for a in args]), args)
         return self.builder.bitcast(slot, self.ll(kv[1]).as_pointer())
 
-    def index_ptr(self, e, write=False):
+    def index_ptr(self, e, write=False, target=None):
         """Pointer to xs[i], bounds checked, negative i counts from the end, like Python. Or to d[k]."""
-        lst, ty = self.expr(e.target)
+        lst, ty = target or self.expr(e.target)
+        if ty == "str":
+            raise PlankError(e.line, "strings cannot be changed in place; build a new one with + or replace()")
         kv = dict_kv(ty)
         if kv:
             key, kt = self.expr(e.index)
@@ -1487,8 +1625,32 @@ class Codegen:
         return self.slot(lst, at, ty[1:-1]), ty[1:-1]
 
     def e_Index(self, e):
-        ptr, ty = self.index_ptr(e)
+        target = self.expr(e.target)
+        if target[1] == "str":
+            i, it = self.expr(e.index)
+            if it != "int":
+                raise PlankError(e.line, f"string index must be int, got {it}")
+            return self.call_c("pk_char_at", "str", target[0], i, *self.where(e.line)), "str"
+        ptr, ty = self.index_ptr(e, target=target)
         return self.builder.load(ptr), ty
+
+    def e_Slice(self, e):
+        """xs[a..b], s[..b], xs[a..]: a copy, ends clamped like Python, negatives count from the end."""
+        val, ty = self.expr(e.target)
+        ends = []
+        for end, missing in ((e.start, 0), (e.stop, 2 ** 62)):
+            if end is None:
+                ends.append(ir.Constant(LL["int"], missing))
+                continue
+            v, t = self.expr(end)
+            if t != "int":
+                raise PlankError(e.line, f"slice ends must be int, got {t}")
+            ends.append(v)
+        if ty == "str":
+            return self.call_c("pk_str_slice", "str", val, *ends), "str"
+        if is_list(ty) and ty != "[]":
+            return self.call_c("pk_list_slice", LIST, val, ir.Constant(LL["int"], size(ty[1:-1])), *ends), ty
+        raise PlankError(e.line, f"cannot slice {ty}, only lists and strings")
 
     def e_List(self, e):
         items = [self.expr(x) for x in e.items]
@@ -1519,6 +1681,42 @@ class Codegen:
         for (k, _), (v, _) in pairs:
             self.builder.store(v, self.dict_slot(d, (kt, vt), k, kt, e.line, "pk_dict_put"))
         return d, ty
+
+    STR_METHODS = {  # name: (runtime function, argument types, result)
+        "split": ("pk_split", ["str"], "[str]"), "trim": ("pk_trim", [], "str"),
+        "upper": ("pk_case", [], "str"), "lower": ("pk_case", [], "str"),
+        "replace": ("pk_replace", ["str", "str"], "str"), "find": ("pk_find", ["str"], "int?"),
+        "starts_with": ("pk_starts", ["str"], "bool"), "ends_with": ("pk_ends", ["str"], "bool"),
+        "chars": ("pk_chars", [], "[str]"),
+    }
+
+    def str_method(self, e, s, args):
+        if e.name not in self.STR_METHODS:
+            raise PlankError(e.line, f"str has no method {e.name}(); try {', '.join(m + '()' for m in self.STR_METHODS)}")
+        fn, want, ret = self.STR_METHODS[e.name]
+        if e.name == "split" and not args:
+            args = [(self.cstr(""), "str")]  # no separator: whitespace
+        if [t for _, t in args] != want:
+            raise PlankError(e.line, f"{e.name}() takes ({', '.join(want)}), got ({', '.join(t for _, t in args)})")
+        vals = [v for v, _ in args]
+        if fn == "pk_case":
+            vals.append(ir.Constant(LL["int"], int(e.name == "upper")))
+        b = self.builder
+        if ret == "bool":
+            return b.trunc(self.call_c(fn, "int", s, *vals), LL["bool"]), "bool"
+        if ret == "int?":
+            at = self.call_c(fn, "int", s, *vals)
+            found = b.icmp_signed(">=", at, ir.Constant(LL["int"], 0))
+            with b.if_else(found) as (yes, no):
+                with yes:
+                    some, some_bb = self.coerce(at, "int", "int?"), b.block
+                with no:
+                    no_bb = b.block
+            phi = b.phi(self.ll("int?"))
+            phi.add_incoming(some, some_bb)
+            phi.add_incoming(ir.Constant(self.ll("int?"), None), no_bb)
+            return phi, "int?"
+        return self.call_c(fn, LIST if ret == "[str]" else ret, s, *vals), ret
 
     def dict_method(self, e, d, kv, args):
         b = self.builder
@@ -1739,6 +1937,12 @@ class Codegen:
         if any(e.labels):
             raise PlankError(e.line, f"{e.name}() does not take labels")
         args = [self.expr(a) for a in e.args]
+        if ty == "str":
+            return self.str_method(e, target, args)
+        if ty == "[str]" and e.name == "join":
+            if len(args) > 1 or (args and args[0][1] != "str"):
+                raise PlankError(e.line, "join() takes one str to put between the items")
+            return self.call_c("pk_join", "str", target, args[0][0] if args else self.cstr("")), "str"
         if dict_kv(ty):
             return self.dict_method(e, target, dict_kv(ty), args)
         if is_list(ty) and ty != "[]":
@@ -2276,6 +2480,12 @@ class Codegen:
 
     b_sqrt = b_floor = b_ceil = b_round = libm
 
+    def b_fixed(self, e, args):
+        self.arity(e, args, 2)
+        if [t for _, t in args] != ["float", "int"]:
+            raise PlankError(e.line, "fixed(x, digits) takes a float and an int: fixed(3.14159, 2) is \"3.14\"")
+        return self.call_c("pk_fixed", "str", args[0][0], args[1][0]), "str"
+
     def b_pow(self, e, args):
         return self.libm(e, args, 2)
 
@@ -2311,7 +2521,9 @@ def build(path, out=None):
     with open(rt, "w") as f:
         f.write(RUNTIME)
     try:
-        subprocess.run(["cc", "-O2", "-w", obj, rt, "-o", out, "-lm"], check=True)
+        link = subprocess.run(["cc", "-O2", "-w", obj, rt, "-o", out, "-lm"], capture_output=True, text=True)
+        if link.returncode:
+            raise PlankError(0, "linking failed, this is a Plank bug, please report it:\n" + link.stderr.strip())
     finally:
         os.unlink(obj); os.unlink(rt); os.rmdir(tmp)
     return out

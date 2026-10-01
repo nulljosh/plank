@@ -22,7 +22,7 @@ The goal: write the programs you would write in Python, Ruby or Swift, in Plank,
 | Optionals or nil | None | nil | `?` | yes (0.7) |
 | Closures, first-class functions | yes | blocks | yes | yes (0.8) |
 | map, filter, reduce, sort | yes | yes | yes | yes (0.8) |
-| String methods: split, join, contains, slices | yes | yes | yes | no |
+| String methods: split, join, contains, slices | yes | yes | yes | yes (0.9) |
 | Errors you can catch | try | rescue | try | no |
 | Multiple files, imports | yes | yes | yes | no |
 | Files and command-line args | yes | yes | yes | no |
@@ -32,4 +32,4 @@ Out of scope for now, on purpose: threads and async, a package manager, a REPL, 
 
 ## Score
 
-18 of 23. The loop that builds Plank works down this table one release at a time.
+19 of 23. The loop that builds Plank works down this table one release at a time.

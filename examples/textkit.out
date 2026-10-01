@@ -1,0 +1,8 @@
+["ada", "linus", "grace"] ada & linus & grace
+["the", "quick", "brown", "fox"] ["a", "b", "c"]
+PLANK LANGUAGE loud plank compiler
+6 nil true true
+h é 界 héllo 世界 9
+界世 ,olléh ["世", "界"]
+[20, 30] [10, 20] [40, 50] [40, 50] [50]
+3.14 0.6667 $1234.50

@@ -31,7 +31,9 @@ BAD = [
     ("fn main() {\n  print(len(5))\n}\n", ":2: len() needs a str, a list or a dict, got int"),
     ("fn main() {\n  break\n}\n", ":2: break outside a loop"),
     ("fn main() {\n  print(1\n}\n", ":3: missing ) for the ( opened on line 2"),
+    ("fn main() {\n  let s = \"abc\"\n  s[0] = \"x\"\n}\n", ":3: strings cannot be changed in place"),
     # run time
+    ("fn main() {\n  print(\"abc\"[5])\n}\n", ":2: index 5 is out of range for a string of 3"),
     ("fn main() {\n  let xs = [1, 2]\n  print(xs[2])\n}\n", ":3: index 2 is out of range for a list of 2"),
     ("fn main() {\n  let xs: [int] = []\n  print(xs.pop())\n}\n", ":3: pop() on an empty list"),
     ("fn main() {\n  print(int(\"4x\"))\n}\n", ":2: int() got text that is not a whole number"),

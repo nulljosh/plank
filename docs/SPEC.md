@@ -60,6 +60,26 @@ count = count + 1
 
 Blocks open a scope. A name cannot be declared twice in the same scope, but an inner block can shadow an outer one.
 
+## String tools
+
+```
+"a, b ,c".split(",")          # ["a", " b ", "c"]
+"the  quick fox".split()      # ["the", "quick", "fox"], on runs of whitespace
+["a", "b"].join(" & ")        # "a & b"
+"  hi  ".trim()               # "hi"
+"Plank".upper(), "Plank".lower()
+"plank lang".replace("lang", "compiler")
+"plank".find("an")            # 2, an int?, nil when it is not there
+"plank".starts_with("pl"), "plank".ends_with("nk")
+"héllo"[1]                    # "é", a one-character string
+"héllo"[1..3], "héllo"[..2], "héllo"[-2..]
+for c in "héllo" { ... }      # one character at a time
+"héllo".chars()               # ["h", "é", "l", "l", "o"]
+fixed(3.14159, 2)             # "3.14"
+```
+
+Indexes and lengths count characters, not bytes. Strings never change in place; every tool returns a new one. `upper` and `lower` change ASCII letters and leave the rest alone.
+
 ## Lists
 
 A list holds one type. Write the type as `[int]`, `[str]`, `[[float]]`. An empty list needs its type spelled out once: `let xs: [int] = []`.
@@ -76,7 +96,7 @@ for x in xs {
 }
 ```
 
-Lists are shared, like Python's: pass one to a function and the function sees and changes the same list. `let` stops the name from pointing at a new list, not the list from changing. An index past either end stops the program with the line number. `print` and `str` show lists the way you would type them, strings in quotes. Lines can break freely inside `[ ]`.
+Lists are shared, like Python's: pass one to a function and the function sees and changes the same list. `let` stops the name from pointing at a new list, not the list from changing. An index past either end stops the program with the line number. `print` and `str` show lists the way you would type them, strings in quotes. Lines can break freely inside `[ ]`. `xs[1..3]` is a new list of items 1 and 2; either end can be left off, negative ends count from the back, and ends past the list are clamped, so a slice never stops the program.
 
 ## Dicts
 
@@ -238,6 +258,7 @@ for i in 0..10 {   # 0 through 9, the bounds are evaluated once
 | `input(prompt)` | Prints the optional prompt, reads one line, drops the newline. Empty at end of input. |
 | `min(a, b)`, `max(a, b)`, `abs(x)` | Two ints or two floats in, the same type out. |
 | `sqrt`, `floor`, `ceil`, `round`, `pow(x, y)` | Float math from libm. |
+| `fixed(x, digits)` | A float as text with that many digits after the point. |
 
 Floats print with 15 significant digits, so `0.1 + 0.2` shows `0.3` and `1.0 / 3.0` shows `0.333333333333333`. `print`, `str`, `int`, `float`, `len` and `input` are reserved. The math names are not: define your own `sqrt` and yours wins.
 

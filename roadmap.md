@@ -1,7 +1,8 @@
 # Roadmap
 
 ## Next (the scorecard in docs/COMPARE.md, one release each)
-- [ ] 0.8 string methods, imports, files and args
+- [ ] 0.10 files, args, stdin, random, time, imports
+- [ ] 1.0 try/catch, use-case examples, polish
 - [ ] `plank fmt`
 - [ ] a Homebrew formula so `brew install plank` works
 
