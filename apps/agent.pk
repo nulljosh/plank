@@ -34,14 +34,15 @@ fn ask(prompt: str) -> Json {
 fn scripted(step: int) -> Json {
   let turns = [
     "{\"tool\": \"shell\", \"arg\": \"echo 2+2 | bc\"}",
-    "{\"tool\": \"read\", \"arg\": \"/etc/hosts\"}",
-    "{\"tool\": \"done\", \"arg\": \"2 + 2 is 4, and the hosts file starts with a comment.\"}",
+    "{\"tool\": \"read\", \"arg\": \"/tmp/plank-agent-note.txt\"}",
+    "{\"tool\": \"done\", \"arg\": \"2 + 2 is 4, and the note starts with a title.\"}",
   ]
   return json_parse(turns[min(step, 2)])
 }
 
 fn main() {
-  var transcript = "You are a tool-using agent. Reply with JSON {\"tool\": shell|read|done, \"arg\": ...}. Task: what is 2+2, and what is the first line of /etc/hosts?"
+  var transcript = "You are a tool-using agent. Reply with JSON {\"tool\": shell|read|done, \"arg\": ...}. Task: what is 2+2, and what is the first line of /tmp/plank-agent-note.txt?"
+  write_file("/tmp/plank-agent-note.txt", "# Agent notes\nThe same on every machine, so the demo output is too.\n")
   let live = "--live" in args()
   for step in 0..6 {
     var reply = scripted(step)
