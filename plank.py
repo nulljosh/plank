@@ -1540,7 +1540,8 @@ class Var:
 
 
 class Codegen:
-    def __init__(self, name, file=None, files=None):
+    def __init__(self, name, file=None, files=None, uses_json=True):
+        self.uses_json = uses_json  # the Json enum is only compiled in when the program mentions it
         self.files = files or [file or name]  # what runtime errors call each source file: the path you typed
         self.module = ir.Module(name=name)
         self.module.triple = TRIPLE
@@ -1735,7 +1736,8 @@ enum Json {
 """
 
     def program(self, items):
-        items = Parser(lex(self.JSON_SRC, 900 * STRIDE + 1)).program() + items  # the Json enum ships with every program
+        if self.uses_json:
+            items = Parser(lex(self.JSON_SRC, 900 * STRIDE + 1)).program() + items
         structs = [x for x in items if isinstance(x, Struct)]
         enums = [x for x in items if isinstance(x, Enum)]
         fns = [(f.name, f, []) for f in items if isinstance(f, Fn)]
@@ -3236,11 +3238,13 @@ enum Json {
 # ---------------------------------------------------------------- driver
 def load(src, path):
     """Parse a program and every file it imports, each once. Returns the items and the file list."""
-    files, items, todo = [path], [], [(src, path)]
+    files, items, todo, uses_json = [path], [], [(src, path)], False
     seen = {os.path.realpath(path)} if os.path.exists(path) else set()
     while todo:
         text, at = todo.pop(0)
-        for it in Parser(lex(text, files.index(at) * STRIDE + 1)).program():
+        toks = lex(text, files.index(at) * STRIDE + 1)
+        uses_json |= any(t.kind == "name" and t.val in ("Json", "json_parse") for t in toks)
+        for it in Parser(toks).program():
             if not isinstance(it, Import):
                 items.append(it)
                 continue
@@ -3254,14 +3258,14 @@ def load(src, path):
                 raise PlankError(it.line, f"cannot import {it.path!r}: no file at {target}")
             seen.add(os.path.realpath(target))
             files.append(target)
-    return items, files
+    return items, files, uses_json
 
 
 def compile_source(src, name="plank", file=None):
     files = [file or name]
     try:
-        items, files = load(src, file or name)
-        return Codegen(name, file, files).program(items)
+        items, files, uses_json = load(src, file or name)
+        return Codegen(name, file, files, uses_json).program(items)
     except PlankError as err:
         err.file, err.line = locate(err.line, files)
         raise
