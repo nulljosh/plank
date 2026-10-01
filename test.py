@@ -16,6 +16,7 @@ BAD = [
     ("fn main() {\n  x = 1\n}\n", ":2: unknown variable 'x'"),
     ("fn main() {\n  let xs = [1, 2]\n  print(xs[2])\n}\n", ":3: index 2 is out of range for a list of 2"),
     ("fn main() {\n  print(int(\"4x\"))\n}\n", ":2: int() got text that is not a whole number"),
+    ("fn main() {\n  let d = [\"a\": 1]\n  print(d[\"b\"])\n}\n", ':3: key "b" is not in this dict'),
     ("struct P {\n  x: int\n}\nfn main() {\n  print(P().x)\n}\n", ":5: P is missing 'x'"),
 ]
 for src, want in BAD:

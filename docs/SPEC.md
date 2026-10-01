@@ -37,6 +37,7 @@ Functions and structs can be declared in any order. A function with a return typ
 | `float` | 64-bit double | `3.14`, `2.0`, `1.5e3` |
 | `bool` | 1 bit | `true`, `false` |
 | `[T]` | list of any type, shared | `[1, 2, 3]`, `["a"]`, `[[1], [2, 3]]` |
+| `[K: V]` | dict, int or str keys, shared | `["a": 1]`, `[1: "one"]`, `[:]` |
 | `str` | C string, UTF-8 | `"hello\n"`, `"世界"`, `"n is \(n)"` |
 
 String escapes are `\n`, `\t`, `\"`, `\\` and `\0`. Anything else after a backslash is an error, except `\(`, which starts an interpolation: `"\(name) has \(len(name)) letters"` drops the value of any expression into the string. Ints, floats and bools turn into text the same way `print` shows them. The expression inside can hold its own strings. A float literal needs digits on both sides of the dot.
@@ -75,6 +76,28 @@ for x in xs {
 
 Lists are shared, like Python's: pass one to a function and the function sees and changes the same list. `let` stops the name from pointing at a new list, not the list from changing. An index past either end stops the program with the line number. `print` and `str` show lists the way you would type them, strings in quotes. Lines can break freely inside `[ ]`.
 
+## Dicts
+
+A dict maps int or str keys to values of one type, and remembers the order keys went in, like Python's.
+
+```
+let ages = ["ada": 36, "linus": 28]
+ages["grace"] = 85              # add or replace
+ages["linus"] += 1
+print(ages["ada"])              # 36
+print("bob" in ages)            # false
+print(ages.get("bob", 0))       # 0, the default when the key is missing
+ages.remove("ada")
+for name in ages {              # keys, in the order they went in
+  print(name, ages[name])
+}
+print(ages.keys(), ages.values(), len(ages))
+```
+
+Reading a key that is not there stops the program and names the key; use `in` or `get` when it might be missing. An empty dict is `[:]` and needs its type once: `let d: [str: int] = [:]`. Dicts are shared like lists.
+
+`in` also works on lists, `3 in [1, 2, 3]`, and strings, `"lan" in "plank"`.
+
 ## Structs
 
 A struct groups named fields and the functions that work on them. Names start with a capital letter.
@@ -98,7 +121,7 @@ Build one by calling its name with the fields in order or by label; fields with 
 
 ## Operators
 
-From loosest to tightest: `or`, `and`, `not`, comparisons (`== != < > <= >=`), `+ -`, `* / %`, unary `-`. `and` and `or` short-circuit. Integer `/` truncates toward zero and `%` follows the sign of the left operand. Floats support all of these too. Strings join with `+` and compare with all six comparisons, alphabetically by byte. Bools compare with `==` and `!=` only.
+From loosest to tightest: `or`, `and`, `not`, comparisons (`== != < > <= >=` and `in`), `+ -`, `* / %`, unary `-`. `and` and `or` short-circuit. Integer `/` truncates toward zero and `%` follows the sign of the left operand. Floats support all of these too. Strings join with `+` and compare with all six comparisons, alphabetically by byte. Bools compare with `==` and `!=` only.
 
 ## Control flow
 

@@ -1,0 +1,7 @@
+["ada": 36, "linus": 29, "grace": 85] 3
+36 true false -1
+linus 29
+grace 85
+["linus", "grace"] [29, 85]
+["to": 2, "be": 2, "or": 1, "not": 1]
+9 true true true

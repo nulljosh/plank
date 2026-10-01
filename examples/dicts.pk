@@ -1,0 +1,28 @@
+# Dicts: literals, lookup, update, in, get, remove, keys, values, for-in.
+fn count_words(words: [str]) -> [str: int] {
+  let counts: [str: int] = [:]
+  for w in words {
+    counts[w] = counts.get(w, 0) + 1
+  }
+  return counts
+}
+
+fn main() {
+  let ages = ["ada": 36, "linus": 28]
+  ages["grace"] = 85
+  ages["linus"] += 1
+  print(ages, len(ages))
+  print(ages["ada"], "ada" in ages, "bob" in ages, ages.get("bob", -1))
+
+  ages.remove("ada")
+  for name in ages {
+    print(name, ages[name])
+  }
+  print(ages.keys(), ages.values())
+
+  let counts = count_words(["to", "be", "or", "not", "to", "be"])
+  print(counts)
+
+  let squares = [1: 1, 2: 4, 3: 9]
+  print(squares[3], 2 in squares, 5 in [1, 5], "lan" in "plank")
+}

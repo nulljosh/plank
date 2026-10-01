@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -166,6 +166,8 @@ class ForIn(Node): name: str; items: Node; body: list
 @dataclass
 class List(Node): items: list
 @dataclass
+class Dict(Node): keys: list; vals: list
+@dataclass
 class Index(Node): target: Node; index: Node
 @dataclass
 class Method(Node): target: Node; name: str; args: list; labels: list
@@ -186,7 +188,7 @@ class Struct(Node): name: str; fields: list; defaults: dict; methods: list
 
 
 # ---------------------------------------------------------------- parser
-PREC = {"or": 1, "and": 2, "==": 4, "!=": 4, "<": 4, ">": 4, "<=": 4, ">=": 4,
+PREC = {"or": 1, "and": 2, "in": 4, "==": 4, "!=": 4, "<": 4, ">": 4, "<=": 4, ">=": 4,
         "+": 5, "-": 5, "*": 6, "/": 6, "%": 6}
 TYPES = {"int", "float", "bool", "str"}
 
@@ -274,6 +276,9 @@ class Parser:
         if self.at("["):
             self.next()
             inner = self.type()
+            if self.at(":"):
+                self.next()
+                inner = f"{inner}: {self.type()}"
             self.expect("]")
             return f"[{inner}]"
         t = self.expect("name")
@@ -429,7 +434,30 @@ class Parser:
             self.expect(")")
             return e
         if t.kind == "[":
-            return List(t.line, self.args("]"))
+            if self.at(":"):
+                self.next()
+                self.expect("]")
+                return Dict(t.line, [], [])
+            if self.at("]"):
+                self.next()
+                return List(t.line, [])
+            first = self.expr()
+            if not self.at(":"):
+                if not self.at("]"):
+                    self.expect(",")
+                return List(t.line, [first] + self.args("]"))
+            keys, vals = [first], []
+            while True:
+                self.expect(":")
+                vals.append(self.expr())
+                if self.at("]"):
+                    break
+                self.expect(",")
+                if self.at("]"):
+                    break
+                keys.append(self.expr())
+            self.expect("]")
+            return Dict(t.line, keys, vals)
         if t.kind == "name":
             if self.at("("):
                 self.next()
@@ -531,6 +559,114 @@ void *pk_list_pop(PkList *l, long long size, const char *file, long long line) {
     return l->data + size * --l->len;
 }
 
+/* Dicts keep insertion order, like Python: entries in arrays, an open-addressing index on top.
+   Keys are 8 bytes, an int or a string pointer; values are 8-byte slots. */
+typedef struct { long long len, cap, mask, isstr; long long *keys, *vals, *index; } PkDict;
+
+static unsigned long long pk_hash(PkDict *d, long long k) {
+    unsigned long long h = 1469598103934665603ULL;
+    if (!d->isstr) return ((unsigned long long)k * 0x9E3779B97F4A7C15ULL) >> 7;
+    for (const unsigned char *c = (const unsigned char *)k; *c; c++) h = (h ^ *c) * 1099511628211ULL;
+    return h;
+}
+
+static int pk_same(PkDict *d, long long a, long long b) {
+    return d->isstr ? strcmp((char *)a, (char *)b) == 0 : a == b;
+}
+
+PkDict *pk_dict_new(long long isstr) {
+    PkDict *d = pk_alloc(sizeof *d);
+    d->len = 0; d->cap = 8; d->mask = 15; d->isstr = isstr;
+    d->keys = pk_alloc(8 * d->cap);
+    d->vals = pk_alloc(8 * d->cap);
+    d->index = calloc(d->mask + 1, 8);
+    return d;
+}
+
+/* the index cell for key: entry number + 1, or 0 where the key would go */
+static long long *pk_probe(PkDict *d, long long key) {
+    unsigned long long i = pk_hash(d, key) & d->mask;
+    while (d->index[i] && !pk_same(d, d->keys[d->index[i] - 1], key)) i = (i + 1) & d->mask;
+    return &d->index[i];
+}
+
+static void pk_reindex(PkDict *d) {
+    free(d->index);
+    d->index = calloc(d->mask + 1, 8);
+    for (long long e = 0; e < d->len; e++) *pk_probe(d, d->keys[e]) = e + 1;
+}
+
+static void pk_missing(PkDict *d, long long key, const char *file, long long line) {
+    char msg[160];
+    if (d->isstr) snprintf(msg, sizeof msg, "key \"%.100s\" is not in this dict", (char *)key);
+    else snprintf(msg, sizeof msg, "key %lld is not in this dict", key);
+    pk_panic(file, line, msg);
+}
+
+/* every call that takes a key says what kind it is, so an empty [:] learns its kind on first use */
+long long *pk_dict_put(PkDict *d, long long key, long long isstr) {
+    d->isstr = isstr;
+    long long *cell = pk_probe(d, key);
+    if (*cell) return &d->vals[*cell - 1];
+    if (d->len == d->cap) {
+        d->cap *= 2;
+        d->keys = realloc(d->keys, 8 * d->cap);
+        d->vals = realloc(d->vals, 8 * d->cap);
+    }
+    d->keys[d->len] = key;
+    d->vals[d->len] = 0;
+    *cell = ++d->len;
+    if (d->len * 2 > d->mask) { d->mask = d->mask * 2 + 1; pk_reindex(d); }
+    return &d->vals[d->len - 1];
+}
+
+long long *pk_dict_find(PkDict *d, long long key, long long isstr) {
+    d->isstr = isstr;
+    long long e = *pk_probe(d, key);
+    return e ? &d->vals[e - 1] : 0;
+}
+
+long long *pk_dict_get(PkDict *d, long long key, long long isstr, const char *file, long long line) {
+    long long *v = pk_dict_find(d, key, isstr);
+    if (!v) pk_missing(d, key, file, line);
+    return v;
+}
+
+long long pk_dict_len(PkDict *d) { return d->len; }
+
+/* ponytail: O(n), shifts the entries down and rebuilds the index; tombstones if big dicts churn */
+void pk_dict_remove(PkDict *d, long long key, long long isstr, const char *file, long long line) {
+    d->isstr = isstr;
+    long long e = *pk_probe(d, key);
+    if (!e) pk_missing(d, key, file, line);
+    memmove(&d->keys[e - 1], &d->keys[e], 8 * (d->len - e));
+    memmove(&d->vals[e - 1], &d->vals[e], 8 * (d->len - e));
+    d->len--;
+    pk_reindex(d);
+}
+
+PkList *pk_dict_keys(PkDict *d) {
+    PkList *l = pk_list_new(d->len, 8);
+    memcpy(l->data, d->keys, 8 * d->len);
+    l->len = d->len;
+    return l;
+}
+
+PkList *pk_dict_values(PkDict *d, long long size) {
+    PkList *l = pk_list_new(d->len, size);
+    for (long long e = 0; e < d->len; e++) memcpy(l->data + e * size, &d->vals[e], size);
+    l->len = d->len;
+    return l;
+}
+
+long long pk_list_find(PkList *l, long long size, long long bits, long long isstr) {
+    for (long long i = 0; i < l->len; i++) {
+        char *at = l->data + i * size;
+        if (isstr ? strcmp(*(char **)at, (char *)bits) == 0 : memcmp(at, &bits, size) == 0) return i;
+    }
+    return -1;
+}
+
 void pk_index_panic(const char *file, long long line, long long i, long long len) {
     char msg[96];
     snprintf(msg, sizeof msg, "index %lld is out of range for a list of %lld", i, len);
@@ -576,8 +712,24 @@ def size(ty):
     return 1 if ty == "bool" else 8  # ponytail: 64-bit targets only
 
 
+def dict_kv(ty):
+    """("str", "int") for "[str: int]", None for anything that is not a dict."""
+    if ty == "[:]" or not ty.startswith("["):
+        return None
+    depth = 0
+    for i, c in enumerate(ty[1:-1]):
+        depth += (c == "[") - (c == "]")
+        if c == ":" and depth == 0:
+            return ty[1:i + 1], ty[i + 3:-1]
+    return None
+
+
+def is_list(ty):
+    return ty.startswith("[") and ty != "[:]" and dict_kv(ty) is None
+
+
 def fits(got, want):
-    return got == want or (got == "[]" and want.startswith("["))
+    return got == want or (got == "[]" and is_list(want)) or (got == "[:]" and dict_kv(want) is not None)
 INT_OPS = {"+": "add", "-": "sub", "*": "mul", "/": "sdiv", "%": "srem"}
 FLOAT_OPS = {"+": "fadd", "-": "fsub", "*": "fmul", "/": "fdiv", "%": "frem"}
 CMP = {"==", "!=", "<", ">", "<=", ">="}
@@ -609,7 +761,7 @@ class Codegen:
     def ll(self, ty, line=0):
         """The LLVM type for a Plank type. Every list is the same pointer; [int] vs [str] lives in the Plank type."""
         if ty.startswith("["):
-            return LIST
+            return LIST if is_list(ty) else LL["str"]  # a dict is an opaque runtime pointer
         if ty in LL:
             return LL[ty]
         if ty in self.structs:
@@ -623,7 +775,8 @@ class Codegen:
         return ir.Function(self.module, ir.FunctionType(ret, args, var_arg=var_arg), name)
 
     def call_c(self, name, ret, *args):
-        return self.builder.call(self.c(name, LL[ret], *[a.type for a in args]), list(args))
+        ret = ret if isinstance(ret, ir.Type) else LL[ret]
+        return self.builder.call(self.c(name, ret, *[a.type for a in args]), list(args))
 
     def where(self, line):
         return [self.cstr(self.file), ir.Constant(LL["int"], line)]
@@ -633,8 +786,10 @@ class Codegen:
             return val
         if ty == "bool":
             return self.builder.select(val, self.cstr("true"), self.cstr("false"))
-        if ty == "[]":
-            return self.cstr("[]")
+        if ty in ("[]", "[:]"):
+            return self.cstr(ty)
+        if dict_kv(ty):
+            return self.builder.call(self.show_dict(ty), [val])
         if ty.startswith("["):
             return self.builder.call(self.show_list(ty), [val])
         if ty in self.structs:
@@ -730,11 +885,13 @@ class Codegen:
             raise PlankError(s.line, f"{s.name!r} is declared {s.ty} but assigned {ty}")
         if ty == "[]" and not s.ty:
             raise PlankError(s.line, f"an empty list needs its type: let {s.name}: [int] = []")
+        if ty == "[:]" and not s.ty:
+            raise PlankError(s.line, f"an empty dict needs its type: let {s.name}: [str: int] = [:]")
         self.builder.store(val, self.declare(s.name, s.ty or ty, s.mutable, s.line))
 
     def s_Assign(self, s):
         if isinstance(s.target, Index):
-            ptr, want = self.index_ptr(s.target)
+            ptr, want = self.index_ptr(s.target, write=True)
             what = "this list"
         elif isinstance(s.target, Field):
             ptr, want = self.field_ptr(s.target)
@@ -833,7 +990,9 @@ class Codegen:
 
     def s_ForIn(self, s):
         items, ty = self.expr(s.items)
-        if not ty.startswith("[") or ty == "[]":
+        if dict_kv(ty):
+            items, ty = self.call_c("pk_dict_keys", LIST, items), f"[{dict_kv(ty)[0]}]"
+        if not is_list(ty) or ty == "[]":
             raise PlankError(s.line, f"for ... in needs a list or a range, got {ty}")
         b = self.builder
         self.scopes.append({})
@@ -899,11 +1058,32 @@ class Codegen:
         data = self.builder.load(self.builder.gep(lst, [ir.Constant(I32, 0), ir.Constant(I32, 2)]))
         return self.builder.gep(self.builder.bitcast(data, self.ll(elem).as_pointer()), [i])
 
-    def index_ptr(self, e):
-        """Pointer to xs[i], bounds checked. Negative i counts from the end, like Python."""
+    def bits(self, val, ty):
+        """Any value as 8 bytes, the way the runtime stores keys and compares list items."""
+        b = self.builder
+        if ty == "float":
+            return b.bitcast(val, LL["int"])
+        if ty == "bool":
+            return b.zext(val, LL["int"])
+        return val if ty == "int" else b.ptrtoint(val, LL["int"])
+
+    def dict_slot(self, d, kv, key, kt, line, fn):
+        if kt != kv[0]:
+            raise PlankError(line, f"this dict's keys are {kv[0]}, got {kt}")
+        slot_ty = LL["int"].as_pointer()
+        args = [d, self.bits(key, kt), ir.Constant(LL["int"], int(kt == "str"))] + (self.where(line) if fn == "pk_dict_get" else [])
+        slot = self.builder.call(self.c(fn, slot_ty, *[a.type for a in args]), args)
+        return self.builder.bitcast(slot, self.ll(kv[1]).as_pointer())
+
+    def index_ptr(self, e, write=False):
+        """Pointer to xs[i], bounds checked, negative i counts from the end, like Python. Or to d[k]."""
         lst, ty = self.expr(e.target)
-        if not ty.startswith("[") or ty == "[]":
-            raise PlankError(e.line, f"cannot index {ty}, only lists")
+        kv = dict_kv(ty)
+        if kv:
+            key, kt = self.expr(e.index)
+            return self.dict_slot(lst, kv, key, kt, e.line, "pk_dict_put" if write else "pk_dict_get"), kv[1]
+        if not is_list(ty) or ty == "[]":
+            raise PlankError(e.line, f"cannot index {ty}, only lists and dicts")
         i, it = self.expr(e.index)
         if it != "int":
             raise PlankError(e.line, f"list index must be int, got {it}")
@@ -934,6 +1114,112 @@ class Codegen:
             self.push(lst, v, ty)
         return lst, f"[{ty}]"
 
+    def e_Dict(self, e):
+        if not e.keys:
+            return self.builder.call(self.c("pk_dict_new", LL["str"], LL["int"]), [ir.Constant(LL["int"], 0)]), "[:]"
+        pairs = [(self.expr(k), self.expr(v)) for k, v in zip(e.keys, e.vals)]
+        kt, vt = pairs[0][0][1], pairs[0][1][1]
+        if kt not in ("int", "str"):
+            raise PlankError(e.line, f"dict keys are int or str, got {kt}")
+        for (_, k), (_, v) in pairs:
+            if (k, v) != (kt, vt):
+                raise PlankError(e.line, f"a dict holds one key type and one value type, this one mixes {kt}: {vt} and {k}: {v}")
+        d = self.builder.call(self.c("pk_dict_new", LL["str"], LL["int"]), [ir.Constant(LL["int"], int(kt == "str"))])
+        ty = f"[{kt}: {vt}]"
+        for (k, _), (v, _) in pairs:
+            self.builder.store(v, self.dict_slot(d, (kt, vt), k, kt, e.line, "pk_dict_put"))
+        return d, ty
+
+    def dict_method(self, e, d, kv, args):
+        b = self.builder
+        if e.name == "keys" and not args:
+            return self.call_c("pk_dict_keys", LIST, d), f"[{kv[0]}]"
+        if e.name == "values" and not args:
+            lst = self.call_c("pk_dict_values", LIST, d, ir.Constant(LL["int"], size(kv[1])))
+            return lst, f"[{kv[1]}]"
+        if e.name == "remove" and len(args) == 1:
+            if args[0][1] != kv[0]:
+                raise PlankError(e.line, f"this dict's keys are {kv[0]}, got {args[0][1]}")
+            fn = self.c("pk_dict_remove", ir.VoidType(), LL["str"], LL["int"], LL["int"], LL["str"], LL["int"])
+            b.call(fn, [d, self.bits(*args[0]), ir.Constant(LL["int"], int(kv[0] == "str"))] + self.where(e.line))
+            return None, "void"
+        if e.name == "get" and len(args) == 2:
+            (key, kt), (fallback, ft) = args
+            if not fits(ft, kv[1]):
+                raise PlankError(e.line, f"get() default should be {kv[1]}, got {ft}")
+            slot = self.dict_slot(d, kv, key, kt, e.line, "pk_dict_find")
+            with b.if_else(b.icmp_unsigned("!=", slot, ir.Constant(slot.type, None))) as (found, missing):
+                with found:
+                    hit, hit_bb = b.load(slot), b.block
+                with missing:
+                    miss_bb = b.block
+            phi = b.phi(self.ll(kv[1]))
+            phi.add_incoming(hit, hit_bb)
+            phi.add_incoming(fallback, miss_bb)
+            return phi, kv[1]
+        raise PlankError(e.line, f"{e.name}() is not a dict method; dicts have keys(), values(), get(k, default), remove(k)")
+
+    def quoted(self, val, ty):
+        text = self.to_str(val, ty)
+        if ty != "str":
+            return text
+        return self.call_c("pk_concat", "str", self.call_c("pk_concat", "str", self.cstr('"'), text), self.cstr('"'))
+
+    def show_dict(self, ty):
+        """["a": 1, "b": 2], or [:] when empty, the way Swift writes them."""
+        name = "show" + ty
+        if name in self.module.globals:
+            return self.module.globals[name]
+        fn = ir.Function(self.module, ir.FunctionType(LL["str"], [LL["str"]]), name)
+        fn.linkage = "private"
+        outer, self.builder = self.builder, ir.IRBuilder(fn.append_basic_block("entry"))
+        b, d, (kt, vt) = self.builder, fn.args[0], dict_kv(ty)
+        keys = self.call_c("pk_dict_keys", LIST, d)
+        acc, i = b.alloca(LL["str"]), b.alloca(LL["int"])
+        b.store(self.cstr("["), acc)
+        b.store(ir.Constant(LL["int"], 0), i)
+        cond, body, done = (fn.append_basic_block(n) for n in ("cond", "body", "done"))
+        b.branch(cond)
+        b.position_at_end(cond)
+        n = self.list_len(keys)
+        b.cbranch(b.icmp_signed("<", b.load(i), n), body, done)
+        b.position_at_end(body)
+        key = b.load(self.slot(keys, b.load(i), kt))
+        val = b.load(self.dict_slot(d, (kt, vt), key, kt, 0, "pk_dict_find"))
+        sep = b.select(b.icmp_signed("==", b.load(i), ir.Constant(LL["int"], 0)), self.cstr(""), self.cstr(", "))
+        pair = self.call_c("pk_concat", "str", self.call_c("pk_concat", "str", self.quoted(key, kt), self.cstr(": ")), self.quoted(val, vt))
+        b.store(self.call_c("pk_concat", "str", self.call_c("pk_concat", "str", b.load(acc), sep), pair), acc)
+        b.store(b.add(b.load(i), ir.Constant(LL["int"], 1)), i)
+        b.branch(cond)
+        b.position_at_end(done)
+        empty = b.icmp_signed("==", n, ir.Constant(LL["int"], 0))
+        b.ret(b.select(empty, self.cstr("[:]"), self.call_c("pk_concat", "str", b.load(acc), self.cstr("]"))))
+        self.builder = outer
+        return fn
+
+    def contains(self, e):
+        item, it = self.expr(e.left)
+        coll, ct = self.expr(e.right)
+        b = self.builder
+        if ct in ("[]", "[:]"):
+            return ir.Constant(LL["bool"], 0), "bool"
+        if ct == "str":
+            if it != "str":
+                raise PlankError(e.line, f"in on a str looks for a str, got {it}")
+            hit = b.call(self.c("strstr", LL["str"], LL["str"], LL["str"]), [coll, item])
+            return b.icmp_unsigned("!=", hit, ir.Constant(LL["str"], None)), "bool"
+        kv = dict_kv(ct)
+        if kv:
+            slot = self.dict_slot(coll, kv, item, it, e.line, "pk_dict_find")
+            return b.icmp_unsigned("!=", slot, ir.Constant(slot.type, None)), "bool"
+        if is_list(ct):
+            if not fits(it, ct[1:-1]):
+                raise PlankError(e.line, f"this list holds {ct[1:-1]}, got {it}")
+            at = self.call_c("pk_list_find", "int", coll, ir.Constant(LL["int"], size(it)), self.bits(item, it),
+                             ir.Constant(LL["int"], int(it == "str")))
+            return b.icmp_signed(">=", at, ir.Constant(LL["int"], 0)), "bool"
+        raise PlankError(e.line, f"in needs a list, a dict or a str on the right, got {ct}")
+
     def push(self, lst, val, elem):
         grow = self.c("pk_list_push", LL["str"], LIST, LL["int"])
         at = self.builder.call(grow, [lst, ir.Constant(LL["int"], size(elem))])
@@ -950,7 +1236,9 @@ class Codegen:
         if any(e.labels):
             raise PlankError(e.line, f"{e.name}() does not take labels")
         args = [self.expr(a) for a in e.args]
-        if ty.startswith("[") and ty != "[]":
+        if dict_kv(ty):
+            return self.dict_method(e, target, dict_kv(ty), args)
+        if is_list(ty) and ty != "[]":
             elem = ty[1:-1]
             if e.name == "append":
                 if len(args) != 1 or not fits(args[0][1], elem):
@@ -1015,6 +1303,8 @@ class Codegen:
     def e_Binary(self, e):
         if e.op in ("and", "or"):
             return self.short_circuit(e)
+        if e.op == "in":
+            return self.contains(e)
         lhs, lt = self.expr(e.left)
         rhs, rt = self.expr(e.right)
         if lt != rt:
@@ -1170,10 +1460,14 @@ class Codegen:
     def b_len(self, e, args):
         self.arity(e, args, 1)
         val, ty = args[0]
+        if ty in ("[]", "[:]"):
+            return ir.Constant(LL["int"], 0), "int"
+        if dict_kv(ty):
+            return self.call_c("pk_dict_len", "int", val), "int"
         if ty.startswith("["):
-            return (self.list_len(val) if ty != "[]" else ir.Constant(LL["int"], 0)), "int"
+            return self.list_len(val), "int"
         if ty != "str":
-            raise PlankError(e.line, f"len() needs a str or a list, got {ty}")
+            raise PlankError(e.line, f"len() needs a str, a list or a dict, got {ty}")
         return self.call_c("pk_len", "int", val), "int"
 
     def b_input(self, e, args):
