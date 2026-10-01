@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "0.7.0"
+VERSION = "0.8.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -33,7 +33,7 @@ TOKEN_RE = re.compile(r"""
     (?P<ws>[ \t\r]+) | (?P<comment>\#[^\n]*) | (?P<nl>\n) |
     (?P<float>\d+\.\d+(?:[eE][+-]?\d+)?) | (?P<int>\d+) |
     (?P<name>[A-Za-z_]\w*) |
-    (?P<op>\+=|-=|\*=|/=|%=|->|\.\.|==|!=|<=|>=|\?\?|[-+*/%<>=(){}\[\]:,.?!])
+    (?P<op>\+=|-=|\*=|/=|%=|->|=>|\.\.|==|!=|<=|>=|\?\?|[-+*/%<>=(){}\[\]:,.?!])
 """, re.X)
 
 
@@ -151,6 +151,10 @@ class Unary(Node): op: str; expr: Node
 class Unwrap(Node): expr: Node
 @dataclass
 class Nil(Node): pass
+@dataclass
+class Lambda(Node): params: list; ret: str; body: list   # ret None: worked out from the => expression
+@dataclass
+class CallValue(Node): target: Node; args: list
 @dataclass
 class IfLet(Node): name: str; expr: Node; then: list; other: list
 @dataclass
@@ -353,6 +357,20 @@ class Parser:
         return Fn(line, name, params, ret, self.block(), defaults)
 
     def type(self):
+        if self.at("fn"):
+            self.next()
+            self.expect("(")
+            params = []
+            while not self.at(")"):
+                params.append(self.type())
+                if not self.at(")"):
+                    self.expect(",")
+            self.expect(")")
+            ret = "void"
+            if self.at("->"):
+                self.next()
+                ret = self.type()
+            return self.optional(f"fn({', '.join(params)}) -> {ret}")
         if self.at("["):
             self.next()
             inner = self.type()
@@ -474,8 +492,11 @@ class Parser:
 
     def primary(self):
         e = self.atom()
-        while self.at("[", ".", "!"):
+        while self.at("[", ".", "!", "("):
             line = self.next().line
+            if self.toks[self.i - 1].kind == "(":
+                e = CallValue(line, e, self.args(")"))
+                continue
             if self.toks[self.i - 1].kind == "!":
                 e = Unwrap(line, e)
                 continue
@@ -490,6 +511,29 @@ class Parser:
             else:
                 e = Field(line, e, name)
         return e
+
+    def lambda_(self, line):
+        """fn(x: int) -> int { ... }, or fn(x) => x * 2 with the types worked out from where it goes."""
+        self.expect("(")
+        params = []
+        while not self.at(")"):
+            name = self.expect("name").val
+            ty = None
+            if self.at(":"):
+                self.next()
+                ty = self.type()
+            params.append((name, ty))
+            if not self.at(")"):
+                self.expect(",")
+        self.expect(")")
+        if self.at("=>"):
+            arrow = self.next()
+            return Lambda(line, params, None, [Return(arrow.line, self.expr())])
+        ret = "void"
+        if self.at("->"):
+            self.next()
+            ret = self.type()
+        return Lambda(line, params, ret, self.block())
 
     def call_args(self):
         """Arguments up to ), each optionally labeled: f(1, by: 2)."""
@@ -529,6 +573,8 @@ class Parser:
             return Interp(t.line, [Str(t.line, p) if isinstance(p, str) else interp_expr(*p) for p in t.val])
         if t.kind == "nil":
             return Nil(t.line)
+        if t.kind == "fn":
+            return self.lambda_(t.line)
         if t.kind in ("true", "false"):
             return Bool(t.line, t.kind == "true")
         if t.kind == "(":
@@ -769,6 +815,36 @@ long long pk_list_find(PkList *l, long long size, long long bits, long long isst
     return -1;
 }
 
+PkList *pk_list_copy(PkList *l, long long size) {
+    PkList *r = pk_list_new(l->len, size);
+    memcpy(r->data, l->data, size * l->len);
+    r->len = l->len;
+    return r;
+}
+
+/* stable merge sort; less(env, a, b) says whether a goes before b */
+typedef long long (*PkLess)(void *, void *, void *);
+
+static void pk_merge(char *a, char *tmp, long long n, long long size, PkLess less, void *env) {
+    if (n < 2) return;
+    long long h = n / 2, i = 0, j = h, k = 0;
+    pk_merge(a, tmp, h, size, less, env);
+    pk_merge(a + h * size, tmp, n - h, size, less, env);
+    while (i < h && j < n) {
+        if (less(env, a + j * size, a + i * size)) memcpy(tmp + size * k++, a + size * j++, size);
+        else memcpy(tmp + size * k++, a + size * i++, size);
+    }
+    while (i < h) memcpy(tmp + size * k++, a + size * i++, size);
+    while (j < n) memcpy(tmp + size * k++, a + size * j++, size);
+    memcpy(a, tmp, size * n);
+}
+
+void pk_list_sort(PkList *l, long long size, PkLess less, void *env) {
+    char *tmp = pk_alloc(size * (l->len ? l->len : 1));
+    pk_merge(l->data, tmp, l->len, size, less, env);
+    free(tmp);
+}
+
 void pk_index_panic(const char *file, long long line, long long i, long long len) {
     char msg[96];
     snprintf(msg, sizeof msg, "index %lld is out of range for a list of %lld", i, len);
@@ -792,7 +868,17 @@ char *pk_input(const char *prompt) {
 LL = {"int": ir.IntType(64), "float": ir.DoubleType(), "bool": ir.IntType(1),
       "str": ir.IntType(8).as_pointer(), "void": ir.VoidType()}
 LIST = ir.LiteralStructType([LL["int"], LL["int"], LL["str"]]).as_pointer()  # len, cap, data
+CLOSURE = ir.LiteralStructType([LL["str"], LL["str"]]).as_pointer()  # code, captured variables
 I32 = ir.IntType(32)
+
+
+def captures(body):
+    """Names any closure inside body refers to. Conservative: a name is enough."""
+    out = set()
+    for node in walk(body):
+        if isinstance(node, Lambda):
+            out |= {n.name for n in walk(node.body) if isinstance(n, Name)} - {p for p, _ in node.params}
+    return out
 
 
 @dataclass
@@ -824,6 +910,36 @@ class StructInfo:
 
 def size(ty):
     return 1 if ty == "bool" else 8  # ponytail: 64-bit targets only
+
+
+def fn_sig(ty):
+    """(["int", "str"], "bool") for "fn(int, str) -> bool", None for anything else."""
+    if not ty.startswith("fn(") or ty.endswith("?"):
+        return None
+    depth, parts, cur = 0, [], ""
+    for i, c in enumerate(ty[3:], 3):
+        if c == ")" and depth == 0:
+            parts.append(cur.strip())
+            return [p for p in parts if p], ty[i + 5:]
+        if c == "," and depth == 0:
+            parts.append(cur.strip())
+            cur = ""
+            continue
+        depth += (c in "([") - (c in ")]")
+        cur += c
+
+
+def walk(node):
+    """Every AST node under node."""
+    if isinstance(node, (list, tuple)):
+        for x in node:
+            yield from walk(x)
+    elif isinstance(node, dict):
+        yield from walk(list(node.values()))
+    elif isinstance(node, Node):
+        yield node
+        for f in node.__dataclass_fields__:
+            yield from walk(getattr(node, f))
 
 
 def dict_kv(ty):
@@ -872,6 +988,8 @@ class Codegen:
         self.loops = []     # (continue block, break block)
         self.strings = {}
         self.builder = self.fn_ret = None
+        self.captured = set()   # names some closure in the current function uses
+        self.lambdas = 0
         self.printf = self.c("printf", ir.IntType(32), LL["str"], var_arg=True)
 
     # -- helpers
@@ -879,6 +997,8 @@ class Codegen:
         """The LLVM type for a Plank type. Every list is the same pointer; [int] vs [str] lives in the Plank type."""
         if ty.endswith("?"):
             return self.ll(ty[:-1], line).as_pointer()  # an optional points at a boxed value, or is null
+        if fn_sig(ty):
+            return CLOSURE
         if ty.startswith("["):
             return LIST if is_list(ty) else LL["str"]  # a dict is an opaque runtime pointer
         if ty in LL:
@@ -932,6 +1052,8 @@ class Codegen:
             return self.builder.call(self.show_struct(ty), [val])
         if ty in self.enums:
             return self.builder.call(self.show_enum(ty), [val])
+        if fn_sig(ty):
+            return self.cstr(ty)
         return self.call_c("pk_str_" + ty, "str", val)
     def cstr(self, s):
         if s not in self.strings:
@@ -954,8 +1076,12 @@ class Codegen:
     def declare(self, name, ty, mutable, line):
         if name in self.scopes[-1]:
             raise PlankError(line, f"{name!r} already declared in this scope")
-        with self.builder.goto_entry_block():
-            ptr = self.builder.alloca(self.ll(ty), name=name)
+        if name in self.captured:  # a closure may outlive this call, so the variable lives on the heap
+            cell = self.call_c("pk_alloc", "str", ir.Constant(LL["int"], 8))
+            ptr = self.builder.bitcast(cell, self.ll(ty).as_pointer(), name=name)
+        else:
+            with self.builder.goto_entry_block():
+                ptr = self.builder.alloca(self.ll(ty), name=name)
         self.scopes[-1][name] = Var(ptr, ty, mutable)
         return ptr
 
@@ -1010,6 +1136,7 @@ class Codegen:
         func, self.fn_ret = sig.func, sig.ret
         self.builder = ir.IRBuilder(func.append_basic_block("entry"))
         self.scopes = [{}]
+        self.captured = captures(f.body)
         for (name, ty), arg in zip(sig.params, func.args):
             arg.name = name
             self.builder.store(arg, self.declare(name, ty, False, f.line))
@@ -1034,7 +1161,7 @@ class Codegen:
     def s_Let(self, s):
         if s.ty:
             self.ll(s.ty, s.line)  # an unknown type is its own error
-        val, ty = self.expr(s.expr)
+        val, ty = self.expr(s.expr, hint=s.ty)
         if s.ty and not fits(ty, s.ty):
             raise PlankError(s.line, f"{s.name!r} is declared {s.ty} but assigned {ty}")
         if ty == "[]" and not s.ty:
@@ -1071,7 +1198,7 @@ class Codegen:
                 raise PlankError(s.line, f"return needs a {self.fn_ret} value")
             self.builder.ret_void()
             return
-        val, ty = self.expr(s.expr)
+        val, ty = self.expr(s.expr, hint=self.fn_ret)
         if not fits(ty, self.fn_ret):
             raise PlankError(s.line, f"returning {ty} from a function that returns {self.fn_ret}")
         self.builder.ret(self.coerce(val, ty, self.fn_ret))
@@ -1283,7 +1410,9 @@ class Codegen:
         self.builder.branch(self.loops[-1][0])
 
     # -- expressions: each returns (llvm value, plank type)
-    def expr(self, e, allow_void=False):
+    def expr(self, e, allow_void=False, hint=None):
+        if isinstance(e, Lambda):
+            return self.e_Lambda(e, hint)
         val, ty = getattr(self, "e_" + type(e).__name__)(e)
         if ty == "void" and not allow_void:
             raise PlankError(e.line, "this call returns nothing, it cannot be used as a value")
@@ -1486,6 +1615,102 @@ class Codegen:
             return b.icmp_signed(">=", at, ir.Constant(LL["int"], 0)), "bool"
         raise PlankError(e.line, f"in needs a list, a dict or a str on the right, got {ct}")
 
+    def each(self, lst, elem, body):
+        """Emit a loop over lst calling body(item) to emit the inside."""
+        b = self.builder
+        with b.goto_entry_block():
+            i = b.alloca(LL["int"])
+        b.store(ir.Constant(LL["int"], 0), i)
+        cond, inside, done = (b.append_basic_block(n) for n in ("each", "item", "done"))
+        b.branch(cond)
+        b.position_at_end(cond)
+        b.cbranch(b.icmp_signed("<", b.load(i), self.list_len(lst)), inside, done)
+        b.position_at_end(inside)
+        body(b.load(self.slot(lst, b.load(i), elem)))
+        b.store(b.add(b.load(i), ir.Constant(LL["int"], 1)), i)
+        b.branch(cond)
+        b.position_at_end(done)
+
+    def fn_arg(self, e, want):
+        if len(e.args) != 1:
+            raise PlankError(e.line, f"{e.name}() takes one function")
+        clo, ty = self.expr(e.args[0], hint=want)
+        sig, wsig = fn_sig(ty), fn_sig(want)
+        if sig is None or sig[0] != wsig[0] or (wsig[1] != "_" and sig[1] != wsig[1]):
+            raise PlankError(e.line, f"{e.name}() wants a {want.replace('_', 'value')}, got {ty}")
+        return clo, ty
+
+    def list_fn(self, e, lst, elem):
+        b = self.builder
+        new = self.c("pk_list_new", LIST, LL["int"], LL["int"])
+        if e.name == "map":
+            clo, ty = self.fn_arg(e, f"fn({elem}) -> _")
+            ret = fn_sig(ty)[1]
+            if ret == "void":
+                raise PlankError(e.line, "map() needs a function that returns something")
+            out = b.call(new, [self.list_len(lst), ir.Constant(LL["int"], size(ret))])
+            self.each(lst, elem, lambda x: self.push(out, self.invoke(clo, ty, [x])[0], ret))
+            return out, f"[{ret}]"
+        if e.name == "filter":
+            clo, ty = self.fn_arg(e, f"fn({elem}) -> bool")
+            out = b.call(new, [ir.Constant(LL["int"], 0), ir.Constant(LL["int"], size(elem))])
+            def keep(x):
+                with b.if_then(self.invoke(clo, ty, [x])[0]):
+                    self.push(out, x, elem)
+            self.each(lst, elem, keep)
+            return out, f"[{elem}]"
+        if e.name == "reduce":
+            if len(e.args) != 2:
+                raise PlankError(e.line, "reduce() takes a starting value and a function: xs.reduce(0, fn(acc, x) => acc + x)")
+            start, st = self.expr(e.args[0])
+            clo, ty = self.expr(e.args[1], hint=f"fn({st}, {elem}) -> {st}")
+            if fn_sig(ty) != ([st, elem], st):
+                raise PlankError(e.line, f"reduce() wants a fn({st}, {elem}) -> {st}, got {ty}")
+            with b.goto_entry_block():
+                acc = b.alloca(self.ll(st))
+            b.store(start, acc)
+            self.each(lst, elem, lambda x: b.store(self.invoke(clo, ty, [b.load(acc), x])[0], acc))
+            return b.load(acc), st
+        # sort in place, sorted gives a copy; both take an optional by: fn(a, b) -> bool, a goes first
+        if e.name == "sorted":
+            lst = self.call_c("pk_list_copy", LIST, lst, ir.Constant(LL["int"], size(elem)))
+        if e.args:
+            if e.labels != ["by"]:
+                raise PlankError(e.line, f"{e.name}() takes by: fn(a, b) -> bool, or nothing")
+            clo, ty = self.expr(e.args[0], hint=f"fn({elem}, {elem}) -> bool")
+            if fn_sig(ty) != ([elem, elem], "bool"):
+                raise PlankError(e.line, f"{e.name}(by:) wants a fn({elem}, {elem}) -> bool, got {ty}")
+            less, env = self.less_by(elem, ty), b.bitcast(clo, LL["str"])
+        else:
+            if elem not in ("int", "float", "str"):
+                raise PlankError(e.line, f"{e.name}() on {elem} needs by: fn(a, b) -> bool to say the order")
+            less, env = self.less_by(elem, None), ir.Constant(LL["str"], None)
+        sort = self.c("pk_list_sort", ir.VoidType(), LIST, LL["int"], LL["str"], LL["str"])
+        b.call(sort, [lst, ir.Constant(LL["int"], size(elem)), b.bitcast(less, LL["str"]), env])
+        return (lst, f"[{elem}]") if e.name == "sorted" else (None, "void")
+
+    def less_by(self, elem, ty):
+        """A C-callable less(env, a, b) for the runtime's sort: natural order, or a Plank closure in env."""
+        name = f"less.{elem}" if ty is None else f"less.{ty}"
+        if name in self.module.globals:
+            return self.module.globals[name]
+        fn = ir.Function(self.module, ir.FunctionType(LL["int"], [LL["str"]] * 3), name)
+        fn.linkage = "private"
+        outer, self.builder = self.builder, ir.IRBuilder(fn.append_basic_block())
+        b = self.builder
+        a, c = (b.load(b.bitcast(p, self.ll(elem).as_pointer())) for p in fn.args[1:])
+        if ty is not None:
+            res = self.invoke(b.bitcast(fn.args[0], CLOSURE), ty, [a, c])[0]
+        elif elem == "float":
+            res = b.fcmp_ordered("<", a, c)
+        elif elem == "str":
+            res = b.icmp_signed("<", b.call(self.c("strcmp", I32, LL["str"], LL["str"]), [a, c]), ir.Constant(I32, 0))
+        else:
+            res = b.icmp_signed("<", a, c)
+        b.ret(b.zext(res, LL["int"]))
+        self.builder = outer
+        return fn
+
     def push(self, lst, val, elem):
         grow = self.c("pk_list_push", LL["str"], LIST, LL["int"])
         at = self.builder.call(grow, [lst, ir.Constant(LL["int"], size(elem))])
@@ -1501,6 +1726,8 @@ class Codegen:
                 raise PlankError(e.line, f"{ty} has no method {e.name}()")
             vals = self.arrange(e, f"{e.name}()", sig.params[1:], sig.defaults)
             return self.builder.call(sig.func, [target] + vals), sig.ret
+        if is_list(ty) and ty != "[]" and e.name in ("map", "filter", "reduce", "sort", "sorted"):
+            return self.list_fn(e, target, ty[1:-1])
         if any(e.labels):
             raise PlankError(e.line, f"{e.name}() does not take labels")
         args = [self.expr(a) for a in e.args]
@@ -1513,6 +1740,8 @@ class Codegen:
                     raise PlankError(e.line, f"append() takes one {elem}")
                 self.push(target, self.coerce(args[0][0], args[0][1], elem), elem)
                 return None, "void"
+            if e.name in ("map", "filter", "reduce", "sort", "sorted"):
+                return self.list_fn(e, target, elem)
             if e.name == "pop" and not args:
                 pop = self.c("pk_list_pop", LL["str"], LIST, LL["int"], LL["str"], LL["int"])
                 at = self.builder.call(pop, [target, ir.Constant(LL["int"], size(elem))] + self.where(e.line))
@@ -1652,8 +1881,125 @@ class Codegen:
         return ir.Constant(LL["bool"], int(e.val)), "bool"
 
     def e_Name(self, e):
+        if e.name in self.fns and not any(e.name in sc for sc in self.scopes):
+            return self.fn_value(e.name)
         var = self.lookup(e.name, e.line)
         return self.builder.load(var.ptr, name=e.name), var.ty
+
+    def fn_value(self, name):
+        """A top-level function used as a value: a constant closure around a small wrapper."""
+        sig = self.fns[name]
+        ty = f"fn({', '.join(t for _, t in sig.params)}) -> {sig.ret}"
+        gname = "closure." + name
+        if gname not in self.module.globals:
+            wrap_ty = ir.FunctionType(self.ll(sig.ret), [LL["str"]] + [self.ll(t) for _, t in sig.params])
+            wrap = ir.Function(self.module, wrap_ty, "wrap." + name)
+            wrap.linkage = "private"
+            wb = ir.IRBuilder(wrap.append_basic_block())
+            res = wb.call(sig.func, wrap.args[1:])
+            wb.ret_void() if sig.ret == "void" else wb.ret(res)
+            g = ir.GlobalVariable(self.module, CLOSURE.pointee, gname)
+            g.global_constant, g.linkage = True, "private"
+            g.initializer = ir.Constant(CLOSURE.pointee, [wrap.bitcast(LL["str"]), ir.Constant(LL["str"], None)])
+        return self.module.globals[gname], ty
+
+    def invoke(self, clo, ty, vals):
+        """Call a closure with already-computed argument values."""
+        params, ret = fn_sig(ty)
+        b = self.builder
+        code = b.load(b.gep(clo, [ir.Constant(I32, 0), ir.Constant(I32, 0)]))
+        env = b.load(b.gep(clo, [ir.Constant(I32, 0), ir.Constant(I32, 1)]))
+        fty = ir.FunctionType(self.ll(ret), [LL["str"]] + [self.ll(t) for t in params])
+        return b.call(b.bitcast(code, fty.as_pointer()), [env] + vals), ret
+
+    def call_value(self, clo, ty, args, line, what):
+        sig = fn_sig(ty)
+        if sig is None:
+            raise PlankError(line, f"{what} is {ty}, not a function")
+        params, _ = sig
+        if len(args) != len(params):
+            raise PlankError(line, f"{what} takes {len(params)} argument{'s' * (len(params) != 1)}, got {len(args)}")
+        vals = []
+        for arg, want in zip(args, params):
+            val, got = self.expr(arg, hint=want)
+            if not fits(got, want):
+                raise PlankError(line, f"{what} wants {want}, got {got}")
+            vals.append(self.coerce(val, got, want))
+        return self.invoke(clo, ty, vals)
+
+    def e_CallValue(self, e):
+        clo, ty = self.expr(e.target)
+        return self.call_value(clo, ty, e.args, e.line, "this")
+
+    def e_Lambda(self, e, hint=None):
+        hinted = fn_sig(hint) if hint else None
+        params = []
+        for i, (name, ty) in enumerate(e.params):
+            if ty is None:
+                if not hinted or i >= len(hinted[0]):
+                    raise PlankError(e.line, f"say what type {name} is: fn({name}: int) => ...")
+                ty = hinted[0][i]
+            params.append((name, ty))
+        ret = e.ret
+        if ret is None and hinted and hinted[1] != "_":
+            ret = hinted[1]
+        if ret is None:  # fn(x) => expr: work the type out by compiling the expression once, then throw that away
+            probe = self.lambda_fn(e, params, None)
+            ret = self.probed
+            del self.module.globals[probe.name]
+        func = self.lambda_fn(e, params, ret)
+        free = [(n, v) for n in sorted({x.name for x in walk(e.body) if isinstance(x, Name)} - {p for p, _ in params})
+                for v in [self.find(n)] if v is not None]
+        b = self.builder
+        env = self.call_c("pk_alloc", "str", ir.Constant(LL["int"], 8 * max(len(free), 1)))
+        slots = b.bitcast(env, LL["str"].as_pointer())
+        for i, (_, var) in enumerate(free):
+            b.store(b.bitcast(var.ptr, LL["str"]), b.gep(slots, [ir.Constant(LL["int"], i)]))
+        clo = b.bitcast(self.call_c("pk_alloc", "str", ir.Constant(LL["int"], 16)), CLOSURE)
+        b.store(b.bitcast(func, LL["str"]), b.gep(clo, [ir.Constant(I32, 0), ir.Constant(I32, 0)]))
+        b.store(env, b.gep(clo, [ir.Constant(I32, 0), ir.Constant(I32, 1)]))
+        return clo, f"fn({', '.join(t for _, t in params)}) -> {ret}"
+
+    def find(self, name):
+        for scope in reversed(self.scopes):
+            if name in scope:
+                return scope[name]
+        return None
+
+    def lambda_fn(self, e, params, ret):
+        """Compile a lambda body into its own function: (env, params...) -> ret. ret None is a probe run."""
+        free = [(n, v) for n in sorted({x.name for x in walk(e.body) if isinstance(x, Name)} - {p for p, _ in params})
+                for v in [self.find(n)] if v is not None]
+        self.lambdas += 1
+        fty = ir.FunctionType(self.ll(ret or "void"), [LL["str"]] + [self.ll(t, e.line) for _, t in params])
+        func = ir.Function(self.module, fty, f"lambda.{self.lambdas}")
+        func.linkage = "private"
+        saved = self.builder, self.scopes, self.fn_ret, self.loops, self.captured
+        self.builder = ir.IRBuilder(func.append_basic_block("entry"))
+        self.scopes, self.fn_ret, self.loops = [{}], ret, []
+        self.captured = captures(e.body) | self.captured
+        b = self.builder
+        slots = b.bitcast(func.args[0], LL["str"].as_pointer())
+        for i, (name, var) in enumerate(free):
+            ptr = b.bitcast(b.load(b.gep(slots, [ir.Constant(LL["int"], i)])), var.ptr.type)
+            self.scopes[0][name] = Var(ptr, var.ty, var.mutable)
+        self.scopes.append({})
+        for (name, ty), arg in zip(params, func.args[1:]):
+            b.store(arg, self.declare(name, ty, False, e.line))
+        try:
+            if ret is None:
+                _, ty = self.expr(e.body[0].expr, allow_void=True)
+                self.probed = ty
+                b.unreachable()
+            else:
+                self.stmts(e.body)
+                if not self.builder.block.is_terminated:
+                    if ret != "void":
+                        raise PlankError(e.line, f"this fn returns {ret} but can reach its end without returning")
+                    self.builder.ret_void()
+        finally:
+            self.builder, self.scopes, self.fn_ret, self.loops, self.captured = saved
+        return func
 
     def e_Unary(self, e):
         val, ty = self.expr(e.expr)
@@ -1733,6 +2079,11 @@ class Codegen:
 
     def e_Call(self, e):
         b = self.builder
+        var = self.find(e.name)
+        if var is not None:
+            if any(e.labels):
+                raise PlankError(e.line, f"{e.name} is a closure, its arguments go by position")
+            return self.call_value(b.load(var.ptr), var.ty, e.args, e.line, e.name)
         if e.name in self.fns:
             sig = self.fns[e.name]
             return b.call(sig.func, self.arrange(e, f"{e.name}()", sig.params, sig.defaults)), sig.ret
@@ -1763,7 +2114,7 @@ class Codegen:
                 raise PlankError(e.line, f"{what} has no {noun} called {name!r}")
             if name in given:
                 raise PlankError(e.line, f"{what} got {name!r} twice")
-            given[name] = self.expr(arg)
+            given[name] = self.expr(arg, hint=dict(params)[name])
         out = []
         for name, want in params:
             if name in given:

@@ -39,6 +39,7 @@ Functions and structs can be declared in any order. A function with a return typ
 | `[T]` | list of any type, shared | `[1, 2, 3]`, `["a"]`, `[[1], [2, 3]]` |
 | `[K: V]` | dict, int or str keys, shared | `["a": 1]`, `[1: "one"]`, `[:]` |
 | `T?` | a `T` or `nil` | `nil`, or any `T` |
+| `fn(A, B) -> R` | a function or closure | `fn(x: int) => x * 2`, `double` |
 | `str` | C string, UTF-8 | `"hello\n"`, `"世界"`, `"n is \(n)"` |
 
 String escapes are `\n`, `\t`, `\"`, `\\` and `\0`. Anything else after a backslash is an error, except `\(`, which starts an interpolation: `"\(name) has \(len(name)) letters"` drops the value of any expression into the string. Ints, floats and bools turn into text the same way `print` shows them. The expression inside can hold its own strings. A float literal needs digits on both sides of the dot.
@@ -169,6 +170,36 @@ print(find(names, "x") == nil)    # true
 ```
 
 You cannot do math on an `int?` until you take the value out, and the error says how. The fallback after `??` only runs when it is needed. `d.get(k)` with one argument gives a `V?`. Optionals print as their value or `nil`. A struct field like `next: Node? = nil` is how you build a linked list.
+
+## Functions as values
+
+A function is a value like any other. Write one inline with `fn`, with a block body, or with `=>` and a single expression whose type Plank works out.
+
+```
+let add = fn(a: int, b: int) => a + b
+let shout = fn(s: str) -> str {
+  return s + "!"
+}
+fn twice(f: fn(int) -> int, x: int) -> int {
+  return f(f(x))
+}
+print(twice(fn(x) => x + 3, 1))   # 7; x is an int because twice says so
+print(twice(double, 5))            # a named function works too
+```
+
+Parameter types can be left off whenever the place the function goes already says them: arguments, `let` with a type, `return`, and the list methods below. A closure keeps the variables it uses, shared, not copied: change the variable later and the closure sees it, and a closure returned from a function keeps its variables alive.
+
+```
+fn make_counter() -> fn() -> int {
+  var n = 0
+  return fn() -> int {
+    n += 1
+    return n
+  }
+}
+```
+
+Lists take functions: `xs.map(fn(x) => x * 2)`, `xs.filter(fn(x) => x > 0)`, `xs.reduce(0, fn(acc, x) => acc + x)`. `xs.sort()` sorts ints, floats and strings in place and `xs.sorted()` returns a sorted copy; both take `by: fn(a, b) => a.age < b.age` for anything else, where the function says whether `a` goes first. Sorting is stable.
 
 ## Operators
 

@@ -1,0 +1,52 @@
+# Closures: functions as values, capturing variables, map, filter, reduce, sort.
+fn make_counter() -> fn() -> int {
+  var n = 0
+  return fn() -> int {
+    n += 1
+    return n
+  }
+}
+
+fn twice(f: fn(int) -> int, x: int) -> int {
+  return f(f(x))
+}
+
+fn double(x: int) -> int {
+  return x * 2
+}
+
+struct Person {
+  name: str
+  age: int
+}
+
+fn main() {
+  let next = make_counter()
+  next()
+  next()
+  print(next())
+
+  let add = fn(a: int, b: int) => a + b
+  print(add(2, 3), twice(double, 5), twice(fn(x) => x - 1, 10))
+
+  var bonus = 100
+  let pay = fn(x: int) => x + bonus
+  bonus = 500
+  print(pay(1))
+
+  let nums = [5, 3, 8, 1, 9, 2]
+  let evens = nums.filter(fn(x) => x % 2 == 0)
+  let squares = nums.map(fn(x) => x * x)
+  let total = nums.reduce(0, fn(acc, x) => acc + x)
+  print(evens, squares, total)
+  print(nums.map(fn(x) => "#\(x)"), nums.sorted(), nums)
+  nums.sort(by: fn(a, b) => a > b)
+  print(nums)
+
+  let people = [Person("ada", 36), Person("linus", 28), Person("grace", 85)]
+  let by_age = people.sorted(by: fn(a, b) => a.age < b.age)
+  print(by_age.map(fn(p) => p.name), ["pear", "apple", "fig"].sorted())
+
+  let ops = ["+": fn(a: int, b: int) => a + b]
+  print(len(ops))
+}
