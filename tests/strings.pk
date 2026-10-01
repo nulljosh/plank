@@ -1,0 +1,31 @@
+# Strings: join, compare, measure, slice, split, case, replace, find, UTF-8.
+fn main() {
+  assert("a" + "b" == "ab", "join")
+  assert("apple" < "banana" and "b" > "a" and "a" <= "a" and "a" != "b", "compare")
+  assert(len("") == 0 and len("plank") == 5 and len("世界") == 2 and len("héllo") == 5, "length counts characters")
+  assert("héllo"[1] == "é" and "héllo"[-1] == "o", "index by character")
+  assert("héllo"[1..3] == "él" and "abc"[..2] == "ab" and "abc"[1..] == "bc", "slices")
+  assert("abc"[5..9] == "" and "abc"[-9..2] == "ab", "slices clamp instead of failing")
+  assert(len("a,b,,c".split(",")) == 4, "split keeps empties")
+  assert(len("a b   c\n d".split()) == 4, "split on whitespace")
+  assert("  hi \t".trim() == "hi" and "".trim() == "", "trim")
+  assert("Plank".upper() == "PLANK" and "Plank".lower() == "plank" and "é".upper() == "é", "case, ASCII only")
+  assert("a-b-c".replace("-", "+") == "a+b+c" and "abc".replace("", "x") == "abc", "replace")
+  assert("plank".find("an") ?? -1 == 2 and "plank".find("z") == nil, "find")
+  assert("plank".starts_with("pl") and not "plank".starts_with("nk") and "plank".ends_with("nk"), "starts and ends")
+  assert("lan" in "plank" and not ("z" in "plank"), "in on strings")
+  assert(len("héllo".chars()) == 5, "chars")
+  assert(["a", "b", "c"].join("-") == "a-b-c", "join")
+  assert(str(42) == "42" and str(1.5) == "1.5" and str(true) == "true", "str of scalars")
+  assert(str([1, 2]) == "[1, 2]" and str(["a"]) == "[\"a\"]", "str of lists")
+  assert("\(1 + 2) and \("x" + "y")" == "3 and xy", "interpolation holds expressions")
+  assert(fixed(3.14159, 2) == "3.14" and fixed(1.0, 3) == "1.000", "fixed")
+  assert(int(" 42 ") == 42 and float("2.5") == 2.5, "parse numbers")
+  var s = ""
+  for c in "añb" {
+    s = c + s
+  }
+  assert(s == "bña", "for over characters")
+  print("ok")
+}
+

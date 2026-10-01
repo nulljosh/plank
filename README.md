@@ -40,7 +40,7 @@ caught: int() got text that is not a whole number
 
 Most language tutorials stop at a tree-walking interpreter. Plank skips the interpreter and goes straight to machine code, so what you build on day one is what a real compiler builds, just smaller.
 
-1.0 has what you reach for in Python, Ruby or Swift: strings with interpolation, lists, dicts, structs with methods, enums with an exhaustive `match`, optionals, closures with `map` and `filter`, imports, files, and `try` and `catch` for every runtime error. `docs/COMPARE.md` keeps score: 22 of 23. The one missing piece is freeing memory while a program runs, so Plank suits tools and scripts that run and finish.
+1.0 has what you reach for in Python, Ruby or Swift: strings with interpolation, lists, dicts, structs with methods, enums with an exhaustive `match`, optionals, closures with `map` and `filter`, imports, files, and `try` and `catch` for every runtime error. A garbage collector frees what you stop using. `docs/COMPARE.md` keeps score: 23 of 23, with the next rows listed.
 
 ## What you can build
 
@@ -63,7 +63,7 @@ git clone https://github.com/nulljosh/plank && cd plank
 ./plank build examples/fib.pk      # native binary at examples/fib
 ./plank emit examples/fib.pk       # print the LLVM IR
 ./plank apps/todo.pk add "milk"    # arguments go to the program
-python3 test.py                    # every example and app, diffed, plus the error messages
+python3 test.py                    # every example, app and tests/*.pk, the error messages, then all of it under GC stress
 ```
 
 Needs `uv` and a C compiler for linking (`cc`). The first run installs llvmlite on its own. The language reference is in `docs/SPEC.md`, the file map in `docs/ARCHITECTURE.md`, and how it stacks up against Python, Ruby and Swift in `docs/COMPARE.md`. Live at [plank.heyitsmejosh.com](https://plank.heyitsmejosh.com).

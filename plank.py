@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -712,16 +712,135 @@ void pk_panic(const char *file, long long line, const char *msg) {
     exit(1);
 }
 
-/* ponytail: nothing is ever freed. Fine for programs that run and exit; an arena or refcounts when that stops being true. */
-void *pk_alloc(long long n) {
-    void *p = malloc(n);
-    if (!p) { fputs("plank: out of memory\n", stderr); exit(1); }
-    return p;
+/* ---- memory: a conservative mark and sweep collector.
+   Every allocation gets a 16-byte header holding its slot in a table of blocks. A collection starts
+   from the stack, the registers (spilled by setjmp) and the open try frames, treats every word that
+   points into a block as a reference, follows them, and frees the blocks nothing reached. It never
+   moves anything, so the pointers LLVM keeps in registers stay valid. Strings are marked atomic:
+   their bytes are text, not pointers, so they are never scanned. */
+typedef struct { size_t idx, pad; } PkHdr;
+typedef struct { char *p; size_t n; unsigned char mark, atomic; } PkBlock;
+
+static PkBlock *pk_blocks;
+static size_t pk_nblocks, pk_capblocks;
+static size_t *pk_order, *pk_marks, pk_nmarks, pk_capmarks;
+static size_t pk_since, pk_min = 8u << 20, pk_limit = 8u << 20;
+static int pk_fixed_limit;
+static char *pk_stack_base;
+
+void pk_collect(void);
+static void pk_oom(void) { fputs("plank: out of memory\n", stderr); exit(1); }
+
+static void *pk_new(size_t n, int atomic) {
+    if (pk_since >= pk_limit) pk_collect();
+    PkHdr *h = calloc(1, sizeof *h + n);
+    if (!h) pk_oom();
+    if (pk_nblocks == pk_capblocks) {
+        pk_capblocks = pk_capblocks ? pk_capblocks * 2 : 1024;
+        pk_blocks = realloc(pk_blocks, pk_capblocks * sizeof *pk_blocks);
+        if (!pk_blocks) pk_oom();
+    }
+    h->idx = pk_nblocks;
+    pk_blocks[pk_nblocks++] = (PkBlock){(char *)(h + 1), n, 0, (unsigned char)atomic};
+    pk_since += n + sizeof *h;
+    return h + 1;
+}
+
+void *pk_alloc(long long n) { return pk_new(n, 0); }
+void *pk_alloc_text(long long n) { return pk_new(n, 1); }
+
+/* grow a block in place in the table; the new tail is zeroed */
+static void *pk_grow(void *p, size_t n) {
+    PkHdr *h = (PkHdr *)p - 1;
+    size_t i = h->idx, old = pk_blocks[i].n;
+    PkHdr *r = realloc(h, sizeof *h + n);
+    if (!r) pk_oom();
+    if (n > old) memset((char *)(r + 1) + old, 0, n - old);
+    pk_blocks[i].p = (char *)(r + 1);
+    pk_blocks[i].n = n;
+    pk_since += n > old ? n - old : 0;
+    return r + 1;
+}
+
+static int pk_by_addr(const void *a, const void *b) {
+    char *x = pk_blocks[*(const size_t *)a].p, *y = pk_blocks[*(const size_t *)b].p;
+    return x < y ? -1 : x > y;
+}
+
+/* the block holding addr, or -1. One past the end counts, so a pointer that walked off an array still keeps it. */
+static long pk_block_at(char *addr) {
+    long lo = 0, hi = (long)pk_nblocks - 1, hit = -1;
+    while (lo <= hi) {
+        long mid = (lo + hi) / 2;
+        if (pk_blocks[pk_order[mid]].p <= addr) { hit = mid; lo = mid + 1; } else hi = mid - 1;
+    }
+    if (hit < 0) return -1;
+    PkBlock *b = &pk_blocks[pk_order[hit]];
+    return addr <= b->p + b->n ? (long)pk_order[hit] : -1;
+}
+
+static void pk_mark_word(char *w) {
+    long i = pk_block_at(w);
+    if (i < 0 || pk_blocks[i].mark) return;
+    pk_blocks[i].mark = 1;
+    if (pk_blocks[i].atomic) return;
+    if (pk_nmarks == pk_capmarks) {
+        pk_capmarks = pk_capmarks ? pk_capmarks * 2 : 4096;
+        pk_marks = realloc(pk_marks, pk_capmarks * sizeof *pk_marks);
+        if (!pk_marks) pk_oom();
+    }
+    pk_marks[pk_nmarks++] = i;
+}
+
+static void pk_scan(char *lo, char *hi) {
+    lo = (char *)(((size_t)lo + 7) & ~(size_t)7);
+    for (; lo + 8 <= hi; lo += 8) pk_mark_word(*(char **)lo);
+}
+
+static void pk_collect_from(char *sp) {
+    pk_order = realloc(pk_order, (pk_nblocks + 1) * sizeof *pk_order);
+    if (!pk_order) pk_oom();
+    for (size_t i = 0; i < pk_nblocks; i++) pk_order[i] = i;
+    qsort(pk_order, pk_nblocks, sizeof *pk_order, pk_by_addr);
+    pk_scan(sp, pk_stack_base);
+    for (PkTry *t = pk_try_top; t; t = t->prev) pk_scan((char *)t->jb, (char *)t->jb + sizeof t->jb);
+    pk_mark_word((char *)pk_caught_msg);
+    while (pk_nmarks) {
+        PkBlock *b = &pk_blocks[pk_marks[--pk_nmarks]];
+        pk_scan(b->p, b->p + b->n);
+    }
+    size_t keep = 0, live = 0;
+    for (size_t i = 0; i < pk_nblocks; i++) {
+        PkBlock b = pk_blocks[i];
+        if (b.mark) {
+            b.mark = 0;
+            pk_blocks[keep] = b;
+            ((PkHdr *)b.p - 1)->idx = keep++;
+            live += b.n;
+        } else {
+            free((PkHdr *)b.p - 1);
+        }
+    }
+    pk_nblocks = keep;
+    pk_since = 0;
+    if (!pk_fixed_limit) pk_limit = live > pk_min ? live : pk_min;  /* collect again once as much new has piled up as survived */
+}
+
+__attribute__((noinline)) void pk_collect(void) {
+    jmp_buf regs;  /* setjmp spills the callee-saved registers into regs, where the stack scan finds them */
+    setjmp(regs);
+    pk_collect_from((char *)regs);
+}
+
+void pk_gc_init(char **argv) {
+    pk_stack_base = (char *)argv;
+    const char *knob = getenv("PLANK_GC");  /* a byte count: collect every that-many bytes, to shake out bugs */
+    if (knob && atoll(knob) > 0) { pk_min = pk_limit = (size_t)atoll(knob); pk_fixed_limit = 1; }
 }
 
 char *pk_concat(const char *a, const char *b) {
     size_t x = strlen(a), y = strlen(b);
-    char *r = pk_alloc(x + y + 1);
+    char *r = pk_alloc_text(x + y + 1);
     memcpy(r, a, x);
     memcpy(r + x, b, y + 1);
     return r;
@@ -734,8 +853,8 @@ long long pk_len(const char *s) {
     return n;
 }
 
-char *pk_str_int(long long v) { char *r = pk_alloc(24); snprintf(r, 24, "%lld", v); return r; }
-char *pk_str_float(double v) { char *r = pk_alloc(32); snprintf(r, 32, "%.15g", v); return r; }
+char *pk_str_int(long long v) { char *r = pk_alloc_text(24); snprintf(r, 24, "%lld", v); return r; }
+char *pk_str_float(double v) { char *r = pk_alloc_text(32); snprintf(r, 32, "%.15g", v); return r; }
 
 static const char *pk_number_end(const char *e) { while (isspace((unsigned char)*e)) e++; return e; }
 
@@ -768,8 +887,7 @@ PkList *pk_list_new(long long cap, long long size) {
 void *pk_list_push(PkList *l, long long size) {
     if (l->len == l->cap) {
         l->cap *= 2;
-        l->data = realloc(l->data, l->cap * size);
-        if (!l->data) { fputs("plank: out of memory\n", stderr); exit(1); }
+        l->data = pk_grow(l->data, l->cap * size);
     }
     return l->data + size * l->len++;
 }
@@ -799,7 +917,7 @@ PkDict *pk_dict_new(long long isstr) {
     d->len = 0; d->cap = 8; d->mask = 15; d->isstr = isstr;
     d->keys = pk_alloc(8 * d->cap);
     d->vals = pk_alloc(8 * d->cap);
-    d->index = calloc(d->mask + 1, 8);
+    d->index = pk_alloc_text((d->mask + 1) * 8);  /* just numbers, nothing to scan */
     return d;
 }
 
@@ -811,8 +929,7 @@ static long long *pk_probe(PkDict *d, long long key) {
 }
 
 static void pk_reindex(PkDict *d) {
-    free(d->index);
-    d->index = calloc(d->mask + 1, 8);
+    d->index = pk_alloc_text((d->mask + 1) * 8);
     for (long long e = 0; e < d->len; e++) *pk_probe(d, d->keys[e]) = e + 1;
 }
 
@@ -830,8 +947,8 @@ long long *pk_dict_put(PkDict *d, long long key, long long isstr) {
     if (*cell) return &d->vals[*cell - 1];
     if (d->len == d->cap) {
         d->cap *= 2;
-        d->keys = realloc(d->keys, 8 * d->cap);
-        d->vals = realloc(d->vals, 8 * d->cap);
+        d->keys = pk_grow(d->keys, 8 * d->cap);
+        d->vals = pk_grow(d->vals, 8 * d->cap);
     }
     d->keys[d->len] = key;
     d->vals[d->len] = 0;
@@ -912,7 +1029,8 @@ static void pk_merge(char *a, char *tmp, long long n, long long size, PkLess les
 }
 
 void pk_list_sort(PkList *l, long long size, PkLess less, void *env) {
-    char *tmp = pk_alloc(size * (l->len ? l->len : 1));
+    char *tmp = malloc(size * (l->len ? l->len : 1));  /* plain malloc: every item stays in l->data until the merge ends */
+    if (!tmp) pk_oom();
     pk_merge(l->data, tmp, l->len, size, less, env);
     free(tmp);
 }
@@ -925,7 +1043,7 @@ static long long pk_skip(const char *s, long long n) {  /* byte offset of charac
 }
 
 static char *pk_strndup(const char *s, long long n) {
-    char *r = pk_alloc(n + 1);
+    char *r = pk_alloc_text(n + 1);
     memcpy(r, s, n);
     r[n] = 0;
     return r;
@@ -987,7 +1105,7 @@ char *pk_join(PkList *l, const char *sep) {
     size_t n = 1, k = strlen(sep);
     char **items = (char **)l->data;
     for (long long i = 0; i < l->len; i++) n += strlen(items[i]) + k;
-    char *r = pk_alloc(n), *p = r;
+    char *r = pk_alloc_text(n), *p = r;
     for (long long i = 0; i < l->len; i++) {
         if (i) { memcpy(p, sep, k); p += k; }
         size_t m = strlen(items[i]);
@@ -1030,7 +1148,7 @@ long long pk_ends(const char *s, const char *p) {
 }
 
 char *pk_fixed(double v, long long digits) {
-    char *r = pk_alloc(64);
+    char *r = pk_alloc_text(64);
     snprintf(r, 64, "%.*f", (int)(digits < 0 ? 0 : digits > 30 ? 30 : digits), v);
     return r;
 }
@@ -1046,7 +1164,7 @@ PkList *pk_list_slice(PkList *l, long long size, long long a, long long b) {
 /* ---- the outside world: arguments, files, the clock, randomness */
 static int pk_argc;
 static char **pk_argv;
-void pk_set_args(int argc, char **argv) { pk_argc = argc; pk_argv = argv; }
+void pk_set_args(int argc, char **argv) { pk_argc = argc; pk_argv = argv; pk_gc_init(argv); }
 
 PkList *pk_args(void) {
     PkList *l = pk_list_new(pk_argc, 8);
@@ -1056,10 +1174,10 @@ PkList *pk_args(void) {
 
 static char *pk_slurp(FILE *f) {
     size_t cap = 4096, n = 0, got;
-    char *buf = pk_alloc(cap);
+    char *buf = pk_alloc_text(cap);
     while ((got = fread(buf + n, 1, cap - n - 1, f)) > 0) {
         n += got;
-        if (cap - n < 2) { cap *= 2; buf = realloc(buf, cap); }
+        if (cap - n < 2) { cap *= 2; buf = pk_grow(buf, cap); }
     }
     buf[n] = 0;
     return buf;
@@ -1118,9 +1236,11 @@ char *pk_input(const char *prompt) {
     size_t cap = 0;
     char *buf = NULL;
     ssize_t n = getline(&buf, &cap, stdin);
-    if (n <= 0) return "";
-    if (buf[n - 1] == '\n') buf[n - 1] = 0;
-    return buf;
+    if (n <= 0) { free(buf); return ""; }
+    if (buf[n - 1] == '\n') n--;
+    char *r = pk_strndup(buf, n);  /* getline's buffer is plain malloc; hand the program a collected copy */
+    free(buf);
+    return r;
 }
 """
 
@@ -1226,7 +1346,7 @@ def fits(got, want):
 INT_OPS = {"+": "add", "-": "sub", "*": "mul", "/": "sdiv", "%": "srem"}
 FLOAT_OPS = {"+": "fadd", "-": "fsub", "*": "fmul", "/": "fdiv", "%": "frem"}
 CMP = {"==", "!=", "<", ">", "<=", ">="}
-BUILTINS = {"print", "int", "float", "str", "len", "input"}  # user functions cannot take these names
+BUILTINS = {"print", "int", "float", "str", "len", "input", "assert"}  # user functions cannot take these names
 FMT = {"int": "%lld", "float": "%.15g", "str": "%s", "bool": "%s"}
 
 
@@ -2403,6 +2523,21 @@ class Codegen:
             return self.coalesce(e)
         lhs, lt = self.expr(e.left)
         rhs, rt = self.expr(e.right)
+        if e.op in ("==", "!=") and {lt, rt} - {"nil"} and (lt.endswith("?") != rt.endswith("?")) and "nil" not in (lt, rt):
+            # an optional against a plain value: equal only when it holds one and that one matches
+            opt, plain, pt = (lhs, rhs, rt) if lt.endswith("?") else (rhs, lhs, lt)
+            if not fits(pt, (lt if lt.endswith("?") else rt)[:-1]):
+                raise PlankError(e.line, f"{lt} {e.op} {rt}: these can never be equal")
+            b = self.builder
+            with b.if_else(b.icmp_unsigned("!=", opt, ir.Constant(opt.type, None))) as (some, none):
+                with some:
+                    eq, some_bb = self.e_Binary(Binary(e.line, "==", Given(e.line, b.load(opt), pt), Given(e.line, plain, pt)))[0], b.block
+                with none:
+                    none_bb = b.block
+            phi = b.phi(LL["bool"])
+            phi.add_incoming(eq, some_bb)
+            phi.add_incoming(ir.Constant(LL["bool"], 0), none_bb)
+            return (phi if e.op == "==" else b.not_(phi)), "bool"
         if "nil" in (lt, rt) and e.op in ("==", "!="):
             val, ty = (lhs, lt) if rt == "nil" else (rhs, rt)
             if ty == "nil":
@@ -2691,6 +2826,17 @@ class Codegen:
 
     def b_env(self, e, args):
         return self.maybe(self.call_c("pk_env", "str", *self.typed(e, args, "str")), "str")
+
+    def b_assert(self, e, args):
+        if not args or args[0][1] != "bool" or len(args) > 2 or (len(args) == 2 and args[1][1] != "str"):
+            raise PlankError(e.line, "assert(cond) or assert(cond, message): the condition is a bool, the message a str")
+        b = self.builder
+        with b.if_then(b.not_(args[0][0]), likely=False):
+            text = args[1][0] if len(args) == 2 else self.cstr("")
+            msg = self.call_c("pk_concat", "str", self.cstr("assertion failed: "), text)
+            b.call(self.c("pk_panic", ir.VoidType(), LL["str"], LL["int"], LL["str"]), self.where(e.line) + [msg])
+            b.unreachable()
+        return None, "void"
 
     def b_exit(self, e, args):
         self.builder.call(self.c("pk_exit", ir.VoidType(), LL["int"]), self.typed(e, args, "int"))

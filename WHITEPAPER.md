@@ -34,6 +34,10 @@ A list is a pointer to one struct. Pass it to a function and the function change
 
 A runtime error in Plank goes through one C function. Without a `try` open it prints the file and line and exits. With one open it jumps back to the `try` with `longjmp`, and the catch block gets the message. One mechanism serves bounds checks, missing keys, bad numbers and your own `throw`. The price is that a function holding a `try` keeps its variables in memory instead of registers, so the jump cannot lose a value.
 
+## Memory is collected, conservatively
+
+A precise collector needs the compiler to tell it where every pointer lives, in every stack frame and every register, which means a whole extra layer of bookkeeping in the code generator. Plank does what Boehm's collector does instead: it treats any word that happens to point into a block as a pointer. Once in a while it keeps something alive by accident. It never frees something alive. That trade bought a collector in about 120 lines of C, and LLVM never had to know.
+
 ## Where it stands
 
-1.0 does what Python, Ruby and Swift programs do every day: strings, lists, dicts, structs, enums with an exhaustive match, optionals, closures, imports, files, and errors you can catch. `docs/COMPARE.md` is the scorecard, 22 of 23. The missing one is reclaiming memory while a program runs, which is the next big piece. Each feature still has to earn its lines, and the file still has to read in a sitting.
+1.1 does what Python, Ruby and Swift programs do every day, and frees its memory while doing it. `docs/COMPARE.md` is the scorecard, 23 of 23, with the next rows already listed. Each feature still has to earn its lines, and the file still has to read in a sitting.

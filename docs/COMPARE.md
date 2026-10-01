@@ -26,10 +26,21 @@ The goal: write the programs you would write in Python, Ruby or Swift, in Plank,
 | Errors you can catch | try | rescue | try | yes (1.0) |
 | Multiple files, imports | yes | yes | yes | yes (0.10) |
 | Files and command-line args | yes | yes | yes | yes (0.10) |
-| Memory reclaimed | GC | GC | ARC | no, freed at exit |
+| Memory reclaimed | GC | GC | ARC | yes, GC (1.1) |
 
 Out of scope for now, on purpose: threads and async, a package manager, a REPL, a JIT. Each is a project the size of Plank itself.
 
 ## Score
 
-22 of 23. The one no is memory: Plank frees everything when the program exits, which suits tools and scripts that run and finish, and not a server that runs for a month. That is the next big piece.
+23 of 23. Every row is a yes. The table grows from here: see the Next section.
+
+## Next rows
+
+| Feature | Python 3.14 | Ruby 3.4 | Swift 6 | Plank |
+|---|---|---|---|---|
+| Run a shell command | yes | yes | yes | no |
+| JSON in and out | yes | yes | yes | no |
+| HTTP requests | yes | yes | yes | no |
+| Generic functions | duck typing | duck typing | yes | no |
+| `if` as an expression | yes | yes | yes | no |
+| Tests in the language | unittest | minitest | XCTest | `assert` (1.1) |

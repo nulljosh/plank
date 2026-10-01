@@ -1,0 +1,115 @@
+# Structs, enums, optionals, closures, defaults and labels.
+struct Point {
+  x: int
+  y: int = 0
+
+  fn sum() -> int {
+    return self.x + self.y
+  }
+
+  fn move(dx: int, dy: int = 1) {
+    self.x += dx
+    self.y += dy
+  }
+}
+
+enum Shape {
+  circle(r: float)
+  square(side: float)
+  dot
+
+  fn area() -> float {
+    match self {
+      .circle(r) { return 3.0 * r * r }
+      .square(side) { return side * side }
+      .dot { return 0.0 }
+    }
+  }
+}
+
+enum Color {
+  red, green
+}
+
+fn pick(n: int) -> str {
+  match n {
+    1, 2 { return "low" }
+    3 { return "mid" }
+    else { return "high" }
+  }
+}
+
+fn first_over(xs: [int], limit: int) -> int? {
+  for x in xs {
+    if x > limit {
+      return x
+    }
+  }
+  return nil
+}
+
+fn make_adder(n: int) -> fn(int) -> int {
+  return fn(x) => x + n
+}
+
+fn apply(f: fn(int) -> int, x: int) -> int {
+  return f(x)
+}
+
+fn triple(x: int) -> int {
+  return x * 3
+}
+
+fn main() {
+  let p = Point(3)
+  assert(p.x == 3 and p.y == 0 and p.sum() == 3, "defaults")
+  p.move(2)
+  assert(p.x == 5 and p.y == 1, "method with a default")
+  p.move(dy: 10, dx: 1)
+  assert(p.x == 6 and p.y == 11, "labels in any order")
+  let q = Point(x: 1, y: 2)
+  let alias = q
+  alias.x = 50
+  assert(q.x == 50, "structs are shared")
+  assert(str(Point(1, 2)) == "Point(x: 1, y: 2)", "struct print")
+
+  assert(Shape.square(3.0).area() == 9.0 and Shape.dot.area() == 0.0, "enum methods")
+  assert(str(Shape.circle(1.0)) == "circle(r: 1)" and str(Shape.dot) == "dot", "enum print")
+  assert(Color.red == Color.red and Color.red != Color.green, "plain enums compare")
+  assert(pick(2) == "low" and pick(3) == "mid" and pick(99) == "high", "match on ints")
+  match "b" {
+    "a" { assert(false, "wrong arm") }
+    "b" { }
+    else { assert(false, "wrong arm") }
+  }
+
+  assert(first_over([1, 5, 9], 3) == 5 and first_over([1], 3) == nil, "optional results")
+  assert((first_over([1], 3) ?? -1) == -1 and (first_over([8], 3) ?? -1) == 8, "?? fallback")
+  if let v = first_over([1, 7], 3) {
+    assert(v == 7, "if let binds the value")
+  } else {
+    assert(false, "if let else")
+  }
+  var maybe: int? = 5
+  assert(maybe! == 5, "unwrap")
+  maybe = nil
+  assert(maybe == nil, "assign nil")
+
+  let add5 = make_adder(5)
+  assert(add5(1) == 6 and make_adder(10)(1) == 11, "closures keep their variables")
+  assert(apply(triple, 4) == 12 and apply(fn(x) => x - 1, 4) == 3, "functions as values")
+  var count = 0
+  let bump = fn() {
+    count += 1
+  }
+  bump()
+  bump()
+  assert(count == 2, "closures share the variable")
+  var fs: [fn() -> int] = []
+  for i in 0..3 {
+    let k = i * 10
+    fs.append(fn() => k)
+  }
+  assert(fs[0]() == 0 and fs[2]() == 20, "each loop pass gets its own variable")
+  print("ok")
+}

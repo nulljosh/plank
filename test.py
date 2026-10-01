@@ -1,15 +1,19 @@
 """Compile every example, diff its output. `python3 test.py`."""
-import glob, subprocess, sys
+import glob, os, subprocess, sys
 
 fails = 0
-for src in sorted(glob.glob("examples/*.pk")) + sorted(glob.glob("apps/*.pk")):
-    want = open(src[:-3] + ".out").read()
-    got = subprocess.run(["./plank", "run", src], capture_output=True, text=True)
-    ok = got.returncode == 0 and got.stdout == want
-    fails += not ok
-    print(("ok   " if ok else "FAIL ") + src)
-    if not ok:
-        print(got.stdout + got.stderr)
+# every example and app, diffed against its .out; every tests/*.pk must print ok.
+# Then all of it again with the collector running every 4KB, so a missed root shows up here and not in a user's program.
+programs = sorted(glob.glob("examples/*.pk")) + sorted(glob.glob("apps/*.pk")) + sorted(glob.glob("tests/*.pk"))
+for env_name, env in (("", {}), (" [gc every 4KB]", {"PLANK_GC": "4000"})):
+    for src in programs:
+        want = open(src[:-3] + ".out").read() if not src.startswith("tests/") else "ok\n"
+        got = subprocess.run(["./plank", "run", src], capture_output=True, text=True, env={**os.environ, **env})
+        ok = got.returncode == 0 and got.stdout == want
+        fails += not ok
+        print(("ok   " if ok else "FAIL ") + src + env_name)
+        if not ok:
+            print(got.stdout + got.stderr)
 
 # bad programs fail with a line number, not a traceback, at compile time and at run time
 BAD = [
@@ -35,7 +39,10 @@ BAD = [
     ("import \"nowhere.pk\"\nfn main() {\n}\n", ":1: cannot import 'nowhere.pk'"),
     ("fn main() {\n  throw \"nope\"\n}\n", ":2: nope"),
     ("fn main() {\n  throw 5\n}\n", ":2: throw takes a str message, got int"),
+    ("fn main() {\n  assert(1)\n}\n", ":2: assert(cond) or assert(cond, message)"),
+    ("fn main() {\n  let x: int? = 1\n  print(x == \"a\")\n}\n", ":3: int? == str: these can never be equal"),
     # run time
+    ("fn main() {\n  assert(1 > 2, \"math broke\")\n}\n", ":2: assertion failed: math broke"),
     ("fn main() {\n  print(\"abc\"[5])\n}\n", ":2: index 5 is out of range for a string of 3"),
     ("fn main() {\n  let xs = [1, 2]\n  print(xs[2])\n}\n", ":3: index 2 is out of range for a list of 2"),
     ("fn main() {\n  let xs: [int] = []\n  print(xs.pop())\n}\n", ":3: pop() on an empty list"),

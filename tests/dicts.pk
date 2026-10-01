@@ -1,0 +1,45 @@
+# Dicts: literals, read, write, get, in, remove, keys, values, order, growth, int and str keys.
+fn main() {
+  let d = ["a": 1, "b": 2]
+  assert(d["a"] == 1 and len(d) == 2, "read")
+  d["c"] = 3
+  d["a"] += 10
+  assert(d["c"] == 3 and d["a"] == 11 and len(d) == 3, "write and update")
+  assert("a" in d and not ("z" in d), "in")
+  assert(d.get("z", -1) == -1 and d.get("a", -1) == 11 and d.get("z") == nil and d.get("a") == 11, "get with and without a default")
+  assert(d.keys()[0] == "a" and d.keys()[2] == "c", "keys keep the order they went in")
+  assert(d.values()[1] == 2, "values")
+  d.remove("b")
+  assert(len(d) == 2 and not ("b" in d) and d.keys()[1] == "c", "remove keeps the rest in order")
+  var seen = 0
+  for k in d {
+    seen += d[k]
+  }
+  assert(seen == 14, "for in walks keys")
+  let ints = [1: "one", 2: "two"]
+  assert(ints[2] == "two" and 1 in ints, "int keys")
+  let big: [int: int] = [:]
+  for i in 0..5000 {
+    big[i * 7 % 5003] = i
+  }
+  assert(len(big) == 5000, "growth keeps every key")
+  var sum = 0
+  for k in big {
+    sum += big[k]
+  }
+  assert(sum == 12497500, "growth keeps every value")
+  for i in 0..2500 {
+    big.remove(i * 7 % 5003)
+  }
+  assert(len(big) == 2500, "many removes")
+  let words: [str: [int]] = [:]
+  words["x"] = [1]
+  words["x"].append(2)
+  assert(len(words["x"]) == 2, "list values")
+  let empty: [str: int] = [:]
+  assert(len(empty) == 0 and str(empty) == "[:]", "empty dict")
+  assert(str(["a": 1, "b": 2]) == "[\"a\": 1, \"b\": 2]", "print")
+  let nested = ["outer": ["inner": 5]]
+  assert(nested["outer"]["inner"] == 5, "nested")
+  print("ok")
+}

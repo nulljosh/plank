@@ -1,0 +1,49 @@
+# Lists: literals, index, negative index, slices, append, pop, sort, map/filter/reduce, nesting, sharing.
+fn grow(xs: [int]) {
+  xs.append(99)
+}
+
+fn main() {
+  let xs = [3, 1, 2]
+  assert(len(xs) == 3 and xs[0] == 3 and xs[-1] == 2 and xs[-3] == 3, "index")
+  xs.append(4)
+  assert(len(xs) == 4 and xs[3] == 4, "append")
+  assert(xs.pop() == 4 and len(xs) == 3, "pop")
+  xs[1] = 10
+  xs[1] += 5
+  assert(xs[1] == 15, "assign and compound assign through an index")
+  let part = xs[1..]
+  assert(len(part) == 2 and part[0] == 15, "slice open end")
+  assert(len(xs[..2]) == 2 and len(xs[5..9]) == 0 and len(xs[-2..]) == 2, "slice ends clamp and count from the back")
+  let empty: [int] = []
+  assert(len(empty) == 0, "empty list")
+  assert(len([[1, 2], [3]]) == 2 and [[1, 2], [3]][0][1] == 2, "nested")
+  let shared = [1]
+  grow(shared)
+  assert(len(shared) == 2 and shared[1] == 99, "lists are shared with callees")
+  let sorted_xs = [5, 2, 9, 1].sorted()
+  assert(sorted_xs[0] == 1 and sorted_xs[3] == 9, "sorted")
+  let ys = [5, 2, 9, 1]
+  ys.sort()
+  assert(ys[0] == 1 and ys[3] == 9, "sort in place")
+  ys.sort(by: fn(a, b) => a > b)
+  assert(ys[0] == 9, "sort by")
+  assert(["pear", "fig", "apple"].sorted()[0] == "apple" and [2.5, 1.5].sorted()[0] == 1.5, "sort strings and floats")
+  let doubled = [1, 2, 3].map(fn(x) => x * 2)
+  assert(doubled[2] == 6, "map")
+  assert(len([1, 2, 3, 4].filter(fn(x) => x % 2 == 0)) == 2, "filter")
+  assert([1, 2, 3, 4].reduce(0, fn(a, x) => a + x) == 10, "reduce")
+  assert(len([1, 2, 3].map(fn(x) => "n\(x)")) == 3, "map to another type")
+  var total = 0
+  for x in [10, 20, 30] {
+    total += x
+  }
+  assert(total == 60, "for in")
+  assert(3 in [1, 2, 3] and not (4 in [1, 2, 3]) and "b" in ["a", "b"], "in")
+  assert(str([[1], [2, 3]]) == "[[1], [2, 3]]" and str([true, false]) == "[true, false]", "print nested and bool lists")
+  assert(len(["a", "b"].map(fn(s) => s + s)) == 2, "map strings")
+  let stable = ["b1", "a1", "b2", "a2"]
+  stable.sort(by: fn(a, b) => a[0] < b[0])
+  assert(stable.join("") == "a1a2b1b2", "sort is stable")
+  print("ok")
+}

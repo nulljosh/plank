@@ -269,6 +269,7 @@ for i in 0..10 {   # 0 through 9, the bounds are evaluated once
 | `random(lo, hi)`, `random()` | An int from `lo` to `hi` inclusive, or a float from 0 up to 1. |
 | `time()` | Seconds since 1970 as a float, good for timing. |
 | `exit(code)` | Stops the program with that exit code. |
+| `assert(cond, message)` | Stops the program, or lands in the nearest `catch`, when `cond` is false. The message is optional. |
 
 Floats print with 15 significant digits, so `0.1 + 0.2` shows `0.3` and `1.0 / 3.0` shows `0.333333333333333`. `print`, `str`, `int`, `float`, `len` and `input` are reserved. The math names are not: define your own `sqrt` and yours wins.
 
@@ -291,6 +292,10 @@ try {
 ```
 
 `throw` takes a str. A `try` can hold `return`, `break` and `continue`, and tries nest: a throw inside a `catch` goes to the next `try` out. An error nobody catches stops the program with the file, line and message, exit code 1.
+
+## Memory
+
+You never free anything. A collector runs now and then, finds every list, dict, string, struct, enum and closure the program can still reach, and frees the rest. It never moves anything. Set `PLANK_GC=4000` in the environment to collect every 4,000 bytes instead, which is how the test suite shakes out bugs.
 
 ## Errors
 

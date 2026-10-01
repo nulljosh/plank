@@ -1,0 +1,101 @@
+# Control flow, numbers, scoping, recursion and try/catch.
+fn fib(n: int) -> int {
+  if n < 2 { return n }
+  return fib(n - 1) + fib(n - 2)
+}
+
+fn is_even(n: int) -> bool {
+  if n == 0 { return true }
+  return is_odd(n - 1)
+}
+
+fn is_odd(n: int) -> bool {
+  if n == 0 { return false }
+  return is_even(n - 1)
+}
+
+fn risky(n: int) -> int {
+  if n < 0 {
+    throw "negative: \(n)"
+  }
+  return n * 2
+}
+
+fn main() {
+  assert(fib(15) == 610 and is_even(10) and is_odd(7), "recursion, any order")
+  assert(7 / 2 == 3 and -7 / 2 == -3 and 7 % 3 == 1 and -7 % 3 == -1, "integer division truncates, % follows the left sign")
+  assert(7.0 / 2.0 == 3.5 and 2.0 * 3.0 == 6.0 and -(2.0) == -2.0, "floats")
+  assert(int(3.9) == 3 and int(-3.9) == -3 and float(2) == 2.0 and int(true) == 1, "conversions")
+  assert(abs(-3) == 3 and abs(-2.5) == 2.5 and min(3, 9) == 3 and max(2.5, 1.0) == 2.5, "abs min max")
+  assert(sqrt(16.0) == 4.0 and pow(2.0, 10.0) == 1024.0 and floor(2.7) == 2.0 and ceil(2.1) == 3.0, "math")
+  assert(true and not false and (false or true) and not (true and false), "bool logic")
+  assert(false and true or true, "precedence")
+  var x = 1
+  if x == 2 { assert(false, "if") } else if x == 1 { x = 10 } else { assert(false, "else") }
+  assert(x == 10, "else if")
+  var n = 0
+  while true {
+    n += 1
+    if n % 2 == 0 { continue }
+    if n > 8 { break }
+  }
+  assert(n == 9, "while, break, continue")
+  var tri = 0
+  for i in 0..5 {
+    for j in 0..i {
+      if j == 3 { break }
+      tri += 1
+    }
+  }
+  assert(tri == 0 + 1 + 2 + 3 + 3, "nested loops, inner break")
+  let shadow = 1
+  if true {
+    let shadow = 2
+    assert(shadow == 2, "inner shadow")
+  }
+  assert(shadow == 1, "outer value is back")
+
+  var caught = ""
+  try {
+    risky(-4)
+  } catch err {
+    caught = err
+  }
+  assert(caught == "negative: -4", "throw and catch")
+  try {
+    assert(risky(4) == 8, "no throw")
+  } catch err {
+    assert(false, "should not catch")
+  }
+  var inner = 0
+  try {
+    try {
+      throw "a"
+    } catch e {
+      inner += 1
+      throw "b"
+    }
+  } catch e {
+    assert(e == "b", "nested")
+    inner += 10
+  }
+  assert(inner == 11, "a throw inside a catch goes to the next try out")
+  var ok = ""
+  try {
+    let xs = [1]
+    ok = str(xs[5])
+  } catch e {
+    ok = e
+  }
+  assert(ok == "index 5 is out of range for a list of 1", "runtime errors are catchable")
+  var found = 0
+  for i in 0..10 {
+    try {
+      if i == 4 { break }
+      found += 1
+    } catch e {
+    }
+  }
+  assert(found == 4, "break out of a try")
+  print("ok")
+}
