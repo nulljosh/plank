@@ -1,0 +1,52 @@
+# Structs with fields, defaults, methods, labels, and lists of them.
+struct Point {
+  x: float
+  y: float
+
+  fn length() -> float {
+    return sqrt(self.x * self.x + self.y * self.y)
+  }
+
+  fn shift(dx: float, dy: float = 0.0) {
+    self.x += dx
+    self.y += dy
+  }
+}
+
+struct Account {
+  owner: str
+  balance: int = 0
+  history: [int] = []
+
+  fn deposit(amount: int) {
+    self.balance += amount
+    self.history.append(amount)
+  }
+}
+
+fn greet(name: str, greeting: str = "hello", times: int = 1) {
+  for i in 0..times {
+    print("\(greeting), \(name)")
+  }
+}
+
+fn main() {
+  let p = Point(3.0, 4.0)
+  print(p, p.length())
+  p.shift(1.0)
+  p.shift(dy: 2.0, dx: -1.0)
+  print(p)
+
+  let acct = Account(owner: "josh")
+  acct.deposit(50)
+  acct.deposit(25)
+  print(acct.owner, acct.balance, acct.history)
+  print(acct)
+
+  let path = [Point(0.0, 0.0), Point(x: 1.0, y: 1.0)]
+  path[1].x = 9.0
+  print(path, path[1].length() > 9.0)
+
+  greet("plank")
+  greet("swift", greeting: "hi", times: 2)
+}

@@ -1,7 +1,6 @@
 # Roadmap
 
 ## Next (the scorecard in docs/COMPARE.md, one release each)
-- [ ] 0.4 structs with methods
 - [ ] 0.5 dicts
 - [ ] 0.6 enums, `match`, optionals
 - [ ] 0.7 closures, `map`, `filter`, `reduce`

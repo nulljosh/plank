@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -27,7 +27,7 @@ class PlankError(Exception):
 
 
 # ---------------------------------------------------------------- lexer
-KEYWORDS = {"fn", "let", "var", "if", "else", "while", "for", "in", "return",
+KEYWORDS = {"fn", "struct", "let", "var", "if", "else", "while", "for", "in", "return",
             "break", "continue", "true", "false", "and", "or", "not"}
 TOKEN_RE = re.compile(r"""
     (?P<ws>[ \t\r]+) | (?P<comment>\#[^\n]*) | (?P<nl>\n) |
@@ -150,7 +150,7 @@ class Unary(Node): op: str; expr: Node
 @dataclass
 class Binary(Node): op: str; left: Node; right: Node
 @dataclass
-class Call(Node): name: str; args: list
+class Call(Node): name: str; args: list; labels: list
 @dataclass
 class Let(Node): name: str; ty: str; expr: Node; mutable: bool
 @dataclass
@@ -168,7 +168,9 @@ class List(Node): items: list
 @dataclass
 class Index(Node): target: Node; index: Node
 @dataclass
-class Method(Node): target: Node; name: str; args: list
+class Method(Node): target: Node; name: str; args: list; labels: list
+@dataclass
+class Field(Node): target: Node; name: str
 @dataclass
 class Return(Node): expr: Node
 @dataclass
@@ -178,7 +180,9 @@ class Continue(Node): pass
 @dataclass
 class ExprStmt(Node): expr: Node
 @dataclass
-class Fn(Node): name: str; params: list; ret: str; body: list
+class Fn(Node): name: str; params: list; ret: str; body: list; defaults: dict
+@dataclass
+class Struct(Node): name: str; fields: list; defaults: dict; methods: list
 
 
 # ---------------------------------------------------------------- parser
@@ -214,22 +218,49 @@ class Parser:
             self.next()
 
     def program(self):
-        fns = []
+        items = []
         self.skip_nl()
         while not self.at("eof"):
-            fns.append(self.fn())
+            items.append(self.struct() if self.at("struct") else self.fn())
             self.skip_nl()
-        return fns
+        return items
+
+    def struct(self):
+        line = self.expect("struct").line
+        name = self.expect("name")
+        if not name.val[0].isupper():
+            raise PlankError(line, f"struct names start with a capital letter: {name.val.capitalize()}")
+        self.expect("{")
+        fields, defaults, methods = [], {}, []
+        self.skip_nl()
+        while not self.at("}"):
+            if self.at("fn"):
+                methods.append(self.fn())
+            else:
+                fname = self.expect("name").val
+                self.expect(":")
+                fields.append((fname, self.type()))
+                if self.at("="):
+                    self.next()
+                    defaults[fname] = self.expr()
+                if self.at(","):
+                    self.next()
+            self.skip_nl()
+        self.expect("}")
+        return Struct(line, name.val, fields, defaults, methods)
 
     def fn(self):
         line = self.expect("fn").line
         name = self.expect("name").val
         self.expect("(")
-        params = []
+        params, defaults = [], {}
         while not self.at(")"):
             pname = self.expect("name").val
             self.expect(":")
             params.append((pname, self.type()))
+            if self.at("="):
+                self.next()
+                defaults[pname] = self.expr()
             if not self.at(")"):
                 self.expect(",")
         self.expect(")")
@@ -237,7 +268,7 @@ class Parser:
         if self.at("->"):
             self.next()
             ret = self.type()
-        return Fn(line, name, params, ret, self.block())
+        return Fn(line, name, params, ret, self.block(), defaults)
 
     def type(self):
         if self.at("["):
@@ -246,7 +277,7 @@ class Parser:
             self.expect("]")
             return f"[{inner}]"
         t = self.expect("name")
-        if t.val not in TYPES:
+        if t.val not in TYPES and not t.val[0].isupper():  # capitalized names are structs, checked in codegen
             raise PlankError(t.line, f"unknown type {t.val!r}")
         return t.val
 
@@ -300,8 +331,8 @@ class Parser:
             return Continue(t.line)
         e = self.expr()
         if self.at("=", "+=", "-=", "*=", "/=", "%="):
-            if not isinstance(e, (Name, Index)):
-                raise PlankError(t.line, "only a variable or xs[i] can go left of =")
+            if not isinstance(e, (Name, Index, Field)):
+                raise PlankError(t.line, "only a variable, xs[i] or p.x can go left of =")
             op = self.next().kind
             val = self.expr()
             # ponytail: xs[f()] += 1 evaluates f() twice; a temp slot if that ever matters
@@ -348,9 +379,29 @@ class Parser:
                 self.expect("]")
                 continue
             name = self.expect("name").val
-            self.expect("(")
-            e = Method(line, e, name, self.args(")"))
+            if self.at("("):
+                self.next()
+                e = Method(line, e, name, *self.call_args())
+            else:
+                e = Field(line, e, name)
         return e
+
+    def call_args(self):
+        """Arguments up to ), each optionally labeled: f(1, by: 2)."""
+        args, labels = [], []
+        while not self.at(")"):
+            label = None
+            if self.at("name") and self.toks[self.i + 1].kind == ":":
+                label = self.next().val
+                self.next()
+            elif any(labels):
+                raise PlankError(self.tok.line, "once one argument has a label, the rest need one too")
+            args.append(self.expr())
+            labels.append(label)
+            if not self.at(")"):
+                self.expect(",")
+        self.expect(")")
+        return args, labels
 
     def args(self, close):
         out = []
@@ -382,7 +433,7 @@ class Parser:
         if t.kind == "name":
             if self.at("("):
                 self.next()
-                return Call(t.line, t.val, self.args(")"))
+                return Call(t.line, t.val, *self.call_args())
             return Name(t.line, t.val)
         if t.kind in ("nl", "eof"):
             raise PlankError(t.line, "this line ends in the middle of an expression")
@@ -506,9 +557,19 @@ LIST = ir.LiteralStructType([LL["int"], LL["int"], LL["str"]]).as_pointer()  # l
 I32 = ir.IntType(32)
 
 
-def ll(ty):
-    """The LLVM type for a Plank type. Every list is the same pointer; [int] vs [str] lives in the Plank type."""
-    return LIST if ty.startswith("[") else LL[ty]
+@dataclass
+class Sig:
+    func: object
+    params: list    # [(name, type)]
+    ret: str
+    defaults: dict  # name -> expression, evaluated at the call
+
+
+@dataclass
+class StructInfo:
+    type: object    # the LLVM struct; values are pointers to it
+    fields: list    # [(name, type)]
+    defaults: dict
 
 
 def size(ty):
@@ -536,7 +597,8 @@ class Codegen:
         self.file = file or name  # what runtime errors call the file: the path you typed
         self.module = ir.Module(name=name)
         self.module.triple = TRIPLE
-        self.fns = {}       # name -> (ir func, param types, ret type)
+        self.fns = {}       # name or Struct.method -> Sig
+        self.structs = {}   # name -> StructInfo
         self.scopes = []
         self.loops = []     # (continue block, break block)
         self.strings = {}
@@ -544,6 +606,16 @@ class Codegen:
         self.printf = self.c("printf", ir.IntType(32), LL["str"], var_arg=True)
 
     # -- helpers
+    def ll(self, ty, line=0):
+        """The LLVM type for a Plank type. Every list is the same pointer; [int] vs [str] lives in the Plank type."""
+        if ty.startswith("["):
+            return LIST
+        if ty in LL:
+            return LL[ty]
+        if ty in self.structs:
+            return self.structs[ty].type.as_pointer()
+        raise PlankError(line, f"unknown type {ty!r}")
+
     def c(self, name, ret, *args, var_arg=False):
         """A C function from libc, libm or RUNTIME, declared on first use."""
         if name in self.module.globals:
@@ -565,6 +637,8 @@ class Codegen:
             return self.cstr("[]")
         if ty.startswith("["):
             return self.builder.call(self.show_list(ty), [val])
+        if ty in self.structs:
+            return self.builder.call(self.show_struct(ty), [val])
         return self.call_c("pk_str_" + ty, "str", val)
     def cstr(self, s):
         if s not in self.strings:
@@ -588,35 +662,46 @@ class Codegen:
         if name in self.scopes[-1]:
             raise PlankError(line, f"{name!r} already declared in this scope")
         with self.builder.goto_entry_block():
-            ptr = self.builder.alloca(ll(ty), name=name)
+            ptr = self.builder.alloca(self.ll(ty), name=name)
         self.scopes[-1][name] = Var(ptr, ty, mutable)
         return ptr
 
     # -- program
-    def program(self, fns):
-        for f in fns:
-            if f.name in self.fns:
-                raise PlankError(f.line, f"function {f.name!r} defined twice")
-            if f.name in BUILTINS:  # math helpers like sqrt can be redefined, these cannot
-                raise PlankError(f.line, f"{f.name!r} is a built-in, pick another name")
-            fty = ir.FunctionType(ll(f.ret), [ll(t) for _, t in f.params])
-            self.fns[f.name] = (ir.Function(self.module, fty, "pk_" + f.name),
-                                [t for _, t in f.params], f.ret)
-        if "main" not in self.fns or self.fns["main"][1] or self.fns["main"][2] != "void":
+    def program(self, items):
+        structs = [x for x in items if isinstance(x, Struct)]
+        fns = [(f.name, f, []) for f in items if isinstance(f, Fn)]
+        for st in structs:  # name every struct first so fields can point at each other
+            if st.name in self.structs:
+                raise PlankError(st.line, f"struct {st.name!r} defined twice")
+            self.structs[st.name] = StructInfo(self.module.context.get_identified_type(st.name), st.fields, st.defaults)
+        for st in structs:
+            self.structs[st.name].type.set_body(*[self.ll(t, st.line) for _, t in st.fields])
+            fns += [(f"{st.name}.{m.name}", m, [("self", st.name)]) for m in st.methods]
+        for key, f, recv in fns:
+            if key in self.fns:
+                raise PlankError(f.line, f"function {key!r} defined twice")
+            if key in BUILTINS or key in self.structs:  # math helpers like sqrt can be redefined, these cannot
+                raise PlankError(f.line, f"{key!r} is a built-in or a struct, pick another name")
+            params = recv + f.params
+            fty = ir.FunctionType(self.ll(f.ret, f.line), [self.ll(t, f.line) for _, t in params])
+            self.fns[key] = Sig(ir.Function(self.module, fty, "pk_" + key), params, f.ret, f.defaults)
+        main = self.fns.get("main")
+        if not main or main.params or main.ret != "void":
             raise PlankError(1, "need a `fn main()` with no parameters and no return type")
-        for f in fns:
-            self.function(f)
-        main = ir.Function(self.module, ir.FunctionType(ir.IntType(32), []), "main")
-        b = ir.IRBuilder(main.append_basic_block())
-        b.call(self.fns["main"][0], [])
+        for key, f, _ in fns:
+            self.function(key, f)
+        entry = ir.Function(self.module, ir.FunctionType(ir.IntType(32), []), "main")
+        b = ir.IRBuilder(entry.append_basic_block())
+        b.call(main.func, [])
         b.ret(ir.Constant(ir.IntType(32), 0))
         return self.module
 
-    def function(self, f):
-        func, _, self.fn_ret = self.fns[f.name]
+    def function(self, key, f):
+        sig = self.fns[key]
+        func, self.fn_ret = sig.func, sig.ret
         self.builder = ir.IRBuilder(func.append_basic_block("entry"))
         self.scopes = [{}]
-        for (name, ty), arg in zip(f.params, func.args):
+        for (name, ty), arg in zip(sig.params, func.args):
             arg.name = name
             self.builder.store(arg, self.declare(name, ty, False, f.line))
         self.stmts(f.body)
@@ -638,6 +723,8 @@ class Codegen:
         getattr(self, "s_" + type(s).__name__)(s)
 
     def s_Let(self, s):
+        if s.ty:
+            self.ll(s.ty, s.line)  # an unknown type is its own error
         val, ty = self.expr(s.expr)
         if s.ty and not fits(ty, s.ty):
             raise PlankError(s.line, f"{s.name!r} is declared {s.ty} but assigned {ty}")
@@ -649,6 +736,9 @@ class Codegen:
         if isinstance(s.target, Index):
             ptr, want = self.index_ptr(s.target)
             what = "this list"
+        elif isinstance(s.target, Field):
+            ptr, want = self.field_ptr(s.target)
+            what = repr(s.target.name)
         else:
             var = self.lookup(s.target.name, s.line)
             if not var.mutable:
@@ -807,7 +897,7 @@ class Codegen:
 
     def slot(self, lst, i, elem):
         data = self.builder.load(self.builder.gep(lst, [ir.Constant(I32, 0), ir.Constant(I32, 2)]))
-        return self.builder.gep(self.builder.bitcast(data, ll(elem).as_pointer()), [i])
+        return self.builder.gep(self.builder.bitcast(data, self.ll(elem).as_pointer()), [i])
 
     def index_ptr(self, e):
         """Pointer to xs[i], bounds checked. Negative i counts from the end, like Python."""
@@ -847,10 +937,18 @@ class Codegen:
     def push(self, lst, val, elem):
         grow = self.c("pk_list_push", LL["str"], LIST, LL["int"])
         at = self.builder.call(grow, [lst, ir.Constant(LL["int"], size(elem))])
-        self.builder.store(val, self.builder.bitcast(at, ll(elem).as_pointer()))
+        self.builder.store(val, self.builder.bitcast(at, self.ll(elem).as_pointer()))
 
     def e_Method(self, e):
         target, ty = self.expr(e.target)
+        if ty in self.structs:
+            sig = self.fns.get(f"{ty}.{e.name}")
+            if sig is None:
+                raise PlankError(e.line, f"{ty} has no method {e.name}()")
+            vals = self.arrange(e, f"{e.name}()", sig.params[1:], sig.defaults)
+            return self.builder.call(sig.func, [target] + vals), sig.ret
+        if any(e.labels):
+            raise PlankError(e.line, f"{e.name}() does not take labels")
         args = [self.expr(a) for a in e.args]
         if ty.startswith("[") and ty != "[]":
             elem = ty[1:-1]
@@ -862,7 +960,7 @@ class Codegen:
             if e.name == "pop" and not args:
                 pop = self.c("pk_list_pop", LL["str"], LIST, LL["int"], LL["str"], LL["int"])
                 at = self.builder.call(pop, [target, ir.Constant(LL["int"], size(elem))] + self.where(e.line))
-                return self.builder.load(self.builder.bitcast(at, ll(elem).as_pointer())), elem
+                return self.builder.load(self.builder.bitcast(at, self.ll(elem).as_pointer())), elem
         raise PlankError(e.line, f"{ty} has no method {e.name}()")
 
     def show_list(self, ty):
@@ -963,14 +1061,12 @@ class Codegen:
     def e_Call(self, e):
         b = self.builder
         if e.name in self.fns:
-            func, ptypes, ret = self.fns[e.name]
-            args = [self.expr(a) for a in e.args]
-            if len(args) != len(ptypes):
-                raise PlankError(e.line, f"{e.name}() takes {len(ptypes)} argument{'s' * (len(ptypes) != 1)}, got {len(args)}")
-            for i, ((_, got), want) in enumerate(zip(args, ptypes)):
-                if not fits(got, want):
-                    raise PlankError(e.line, f"{e.name}() argument {i + 1} should be {want}, got {got}")
-            return b.call(func, [v for v, _ in args]), ret
+            sig = self.fns[e.name]
+            return b.call(sig.func, self.arrange(e, f"{e.name}()", sig.params, sig.defaults)), sig.ret
+        if e.name in self.structs:
+            return self.construct(e), e.name
+        if any(e.labels):
+            raise PlankError(e.line, f"{e.name}() does not take labels")
         builtin = getattr(self, "b_" + e.name, None)
         if builtin is None:
             raise PlankError(e.line, f"unknown function {e.name!r}")
@@ -981,6 +1077,79 @@ class Codegen:
                 val, ty = self.to_str(val, ty), "str"
             args.append((val, ty))
         return builtin(e, args)
+
+    def arrange(self, e, what, params, defaults, noun="parameter"):
+        """Match positional and labeled arguments to params, in source order, and fill in defaults."""
+        names = [n for n, _ in params]
+        given = {}
+        for i, (arg, label) in enumerate(zip(e.args, e.labels)):
+            if label is None and i >= len(params):
+                raise PlankError(e.line, f"{what} takes {len(params)} argument{'s' * (len(params) != 1)}, got {len(e.args)}")
+            name = label or names[i]
+            if name not in names:
+                raise PlankError(e.line, f"{what} has no {noun} called {name!r}")
+            if name in given:
+                raise PlankError(e.line, f"{what} got {name!r} twice")
+            given[name] = self.expr(arg)
+        out = []
+        for name, want in params:
+            if name in given:
+                val, got = given[name]
+            elif name in defaults:
+                scopes, self.scopes = self.scopes, [{}]  # a default cannot see the caller's variables
+                val, got = self.expr(defaults[name])
+                self.scopes = scopes
+            else:
+                raise PlankError(e.line, f"{what} is missing {name!r}")
+            if not fits(got, want):
+                raise PlankError(e.line, f"{what} {name!r} should be {want}, got {got}")
+            out.append(val)
+        return out
+
+    def construct(self, e):
+        info = self.structs[e.name]
+        vals = self.arrange(e, e.name, info.fields, info.defaults, "field")
+        b = self.builder
+        ptr_ty = info.type.as_pointer()
+        nbytes = b.ptrtoint(b.gep(ir.Constant(ptr_ty, None), [ir.Constant(I32, 1)]), LL["int"])  # sizeof, the LLVM way
+        obj = b.bitcast(self.call_c("pk_alloc", "str", nbytes), ptr_ty)
+        for i, v in enumerate(vals):
+            b.store(v, b.gep(obj, [ir.Constant(I32, 0), ir.Constant(I32, i)]))
+        return obj
+
+    def field_ptr(self, e):
+        obj, ty = self.expr(e.target)
+        if ty not in self.structs:
+            raise PlankError(e.line, f"{ty} has no fields")
+        fields = [n for n, _ in self.structs[ty].fields]
+        if e.name not in fields:
+            raise PlankError(e.line, f"{ty} has no field {e.name!r}, it has {', '.join(fields)}")
+        i = fields.index(e.name)
+        return self.builder.gep(obj, [ir.Constant(I32, 0), ir.Constant(I32, i)]), self.structs[ty].fields[i][1]
+
+    def e_Field(self, e):
+        ptr, ty = self.field_ptr(e)
+        return self.builder.load(ptr), ty
+
+    def show_struct(self, ty):
+        """Point(x: 3, y: 4), the way you would build it."""
+        name = "show." + ty
+        if name in self.module.globals:
+            return self.module.globals[name]
+        fn = ir.Function(self.module, ir.FunctionType(LL["str"], [self.ll(ty)]), name)
+        fn.linkage = "private"
+        outer, self.builder = self.builder, ir.IRBuilder(fn.append_basic_block("entry"))
+        b = self.builder
+        out = self.cstr(ty + "(")
+        for i, (fname, fty) in enumerate(self.structs[ty].fields):
+            text = self.to_str(b.load(b.gep(fn.args[0], [ir.Constant(I32, 0), ir.Constant(I32, i)])), fty)
+            if fty == "str":
+                text = self.call_c("pk_concat", "str", self.call_c("pk_concat", "str", self.cstr('"'), text), self.cstr('"'))
+            label = (", " if i else "") + fname + ": "
+            out = self.call_c("pk_concat", "str", self.call_c("pk_concat", "str", out, self.cstr(label)), text)
+        b.ret(self.call_c("pk_concat", "str", out, self.cstr(")")))
+        self.builder = outer
+        return fn
 
     def arity(self, e, args, *counts):
         if len(args) not in counts:

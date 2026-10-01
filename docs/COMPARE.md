@@ -15,7 +15,8 @@ The goal: write the programs you would write in Python, Ruby or Swift, in Plank,
 | Math library | yes | yes | yes | yes (0.2) |
 | Lists, indexing, append | yes | yes | yes | yes (0.3) |
 | for-in over a collection | yes | yes | yes | yes (0.3) |
-| Structs or classes with methods | yes | yes | yes | no |
+| Structs or classes with methods | yes | yes | yes | yes (0.4) |
+| Default and named arguments | yes | yes | yes | yes (0.4) |
 | Dicts | yes | yes | yes | no |
 | Enums and pattern matching | `match` | `case/in` | `switch` | no |
 | Optionals or nil | None | nil | `?` | no |
@@ -31,4 +32,4 @@ Out of scope for now, on purpose: threads and async, a package manager, a REPL, 
 
 ## Score
 
-11 of 22. The loop that builds Plank works down this table one release at a time.
+13 of 23. The loop that builds Plank works down this table one release at a time.

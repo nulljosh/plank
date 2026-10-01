@@ -1,0 +1,8 @@
+Point(x: 3, y: 4) 5
+Point(x: 3, y: 6)
+josh 75 [50, 25]
+Account(owner: "josh", balance: 75, history: [50, 25])
+[Point(x: 0, y: 0), Point(x: 9, y: 1)] true
+hello, plank
+hi, swift
+hi, swift

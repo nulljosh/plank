@@ -16,7 +16,18 @@ fn main() {
 }
 ```
 
-Functions can be declared in any order. A function with a return type must return on every path; the compiler refuses one that can fall off the end.
+Parameters can have defaults, and any call can name its arguments. Once one argument has a label, the ones after it need labels too.
+
+```
+fn greet(name: str, greeting: str = "hello", times: int = 1) { ... }
+
+greet("plank")
+greet("swift", times: 2, greeting: "hi")
+```
+
+A default is worked out fresh at every call, so `xs: [int] = []` gives each call its own list. It cannot use the caller's variables.
+
+Functions and structs can be declared in any order. A function with a return type must return on every path; the compiler refuses one that can fall off the end.
 
 ## Types
 
@@ -63,6 +74,27 @@ for x in xs {
 ```
 
 Lists are shared, like Python's: pass one to a function and the function sees and changes the same list. `let` stops the name from pointing at a new list, not the list from changing. An index past either end stops the program with the line number. `print` and `str` show lists the way you would type them, strings in quotes. Lines can break freely inside `[ ]`.
+
+## Structs
+
+A struct groups named fields and the functions that work on them. Names start with a capital letter.
+
+```
+struct Account {
+  owner: str
+  balance: int = 0
+
+  fn deposit(amount: int) {
+    self.balance += amount
+  }
+}
+
+let a = Account(owner: "josh")  # or Account("josh", 0)
+a.deposit(50)
+print(a.balance, a)  # 50 Account(owner: "josh", balance: 50)
+```
+
+Build one by calling its name with the fields in order or by label; fields with a default can be left out. Methods get `self` without asking for it and reach fields through `self.x`. Like lists, structs are shared: a function that changes `p.x` changes it for everyone holding `p`, and `let` only fixes which struct the name points at. `print` and `str` show a struct the way you would build it.
 
 ## Operators
 
