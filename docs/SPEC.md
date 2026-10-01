@@ -38,6 +38,7 @@ Functions and structs can be declared in any order. A function with a return typ
 | `bool` | 1 bit | `true`, `false` |
 | `[T]` | list of any type, shared | `[1, 2, 3]`, `["a"]`, `[[1], [2, 3]]` |
 | `[K: V]` | dict, int or str keys, shared | `["a": 1]`, `[1: "one"]`, `[:]` |
+| `T?` | a `T` or `nil` | `nil`, or any `T` |
 | `str` | C string, UTF-8 | `"hello\n"`, `"世界"`, `"n is \(n)"` |
 
 String escapes are `\n`, `\t`, `\"`, `\\` and `\0`. Anything else after a backslash is an error, except `\(`, which starts an interpolation: `"\(name) has \(len(name)) letters"` drops the value of any expression into the string. Ints, floats and bools turn into text the same way `print` shows them. The expression inside can hold its own strings. A float literal needs digits on both sides of the dot.
@@ -145,9 +146,33 @@ let d = Shape.dot                     # a case without values needs no ()
 
 `match` picks the first arm that fits. On an enum, each arm names cases with a leading dot and can bind the carried values to new names. The compiler refuses a match that forgets a case, and one with an `else` that can never run. On ints, floats, bools and strings, arms list constants, several to an arm with commas, and `else` catches the rest. `==` compares enums whose cases carry nothing; for the rest, use `match`. Enums are shared and print as their case.
 
+## Optionals
+
+`int?` is an int or `nil`. Any type can be optional, and a plain value goes wherever its optional is expected. Nothing else can be `nil`, so a plain `int` is always there.
+
+```
+fn find(xs: [str], want: str) -> int? {
+  for i in 0..len(xs) {
+    if xs[i] == want { return i }
+  }
+  return nil
+}
+
+if let i = find(names, "ada") {   # i is a plain int in here
+  print(i)
+} else {
+  print("not found")
+}
+let i = find(names, "bob") ?? -1  # the value, or the fallback
+let j = find(names, "ada")!       # the value, or stop the program with the line number
+print(find(names, "x") == nil)    # true
+```
+
+You cannot do math on an `int?` until you take the value out, and the error says how. The fallback after `??` only runs when it is needed. `d.get(k)` with one argument gives a `V?`. Optionals print as their value or `nil`. A struct field like `next: Node? = nil` is how you build a linked list.
+
 ## Operators
 
-From loosest to tightest: `or`, `and`, `not`, comparisons (`== != < > <= >=` and `in`), `+ -`, `* / %`, unary `-`. `and` and `or` short-circuit. Integer `/` truncates toward zero and `%` follows the sign of the left operand. Floats support all of these too. Strings join with `+` and compare with all six comparisons, alphabetically by byte. Bools compare with `==` and `!=` only.
+From loosest to tightest: `or`, `and`, `not`, comparisons (`== != < > <= >=` and `in`), `??`, `+ -`, `* / %`, unary `-`. `and` and `or` short-circuit. Integer `/` truncates toward zero and `%` follows the sign of the left operand. Floats support all of these too. Strings join with `+` and compare with all six comparisons, alphabetically by byte. Bools compare with `==` and `!=` only.
 
 ## Control flow
 

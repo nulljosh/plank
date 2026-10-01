@@ -1,0 +1,46 @@
+# Optionals: a value or nil, and the compiler makes you check.
+struct Node {
+  val: int
+  next: Node? = nil
+}
+
+fn find(xs: [str], want: str) -> int? {
+  for i in 0..len(xs) {
+    if xs[i] == want {
+      return i
+    }
+  }
+  return nil
+}
+
+fn main() {
+  let langs = ["swift", "ruby", "python"]
+  let at = find(langs, "ruby")
+  if let i = at {
+    print("ruby is at", i)
+  }
+  if let i = find(langs, "cobol") {
+    print("found", i)
+  } else {
+    print("no cobol")
+  }
+  print(find(langs, "go") ?? -1, at, find(langs, "go"), at!)
+
+  let ages = ["ada": 36]
+  print(ages.get("ada"), ages.get("bob"), ages.get("bob") ?? 0)
+
+  var name: str? = nil
+  print(name == nil, name ?? "anonymous")
+  name = "josh"
+  print(name != nil, name ?? "anonymous")
+
+  # a linked list: each node may have a next one
+  let head = Node(1, Node(2, Node(3)))
+  var total = 0
+  var cur: Node? = head
+  while cur != nil {
+    total += cur!.val
+    cur = cur!.next
+  }
+  print(total, head.next!.next)
+}

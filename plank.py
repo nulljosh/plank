@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -27,13 +27,13 @@ class PlankError(Exception):
 
 
 # ---------------------------------------------------------------- lexer
-KEYWORDS = {"fn", "struct", "enum", "match", "let", "var", "if", "else", "while", "for", "in", "return",
+KEYWORDS = {"fn", "struct", "enum", "match", "nil", "let", "var", "if", "else", "while", "for", "in", "return",
             "break", "continue", "true", "false", "and", "or", "not"}
 TOKEN_RE = re.compile(r"""
     (?P<ws>[ \t\r]+) | (?P<comment>\#[^\n]*) | (?P<nl>\n) |
     (?P<float>\d+\.\d+(?:[eE][+-]?\d+)?) | (?P<int>\d+) |
     (?P<name>[A-Za-z_]\w*) |
-    (?P<op>\+=|-=|\*=|/=|%=|->|\.\.|==|!=|<=|>=|[-+*/%<>=(){}\[\]:,.])
+    (?P<op>\+=|-=|\*=|/=|%=|->|\.\.|==|!=|<=|>=|\?\?|[-+*/%<>=(){}\[\]:,.?!])
 """, re.X)
 
 
@@ -148,6 +148,12 @@ class Name(Node): name: str
 @dataclass
 class Unary(Node): op: str; expr: Node
 @dataclass
+class Unwrap(Node): expr: Node
+@dataclass
+class Nil(Node): pass
+@dataclass
+class IfLet(Node): name: str; expr: Node; then: list; other: list
+@dataclass
 class Binary(Node): op: str; left: Node; right: Node
 @dataclass
 class Call(Node): name: str; args: list; labels: list
@@ -194,7 +200,7 @@ class Match(Node): subject: Node; arms: list; other: list
 
 
 # ---------------------------------------------------------------- parser
-PREC = {"or": 1, "and": 2, "in": 4, "==": 4, "!=": 4, "<": 4, ">": 4, "<=": 4, ">=": 4,
+PREC = {"or": 1, "and": 2, "in": 4, "??": 4.5, "==": 4, "!=": 4, "<": 4, ">": 4, "<=": 4, ">=": 4,
         "+": 5, "-": 5, "*": 6, "/": 6, "%": 6}
 TYPES = {"int", "float", "bool", "str"}
 
@@ -354,11 +360,16 @@ class Parser:
                 self.next()
                 inner = f"{inner}: {self.type()}"
             self.expect("]")
-            return f"[{inner}]"
+            return self.optional(f"[{inner}]")
         t = self.expect("name")
         if t.val not in TYPES and not t.val[0].isupper():  # capitalized names are structs, checked in codegen
             raise PlankError(t.line, f"unknown type {t.val!r}")
-        return t.val
+        return self.optional(t.val)
+
+    def optional(self, ty):
+        while self.at("?", "??"):
+            ty += self.next().kind
+        return ty
 
     def block(self):
         self.expect("{")
@@ -422,8 +433,18 @@ class Parser:
 
     def if_(self):
         line = self.expect("if").line
+        if self.at("let"):
+            self.next()
+            name = self.expect("name").val
+            self.expect("=")
+            cond = self.expr()
+            then = self.block()
+            return IfLet(line, name, cond, then, self.else_())
         cond = self.expr()
         then = self.block()
+        return If(line, cond, then, self.else_())
+
+    def else_(self):
         other = []
         mark = self.i
         self.skip_nl()
@@ -432,7 +453,7 @@ class Parser:
         else:
             self.next()
             other = [self.if_()] if self.at("if") else self.block()
-        return If(line, cond, then, other)
+        return other
 
     def expr(self, prec=0):
         left = self.unary()
@@ -453,8 +474,11 @@ class Parser:
 
     def primary(self):
         e = self.atom()
-        while self.at("[", "."):
+        while self.at("[", ".", "!"):
             line = self.next().line
+            if self.toks[self.i - 1].kind == "!":
+                e = Unwrap(line, e)
+                continue
             if self.toks[self.i - 1].kind == "[":
                 e = Index(line, e, self.expr())
                 self.expect("]")
@@ -503,6 +527,8 @@ class Parser:
             if isinstance(t.val, str):
                 return Str(t.line, t.val)
             return Interp(t.line, [Str(t.line, p) if isinstance(p, str) else interp_expr(*p) for p in t.val])
+        if t.kind == "nil":
+            return Nil(t.line)
         if t.kind in ("true", "false"):
             return Bool(t.line, t.kind == "true")
         if t.kind == "(":
@@ -802,7 +828,7 @@ def size(ty):
 
 def dict_kv(ty):
     """("str", "int") for "[str: int]", None for anything that is not a dict."""
-    if ty == "[:]" or not ty.startswith("["):
+    if ty == "[:]" or not ty.startswith("[") or ty.endswith("?"):
         return None
     depth = 0
     for i, c in enumerate(ty[1:-1]):
@@ -813,10 +839,12 @@ def dict_kv(ty):
 
 
 def is_list(ty):
-    return ty.startswith("[") and ty != "[:]" and dict_kv(ty) is None
+    return ty.startswith("[") and ty != "[:]" and not ty.endswith("?") and dict_kv(ty) is None
 
 
 def fits(got, want):
+    if want.endswith("?") and (got == "nil" or fits(got, want[:-1])):
+        return True
     return got == want or (got == "[]" and is_list(want)) or (got == "[:]" and dict_kv(want) is not None)
 INT_OPS = {"+": "add", "-": "sub", "*": "mul", "/": "sdiv", "%": "srem"}
 FLOAT_OPS = {"+": "fadd", "-": "fsub", "*": "fmul", "/": "fdiv", "%": "frem"}
@@ -849,6 +877,8 @@ class Codegen:
     # -- helpers
     def ll(self, ty, line=0):
         """The LLVM type for a Plank type. Every list is the same pointer; [int] vs [str] lives in the Plank type."""
+        if ty.endswith("?"):
+            return self.ll(ty[:-1], line).as_pointer()  # an optional points at a boxed value, or is null
         if ty.startswith("["):
             return LIST if is_list(ty) else LL["str"]  # a dict is an opaque runtime pointer
         if ty in LL:
@@ -872,7 +902,22 @@ class Codegen:
     def where(self, line):
         return [self.cstr(self.file), ir.Constant(LL["int"], line)]
 
+    def coerce(self, val, got, want):
+        """Make a value that fits `want` into one: box it when an optional is expected, or give nil its type."""
+        if got == want or not want.endswith("?"):
+            return val
+        if got == "nil":
+            return ir.Constant(self.ll(want), None)
+        val = self.coerce(val, got, want[:-1])
+        box = self.builder.bitcast(self.call_c("pk_alloc", "str", ir.Constant(LL["int"], 8)), self.ll(want))
+        self.builder.store(val, box)
+        return box
+
     def to_str(self, val, ty):
+        if ty == "nil":
+            return self.cstr("nil")
+        if ty.endswith("?"):
+            return self.builder.call(self.show_optional(ty), [val])
         if ty == "str":
             return val
         if ty == "bool":
@@ -996,7 +1041,9 @@ class Codegen:
             raise PlankError(s.line, f"an empty list needs its type: let {s.name}: [int] = []")
         if ty == "[:]" and not s.ty:
             raise PlankError(s.line, f"an empty dict needs its type: let {s.name}: [str: int] = [:]")
-        self.builder.store(val, self.declare(s.name, s.ty or ty, s.mutable, s.line))
+        if ty == "nil" and not s.ty:
+            raise PlankError(s.line, f"nil needs a type to be nil of: let {s.name}: int? = nil")
+        self.builder.store(self.coerce(val, ty, s.ty or ty), self.declare(s.name, s.ty or ty, s.mutable, s.line))
 
     def s_Assign(self, s):
         if isinstance(s.target, Index):
@@ -1013,7 +1060,7 @@ class Codegen:
         val, ty = self.expr(s.expr)
         if not fits(ty, want):
             raise PlankError(s.line, f"cannot assign {ty} to {what} which holds {want}")
-        self.builder.store(val, ptr)
+        self.builder.store(self.coerce(val, ty, want), ptr)
 
     def s_ExprStmt(self, s):
         self.expr(s.expr, allow_void=True)
@@ -1027,7 +1074,7 @@ class Codegen:
         val, ty = self.expr(s.expr)
         if not fits(ty, self.fn_ret):
             raise PlankError(s.line, f"returning {ty} from a function that returns {self.fn_ret}")
-        self.builder.ret(val)
+        self.builder.ret(self.coerce(val, ty, self.fn_ret))
 
     def cond(self, e):
         val, ty = self.expr(e)
@@ -1129,6 +1176,25 @@ class Codegen:
             return False
         self.builder.branch(merge)
         return True
+
+    def s_IfLet(self, s):
+        val, ty = self.expr(s.expr)
+        if not ty.endswith("?"):
+            raise PlankError(s.line, f"if let unwraps an optional, {ty} is never nil; use a plain let")
+        b = self.builder
+        then_bb, else_bb, merge = (b.append_basic_block(n) for n in ("some", "none", "endif"))
+        b.cbranch(b.icmp_unsigned("!=", val, ir.Constant(val.type, None)), then_bb, else_bb)
+        live = False
+        for bb, body in ((then_bb, s.then), (else_bb, s.other)):
+            b.position_at_end(bb)
+            self.scopes.append({})
+            if bb is then_bb:
+                b.store(b.load(val), self.declare(s.name, ty[:-1], False, s.line))
+            live |= self.arm(body, merge)
+            self.scopes.pop()
+        b.position_at_end(merge)
+        if not live:
+            b.unreachable()
 
     def s_While(self, s):
         cond_bb = self.builder.append_basic_block("while")
@@ -1330,6 +1396,19 @@ class Codegen:
             fn = self.c("pk_dict_remove", ir.VoidType(), LL["str"], LL["int"], LL["int"], LL["str"], LL["int"])
             b.call(fn, [d, self.bits(*args[0]), ir.Constant(LL["int"], int(kv[0] == "str"))] + self.where(e.line))
             return None, "void"
+        if e.name == "get" and len(args) == 1:
+            key, kt = args[0]
+            slot = self.dict_slot(d, kv, key, kt, e.line, "pk_dict_find")
+            want = kv[1] + "?"
+            with b.if_else(b.icmp_unsigned("!=", slot, ir.Constant(slot.type, None))) as (found, missing):
+                with found:
+                    hit, hit_bb = self.coerce(b.load(slot), kv[1], want), b.block  # a copy, not the dict's own slot
+                with missing:
+                    miss_bb = b.block
+            phi = b.phi(self.ll(want))
+            phi.add_incoming(hit, hit_bb)
+            phi.add_incoming(ir.Constant(self.ll(want), None), miss_bb)
+            return phi, want
         if e.name == "get" and len(args) == 2:
             (key, kt), (fallback, ft) = args
             if not fits(ft, kv[1]):
@@ -1339,7 +1418,7 @@ class Codegen:
                 with found:
                     hit, hit_bb = b.load(slot), b.block
                 with missing:
-                    miss_bb = b.block
+                    fallback, miss_bb = self.coerce(fallback, ft, kv[1]), b.block
             phi = b.phi(self.ll(kv[1]))
             phi.add_incoming(hit, hit_bb)
             phi.add_incoming(fallback, miss_bb)
@@ -1432,7 +1511,7 @@ class Codegen:
             if e.name == "append":
                 if len(args) != 1 or not fits(args[0][1], elem):
                     raise PlankError(e.line, f"append() takes one {elem}")
-                self.push(target, args[0][0], elem)
+                self.push(target, self.coerce(args[0][0], args[0][1], elem), elem)
                 return None, "void"
             if e.name == "pop" and not args:
                 pop = self.c("pk_list_pop", LL["str"], LIST, LL["int"], LL["str"], LL["int"])
@@ -1521,6 +1600,54 @@ class Codegen:
         self.builder = outer
         return fn
 
+    def e_Nil(self, e):
+        return ir.Constant(LL["str"], None), "nil"
+
+    def e_Unwrap(self, e):
+        val, ty = self.expr(e.expr)
+        if not ty.endswith("?"):
+            raise PlankError(e.line, f"! unwraps an optional, and {ty} is not one")
+        b = self.builder
+        with b.if_then(b.icmp_unsigned("==", val, ir.Constant(val.type, None)), likely=False):
+            panic = self.c("pk_panic", ir.VoidType(), LL["str"], LL["int"], LL["str"])
+            b.call(panic, self.where(e.line) + [self.cstr("unwrapped nil with !")])
+            b.unreachable()
+        return b.load(val), ty[:-1]
+
+    def coalesce(self, e):
+        """a ?? b: a's value if it has one, otherwise b, which only runs when needed."""
+        val, ty = self.expr(e.left)
+        if not ty.endswith("?"):
+            raise PlankError(e.line, f"?? needs an optional on the left, {ty} is never nil")
+        b = self.builder
+        with b.if_else(b.icmp_unsigned("==", val, ir.Constant(val.type, None))) as (none, some):
+            with none:
+                alt, at = self.expr(e.right)
+                result = ty if at == ty else ty[:-1]
+                if not fits(at, result):
+                    raise PlankError(e.line, f"?? fallback should be {ty[:-1]}, got {at}")
+                alt, none_bb = self.coerce(alt, at, result), b.block
+            with some:
+                got, some_bb = (val if result == ty else b.load(val)), b.block
+        phi = b.phi(self.ll(result))
+        phi.add_incoming(alt, none_bb)
+        phi.add_incoming(got, some_bb)
+        return phi, result
+
+    def show_optional(self, ty):
+        name = "show." + ty
+        if name in self.module.globals:
+            return self.module.globals[name]
+        fn = ir.Function(self.module, ir.FunctionType(LL["str"], [self.ll(ty)]), name)
+        fn.linkage = "private"
+        outer, self.builder = self.builder, ir.IRBuilder(fn.append_basic_block("entry"))
+        b, val = self.builder, fn.args[0]
+        with b.if_then(b.icmp_unsigned("==", val, ir.Constant(val.type, None))):
+            b.ret(self.cstr("nil"))
+        b.ret(self.to_str(b.load(val), ty[:-1]))
+        self.builder = outer
+        return fn
+
     def e_Bool(self, e):
         return ir.Constant(LL["bool"], int(e.val)), "bool"
 
@@ -1545,10 +1672,21 @@ class Codegen:
             return self.short_circuit(e)
         if e.op == "in":
             return self.contains(e)
+        if e.op == "??":
+            return self.coalesce(e)
         lhs, lt = self.expr(e.left)
         rhs, rt = self.expr(e.right)
+        if "nil" in (lt, rt) and e.op in ("==", "!="):
+            val, ty = (lhs, lt) if rt == "nil" else (rhs, rt)
+            if ty == "nil":
+                return ir.Constant(LL["bool"], int(e.op == "==")), "bool"
+            if not ty.endswith("?"):
+                raise PlankError(e.line, f"{ty} is never nil; only optionals like {ty}? can be")
+            return self.builder.icmp_unsigned(e.op, val, ir.Constant(val.type, None)), "bool"
         if lt != rt:
             fix = "str()" if "str" in (lt, rt) else "int() or float()"
+            if lt.endswith("?") or rt.endswith("?"):
+                fix = "if let, ?? or ! to get the value out of the optional first"
             raise PlankError(e.line, f"{lt} {e.op} {rt}: types must match, use {fix}")
         b = self.builder
         if lt == "str" and e.op == "+":
@@ -1638,7 +1776,7 @@ class Codegen:
                 raise PlankError(e.line, f"{what} is missing {name!r}")
             if not fits(got, want):
                 raise PlankError(e.line, f"{what} {name!r} should be {want}, got {got}")
-            out.append(val)
+            out.append(self.coerce(val, got, want))
         return out
 
     def construct(self, e):
@@ -1711,7 +1849,7 @@ class Codegen:
             return ir.Constant(LL["int"], 0), "int"
         if dict_kv(ty):
             return self.call_c("pk_dict_len", "int", val), "int"
-        if ty.startswith("["):
+        if is_list(ty):
             return self.list_len(val), "int"
         if ty != "str":
             raise PlankError(e.line, f"len() needs a str, a list or a dict, got {ty}")
