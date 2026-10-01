@@ -1,0 +1,75 @@
+# A tiny tool-using agent loop: ask a model, run the tool it asks for, feed the result back.
+# Plays scripted turns by default. `plank run apps/agent.pk --live` asks Ollama at localhost:11434 instead.
+# This is the shape of a Samantha or Joshua Tree script: http + json + run + match.
+enum Tool {
+  shell(cmd: str)
+  read(path: str)
+  done(answer: str)
+}
+
+fn parse_tool(reply: Json) -> Tool {
+  let kind = reply.get("tool").str()
+  match kind {
+    "shell" { return Tool.shell(reply.get("arg").str()) }
+    "read" { return Tool.read(reply.get("arg").str()) }
+    "done" { return Tool.done(reply.get("arg").str()) }
+    else { throw "model asked for unknown tool \(kind)" }
+  }
+}
+
+fn ask(prompt: str) -> Json {
+  let body = Json.object([
+    "model": Json.string("llama3.1:8b"),
+    "prompt": Json.string(prompt),
+    "stream": Json.bool(false),
+    "format": Json.string("json"),
+  ]).text()
+  let raw = http("POST", "http://localhost:11434/api/generate", body, ["Content-Type: application/json"])
+  if status() != 200 {
+    throw "no model at localhost:11434 (status \(status()))"
+  }
+  return json_parse(json_parse(raw).get("response").str())
+}
+
+fn scripted(step: int) -> Json {
+  let turns = [
+    "{\"tool\": \"shell\", \"arg\": \"echo 2+2 | bc\"}",
+    "{\"tool\": \"read\", \"arg\": \"/etc/hosts\"}",
+    "{\"tool\": \"done\", \"arg\": \"2 + 2 is 4, and the hosts file starts with a comment.\"}",
+  ]
+  return json_parse(turns[min(step, 2)])
+}
+
+fn main() {
+  var transcript = "You are a tool-using agent. Reply with JSON {\"tool\": shell|read|done, \"arg\": ...}. Task: what is 2+2, and what is the first line of /etc/hosts?"
+  let live = "--live" in args()
+  for step in 0..6 {
+    var reply = scripted(step)
+    if live {
+      try {
+        reply = ask(transcript)
+      } catch err {
+        print("(\(err); falling back to the scripted turn)")
+        reply = scripted(step)
+      }
+    }
+    let tool = parse_tool(reply)
+    var result = ""
+    match tool {
+      .shell(cmd) {
+        result = run(cmd).trim()
+        print("shell:", cmd, "->", result)
+      }
+      .read(path) {
+        result = (read_file(path) ?? "(cannot read \(path))").split("\n")[0]
+        print("read:", path, "->", result)
+      }
+      .done(answer) {
+        print("answer:", answer)
+        return
+      }
+    }
+    transcript += "\nTool result: " + result
+  }
+  print("gave up after 6 steps")
+}

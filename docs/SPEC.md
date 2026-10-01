@@ -269,6 +269,11 @@ for i in 0..10 {   # 0 through 9, the bounds are evaluated once
 | `random(lo, hi)`, `random()` | An int from `lo` to `hi` inclusive, or a float from 0 up to 1. |
 | `time()` | Seconds since 1970 as a float, good for timing. |
 | `exit(code)` | Stops the program with that exit code. |
+| `run(cmd)` | Runs a shell command, returns its output; `status()` has the exit code right after. |
+| `quote(s)` | Shell-quotes one argument, so `run("ls " + quote(name))` is safe with any name. |
+| `http(method, url, body?, headers?)` | Sends the request (through curl), returns the body; `status()` has the HTTP code, or a non-zero curl code if it never connected. |
+| `json_parse(text)` | Text to a `Json` value, or a throw naming what was wrong. |
+| `json_quote(s)` | A string as a JSON string literal. |
 | `assert(cond, message)` | Stops the program, or lands in the nearest `catch`, when `cond` is false. The message is optional. |
 
 Floats print with 15 significant digits, so `0.1 + 0.2` shows `0.3` and `1.0 / 3.0` shows `0.333333333333333`. `print`, `str`, `int`, `float`, `len` and `input` are reserved. The math names are not: define your own `sqrt` and yours wins.
@@ -292,6 +297,20 @@ try {
 ```
 
 `throw` takes a str. A `try` can hold `return`, `break` and `continue`, and tries nest: a throw inside a `catch` goes to the next `try` out. An error nobody catches stops the program with the file, line and message, exit code 1.
+
+## JSON
+
+Every program has the `Json` enum: `null`, `bool(b)`, `number(n)`, `string(s)`, `array(items)`, `object(fields)`. Build one by hand or with `json_parse`, read it with `match` or with the helpers, and turn it back into text with `.text()`.
+
+```
+let doc = json_parse("{\"name\": \"plank\", \"tags\": [\"small\"], \"stars\": 42}")
+doc.get("name").str()        # "plank"; get throws if the key is missing
+doc.get("stars").int()       # 42; also .num() for a float, .truth() for a bool
+doc.get("tags").at(0).str()  # "small"; .items() is the list, .keys() the object's keys
+Json.object(["ok": Json.bool(true)]).text()   # {"ok":true}
+```
+
+Numbers are floats, as in JSON itself. Object keys keep the order they came in. Bad input throws `bad JSON: ...` with a reason.
 
 ## Memory
 

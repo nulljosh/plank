@@ -38,9 +38,9 @@ Out of scope for now, on purpose: threads and async, a package manager, a REPL, 
 
 | Feature | Python 3.14 | Ruby 3.4 | Swift 6 | Plank |
 |---|---|---|---|---|
-| Run a shell command | yes | yes | yes | no |
-| JSON in and out | yes | yes | yes | no |
-| HTTP requests | yes | yes | yes | no |
+| Run a shell command | yes | yes | yes | yes (1.2) |
+| JSON in and out | yes | yes | yes | yes (1.2) |
+| HTTP requests | yes | yes | yes | yes (1.2) |
 | Generic functions | duck typing | duck typing | yes | no |
 | `if` as an expression | yes | yes | yes | no |
 | Tests in the language | unittest | minitest | XCTest | `assert` (1.1) |

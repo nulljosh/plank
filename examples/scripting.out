@@ -1,0 +1,13 @@
+["a", "b", "c"] 0
+exit code 3
+it's $HOME; safe
+plank 42 true fast
+["name", "tags", "stars", "ok", "none"] 2
+null is null
+{"answer":42,"words":["héllo \"q\"",false]}
+héllo "q"
+{"a": } -> bad JSON: expected a value
+[1, 2 -> bad JSON: the text ends in the middle of a value
+nope -> bad JSON: expected a value, got n
+no key "missing" in this JSON object
+[1.5,-2,1000,"é\n"]

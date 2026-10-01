@@ -1,0 +1,3 @@
+shell: echo 2+2 | bc -> 4
+read: /etc/hosts -> ##
+answer: 2 + 2 is 4, and the hosts file starts with a comment.

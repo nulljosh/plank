@@ -41,7 +41,10 @@ BAD = [
     ("fn main() {\n  throw 5\n}\n", ":2: throw takes a str message, got int"),
     ("fn main() {\n  assert(1)\n}\n", ":2: assert(cond) or assert(cond, message)"),
     ("fn main() {\n  let x: int? = 1\n  print(x == \"a\")\n}\n", ":3: int? == str: these can never be equal"),
+    ("fn main() {\n  http(\"GET\")\n}\n", ":2: http(method, url, body?, headers?)"),
     # run time
+    ("fn main() {\n  json_parse(\"[1,\")\n}\n", ":2: bad JSON: the text ends in the middle of a value"),
+    ("fn main() {\n  json_parse(\"{}\").get(\"x\")\n}\n", "no key \"x\" in this JSON object"),
     ("fn main() {\n  assert(1 > 2, \"math broke\")\n}\n", ":2: assertion failed: math broke"),
     ("fn main() {\n  print(\"abc\"[5])\n}\n", ":2: index 5 is out of range for a string of 3"),
     ("fn main() {\n  let xs = [1, 2]\n  print(xs[2])\n}\n", ":3: index 2 is out of range for a list of 2"),

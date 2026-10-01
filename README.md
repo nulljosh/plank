@@ -1,6 +1,10 @@
-<img src="icon.svg" width="80" alt="Plank logo">
+<img src="icon.svg" width="80" alt="Plank logo" style="border-radius:18px">
 
 # Plank
+
+[![version](https://img.shields.io/github/v/release/nulljosh/plank?label=version&color=blue)](https://github.com/nulljosh/plank/releases) [![tests](https://img.shields.io/github/actions/workflow/status/nulljosh/plank/test.yml?label=tests)](https://github.com/nulljosh/plank/actions) ![license](https://img.shields.io/badge/license-MIT-green) ![one file](https://img.shields.io/badge/compiler-one%20file-black) [![scorecard](https://img.shields.io/badge/vs%20Python%2FRuby%2FSwift-23%2F23-brightgreen)](docs/COMPARE.md) [![GitHub](https://img.shields.io/badge/GitHub-nulljosh%2Fplank-black?logo=github)](https://github.com/nulljosh/plank)
+
+**[plank.heyitsmejosh.com →](https://plank.heyitsmejosh.com)**
 
 Building a language sounds like a year of work. Real compilers are a hundred thousand lines. Most tutorials stop right before the part where it makes a binary.
 
@@ -40,12 +44,13 @@ caught: int() got text that is not a whole number
 
 Most language tutorials stop at a tree-walking interpreter. Plank skips the interpreter and goes straight to machine code, so what you build on day one is what a real compiler builds, just smaller.
 
-1.0 has what you reach for in Python, Ruby or Swift: strings with interpolation, lists, dicts, structs with methods, enums with an exhaustive `match`, optionals, closures with `map` and `filter`, imports, files, and `try` and `catch` for every runtime error. A garbage collector frees what you stop using. `docs/COMPARE.md` keeps score: 23 of 23, with the next rows listed.
+1.0 has what you reach for in Python, Ruby or Swift: strings with interpolation, lists, dicts, structs with methods, enums with an exhaustive `match`, optionals, closures with `map` and `filter`, imports, files, `try` and `catch` for every runtime error, and shell, JSON and HTTP built in. A garbage collector frees what you stop using. `docs/COMPARE.md` keeps score: 23 of 23, with the next rows listed.
 
 ## What you can build
 
 `apps/` holds real programs, each run by the test suite on every push:
 
+- `agent.pk`, a tool-using agent loop: ask a model over HTTP, run the tool it names, feed the result back. The shape of a Samantha or Joshua Tree script.
 - `calc.pk`, a calculator with its own tokenizer and recursive-descent parser. A language written in Plank.
 - `todo.pk`, a to-do list for the command line that saves to a file.
 - `wordfreq.pk`, the most common words in any text file.
@@ -54,6 +59,61 @@ Most language tutorials stop at a tree-walking interpreter. Plank skips the inte
 - `life.pk`, Conway's Game of Life.
 
 It is free and stays free. It exists to be read, forked and taught from.
+
+## Usage
+
+```
+plank run file.pk [args...]    compile and run; args() sees the arguments
+plank build file.pk [-o out]   native binary, next to the source by default
+plank emit file.pk             print the LLVM IR
+plank --version
+```
+
+Needs `uv` and a C compiler (`cc`). The first run installs llvmlite by itself. `PLANK_GC=4000` collects every 4KB, for shaking out bugs.
+
+## The language in a minute
+
+```
+import "lib/money.pk"            # pulls in another file, once
+
+struct Account {                 # fields, defaults, methods, implicit self
+  owner: str
+  balance: int = 0
+  fn deposit(n: int) { self.balance += n }
+}
+
+enum Shape {                     # cases carry values; match must cover them all
+  circle(r: float)
+  dot
+}
+
+fn area(s: Shape) -> float {
+  match s {
+    .circle(r) { return 3.14 * r * r }
+    .dot { return 0.0 }
+  }
+}
+
+fn main() {
+  let a = Account(owner: "ada")              # labels, or by position
+  a.deposit(5)
+  let xs = [3, 1, 2].sorted().map(fn(x) => x * 10)
+  let d = ["k": 1]
+  d["j"] = 2
+  print("\(a.owner) has \(a.balance), \(xs), \(d.keys())")
+  if let n = d.get("zzz") { print(n) } else { print("no zzz") }
+  try {
+    print(int("x"))
+  } catch err {
+    print("caught:", err)
+  }
+  let out = run("echo hi").trim()            # shell, JSON and HTTP are built in
+  let j = json_parse("{\"n\": 1}")
+  print(out, j.get("n").int(), status())
+}
+```
+
+Everything here is in `docs/SPEC.md`, one page. `let` binds once, `var` can change. Types are inferred and never converted behind your back. Lists and dicts are shared; strings count characters. Every runtime error names the file and line and can be caught.
 
 ## Run it
 
@@ -66,4 +126,4 @@ git clone https://github.com/nulljosh/plank && cd plank
 python3 test.py                    # every example, app and tests/*.pk, the error messages, then all of it under GC stress
 ```
 
-Needs `uv` and a C compiler for linking (`cc`). The first run installs llvmlite on its own. The language reference is in `docs/SPEC.md`, the file map in `docs/ARCHITECTURE.md`, how it stacks up against Python, Ruby and Swift in `docs/COMPARE.md`, and the design philosophy, taken from Hackers and Painters, in `docs/HACKERS-AND-PAINTERS.md`. Live at [plank.heyitsmejosh.com](https://plank.heyitsmejosh.com).
+The language reference is in `docs/SPEC.md`, the file map in `docs/ARCHITECTURE.md`, how it stacks up against Python, Ruby and Swift in `docs/COMPARE.md`, and the design philosophy, taken from Hackers and Painters, in `docs/HACKERS-AND-PAINTERS.md`. Live at [plank.heyitsmejosh.com](https://plank.heyitsmejosh.com).

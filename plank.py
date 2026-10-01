@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -31,6 +31,8 @@ STRIDE = 1_000_000  # lines in the k-th source file are numbered from k * STRIDE
 
 
 def locate(line, files):
+    if line // STRIDE == 900:
+        return "<built-in Json>", line % STRIDE
     return files[min(line // STRIDE, len(files) - 1)], line % STRIDE
 
 
@@ -39,7 +41,7 @@ KEYWORDS = {"fn", "import", "try", "catch", "throw", "struct", "enum", "match", 
             "break", "continue", "true", "false", "and", "or", "not"}
 TOKEN_RE = re.compile(r"""
     (?P<ws>[ \t\r]+) | (?P<comment>\#[^\n]*) | (?P<nl>\n) |
-    (?P<float>\d+\.\d+(?:[eE][+-]?\d+)?) | (?P<int>\d+) |
+    (?P<float>\d+\.\d+(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+) | (?P<int>\d+) |
     (?P<name>[A-Za-z_]\w*) |
     (?P<op>\+=|-=|\*=|/=|%=|->|=>|\.\.|==|!=|<=|>=|\?\?|[-+*/%<>=(){}\[\]:,.?!])
 """, re.X)
@@ -683,6 +685,7 @@ RUNTIME = r"""
 #include <setjmp.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 /* try blocks form a stack; a panic with a try open jumps to it instead of exiting */
 typedef struct PkTry { jmp_buf jb; struct PkTry *prev; } PkTry;
@@ -725,14 +728,14 @@ static PkBlock *pk_blocks;
 static size_t pk_nblocks, pk_capblocks;
 static size_t *pk_order, *pk_marks, pk_nmarks, pk_capmarks;
 static size_t pk_since, pk_min = 8u << 20, pk_limit = 8u << 20;
-static int pk_fixed_limit;
+static int pk_fixed_limit, pk_hold;  /* pk_hold: a runtime helper is mid-work with pointers only in C locals, do not collect */
 static char *pk_stack_base;
 
 void pk_collect(void);
 static void pk_oom(void) { fputs("plank: out of memory\n", stderr); exit(1); }
 
 static void *pk_new(size_t n, int atomic) {
-    if (pk_since >= pk_limit) pk_collect();
+    if (pk_since >= pk_limit && !pk_hold) pk_collect();
     PkHdr *h = calloc(1, sizeof *h + n);
     if (!h) pk_oom();
     if (pk_nblocks == pk_capblocks) {
@@ -827,6 +830,7 @@ static void pk_collect_from(char *sp) {
 }
 
 __attribute__((noinline)) void pk_collect(void) {
+    if (pk_hold) { fputs("plank: collector guard unbalanced, this is a Plank bug\n", stderr); abort(); }
     jmp_buf regs;  /* setjmp spills the callee-saved registers into regs, where the stack scan finds them */
     setjmp(regs);
     pk_collect_from((char *)regs);
@@ -839,11 +843,12 @@ void pk_gc_init(char **argv) {
 }
 
 char *pk_concat(const char *a, const char *b) {
+    pk_hold++;
     size_t x = strlen(a), y = strlen(b);
     char *r = pk_alloc_text(x + y + 1);
     memcpy(r, a, x);
     memcpy(r + x, b, y + 1);
-    return r;
+    pk_hold--; return r;
 }
 
 /* length in characters, not bytes: count every byte that does not continue a UTF-8 sequence */
@@ -983,17 +988,19 @@ void pk_dict_remove(PkDict *d, long long key, long long isstr, const char *file,
 }
 
 PkList *pk_dict_keys(PkDict *d) {
+    pk_hold++;
     PkList *l = pk_list_new(d->len, 8);
     memcpy(l->data, d->keys, 8 * d->len);
     l->len = d->len;
-    return l;
+    pk_hold--; return l;
 }
 
 PkList *pk_dict_values(PkDict *d, long long size) {
+    pk_hold++;
     PkList *l = pk_list_new(d->len, size);
     for (long long e = 0; e < d->len; e++) memcpy(l->data + e * size, &d->vals[e], size);
     l->len = d->len;
-    return l;
+    pk_hold--; return l;
 }
 
 long long pk_list_find(PkList *l, long long size, long long bits, long long isstr) {
@@ -1005,10 +1012,11 @@ long long pk_list_find(PkList *l, long long size, long long bits, long long isst
 }
 
 PkList *pk_list_copy(PkList *l, long long size) {
+    pk_hold++;
     PkList *r = pk_list_new(l->len, size);
     memcpy(r->data, l->data, size * l->len);
     r->len = l->len;
-    return r;
+    pk_hold--; return r;
 }
 
 /* stable merge sort; less(env, a, b) says whether a goes before b */
@@ -1043,10 +1051,11 @@ static long long pk_skip(const char *s, long long n) {  /* byte offset of charac
 }
 
 static char *pk_strndup(const char *s, long long n) {
+    pk_hold++;
     char *r = pk_alloc_text(n + 1);
     memcpy(r, s, n);
     r[n] = 0;
-    return r;
+    pk_hold--; return r;
 }
 
 static void pk_clamp(long long len, long long *a, long long *b) {
@@ -1058,32 +1067,36 @@ static void pk_clamp(long long len, long long *a, long long *b) {
 }
 
 char *pk_str_slice(const char *s, long long a, long long b) {
+    pk_hold++;
     pk_clamp(pk_len(s), &a, &b);
     long long from = pk_skip(s, a);
-    return pk_strndup(s + from, pk_skip(s + from, b - a));
+    { void *pk_r = (void *)(pk_strndup(s + from, pk_skip(s + from, b - a))); pk_hold--; return pk_r; }
 }
 
 char *pk_char_at(const char *s, long long i, const char *file, long long line) {
+    pk_hold++;
     long long n = pk_len(s), at = i < 0 ? i + n : i;
     if (at < 0 || at >= n) {
         static char msg[96];
         snprintf(msg, sizeof msg, "index %lld is out of range for a string of %lld", i, n);
         pk_panic(file, line, msg);
     }
-    return pk_str_slice(s, at, at + 1);
+    { void *pk_r = (void *)(pk_str_slice(s, at, at + 1)); pk_hold--; return pk_r; }
 }
 
 PkList *pk_chars(const char *s) {
+    pk_hold++;
     PkList *l = pk_list_new(pk_len(s), 8);
     while (*s) {
         long long n = pk_skip(s, 1);
         *(char **)pk_list_push(l, 8) = pk_strndup(s, n);
         s += n;
     }
-    return l;
+    pk_hold--; return l;
 }
 
 PkList *pk_split(const char *s, const char *sep) {
+    pk_hold++;
     PkList *l = pk_list_new(4, 8);
     size_t k = strlen(sep);
     if (!k) {  /* no separator: split on runs of whitespace, like Python */
@@ -1093,15 +1106,16 @@ PkList *pk_split(const char *s, const char *sep) {
             while (*s && !isspace((unsigned char)*s)) s++;
             if (s > start) *(char **)pk_list_push(l, 8) = pk_strndup(start, s - start);
         }
-        return l;
+        pk_hold--; return l;
     }
     for (const char *hit; (hit = strstr(s, sep)); s = hit + k)
         *(char **)pk_list_push(l, 8) = pk_strndup(s, hit - s);
     *(char **)pk_list_push(l, 8) = pk_strndup(s, strlen(s));
-    return l;
+    pk_hold--; return l;
 }
 
 char *pk_join(PkList *l, const char *sep) {
+    pk_hold++;
     size_t n = 1, k = strlen(sep);
     char **items = (char **)l->data;
     for (long long i = 0; i < l->len; i++) n += strlen(items[i]) + k;
@@ -1113,31 +1127,37 @@ char *pk_join(PkList *l, const char *sep) {
         p += m;
     }
     *p = 0;
-    return r;
+    pk_hold--; return r;
 }
 
 char *pk_trim(const char *s) {
+    pk_hold++;
     while (isspace((unsigned char)*s)) s++;
     size_t n = strlen(s);
     while (n && isspace((unsigned char)s[n - 1])) n--;
-    return pk_strndup(s, n);
+    { void *pk_r = (void *)(pk_strndup(s, n)); pk_hold--; return pk_r; }
 }
 
-char *pk_case(const char *s, long long upper) {  /* ASCII letters only; other characters pass through */
+char *pk_case(const char *s, long long upper) {
+    pk_hold++;  /* ASCII letters only; other characters pass through */
     char *r = pk_strndup(s, strlen(s));
     for (char *p = r; *p; p++) *p = upper ? toupper((unsigned char)*p) : tolower((unsigned char)*p);
-    return r;
+    pk_hold--; return r;
 }
 
 char *pk_replace(const char *s, const char *a, const char *b) {
+    pk_hold++;
     if (!*a) return pk_strndup(s, strlen(s));
     PkList *parts = pk_split(s, a);
-    return pk_join(parts, b);
+    { void *pk_r = (void *)(pk_join(parts, b)); pk_hold--; return pk_r; }
 }
 
 long long pk_find(const char *s, const char *x) {
+    pk_hold++;
     const char *hit = strstr(s, x);
-    return hit ? pk_len(pk_strndup(s, hit - s)) : -1;
+    long long at = hit ? pk_len(pk_strndup(s, hit - s)) : -1;
+    pk_hold--;
+    return at;
 }
 
 long long pk_starts(const char *s, const char *p) { return strncmp(s, p, strlen(p)) == 0; }
@@ -1148,17 +1168,19 @@ long long pk_ends(const char *s, const char *p) {
 }
 
 char *pk_fixed(double v, long long digits) {
+    pk_hold++;
     char *r = pk_alloc_text(64);
     snprintf(r, 64, "%.*f", (int)(digits < 0 ? 0 : digits > 30 ? 30 : digits), v);
-    return r;
+    pk_hold--; return r;
 }
 
 PkList *pk_list_slice(PkList *l, long long size, long long a, long long b) {
+    pk_hold++;
     pk_clamp(l->len, &a, &b);
     PkList *r = pk_list_new(b - a, size);
     memcpy(r->data, l->data + a * size, (b - a) * size);
     r->len = b - a;
-    return r;
+    pk_hold--; return r;
 }
 
 /* ---- the outside world: arguments, files, the clock, randomness */
@@ -1167,31 +1189,190 @@ static char **pk_argv;
 void pk_set_args(int argc, char **argv) { pk_argc = argc; pk_argv = argv; pk_gc_init(argv); }
 
 PkList *pk_args(void) {
+    pk_hold++;
     PkList *l = pk_list_new(pk_argc, 8);
     for (int i = 1; i < pk_argc; i++) *(char **)pk_list_push(l, 8) = pk_argv[i];
-    return l;
+    pk_hold--; return l;
 }
 
 static char *pk_slurp(FILE *f) {
     size_t cap = 4096, n = 0, got;
+    pk_hold++;
     char *buf = pk_alloc_text(cap);
     while ((got = fread(buf + n, 1, cap - n - 1, f)) > 0) {
         n += got;
         if (cap - n < 2) { cap *= 2; buf = pk_grow(buf, cap); }
     }
     buf[n] = 0;
+    pk_hold--;
     return buf;
 }
 
 char *pk_read_file(const char *path) {
+    pk_hold++;
     FILE *f = fopen(path, "rb");
     if (!f) return 0;
     char *text = pk_slurp(f);
     fclose(f);
-    return text;
+    pk_hold--; return text;
 }
 
 char *pk_read_stdin(void) { return pk_slurp(stdin); }
+
+/* ---- shell: run a command through /bin/sh, hand back its output and exit code */
+typedef struct { char *out; long long code; } PkRun;
+static PkRun pk_last_run;
+
+char *pk_run(const char *cmd) {
+    pk_hold++;
+    FILE *f = popen(cmd, "r");
+    if (!f) { pk_last_run.code = 127; return ""; }
+    char *out = pk_slurp(f);
+    int st = pclose(f);
+    pk_last_run.code = st == -1 ? 127 : WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st);
+    pk_hold--; return out;
+}
+
+long long pk_run_code(void) { return pk_last_run.code; }
+
+/* shell-quote one argument so run("ls " + quote(name)) is safe with any name */
+char *pk_quote(const char *s) {
+    pk_hold++;
+    size_t n = strlen(s), extra = 0;
+    for (const char *p = s; *p; p++) extra += *p == '\'' ? 3 : 0;
+    char *r = pk_alloc_text(n + extra + 3), *q = r;
+    *q++ = '\'';
+    for (const char *p = s; *p; p++) {
+        if (*p == '\'') { memcpy(q, "'\\''", 4); q += 4; }
+        else *q++ = *p;
+    }
+    *q++ = '\'';
+    *q = 0;
+    pk_hold--; return r;
+}
+
+/* ---- http: curl does the networking; the body comes back, the status is in pk_last_run.code.
+   ponytail: one process per request; a libcurl binding when someone needs keep-alive. */
+char *pk_http(const char *method, const char *url, const char *body, PkList *headers) {
+    pk_hold++;
+    size_t cap = 512 + strlen(url) + strlen(body) * 2;
+    for (long long i = 0; i < headers->len; i++) cap += strlen(((char **)headers->data)[i]) * 2 + 8;
+    char *cmd = malloc(cap), *q = cmd;
+    q += sprintf(q, "curl -s -S -L -X %s -w '\\n%%{http_code}' ", method);
+    for (long long i = 0; i < headers->len; i++) q += sprintf(q, "-H %s ", pk_quote(((char **)headers->data)[i]));
+    if (*body) q += sprintf(q, "--data-binary %s ", pk_quote(body));
+    q += sprintf(q, "%s 2>&1", pk_quote(url));
+    char *out = pk_run(cmd);
+    free(cmd);
+    if (pk_last_run.code) return out;  /* curl itself failed: its message is the body, code is nonzero */
+    char *nl = strrchr(out, '\n');
+    if (nl) { pk_last_run.code = atoll(nl + 1); *nl = 0; }
+    pk_hold--; return out;
+}
+
+/* ---- JSON text: escape a string for output, and a cursor for parsing */
+char *pk_json_quote(const char *s) {
+    pk_hold++;
+    size_t n = 2;
+    for (const char *p = s; *p; p++) n += (*p == '"' || *p == '\\' || (unsigned char)*p < 0x20) ? 6 : 1;
+    char *r = pk_alloc_text(n + 1), *q = r;
+    *q++ = '"';
+    for (const char *p = s; *p; p++) {
+        unsigned char c = *p;
+        if (c == '"' || c == '\\') { *q++ = '\\'; *q++ = c; }
+        else if (c == '\n') { *q++ = '\\'; *q++ = 'n'; }
+        else if (c == '\t') { *q++ = '\\'; *q++ = 't'; }
+        else if (c == '\r') { *q++ = '\\'; *q++ = 'r'; }
+        else if (c < 0x20) q += sprintf(q, "\\u%04x", c);
+        else *q++ = c;
+    }
+    *q++ = '"';
+    *q = 0;
+    pk_hold--; return r;
+}
+
+static const char *pk_jp;  /* the parse cursor */
+static const char *pk_jfile;
+static long long pk_jline;
+
+static void pk_jfail(const char *what) {
+    static char msg[96];
+    snprintf(msg, sizeof msg, "bad JSON: %s", what);
+    pk_panic(pk_jfile, pk_jline, msg);
+}
+
+static void pk_jws(void) { while (*pk_jp == ' ' || *pk_jp == '\n' || *pk_jp == '\t' || *pk_jp == '\r') pk_jp++; }
+
+/* kinds: 0 null 1 bool 2 number 3 string 4 array-open 5 object-open, 6 close, 7 comma, 8 colon */
+long long pk_json_next(void) { pk_jws(); return *pk_jp; }
+
+long long pk_json_bool(void) {
+    if (!strncmp(pk_jp, "true", 4)) { pk_jp += 4; return 1; }
+    if (!strncmp(pk_jp, "false", 5)) { pk_jp += 5; return 0; }
+    pk_jfail("expected true or false");
+    return 0;
+}
+
+void pk_json_null(void) { if (strncmp(pk_jp, "null", 4)) pk_jfail("expected a value, got n"); pk_jp += 4; }
+
+double pk_json_number(void) {
+    char *e;
+    double v = strtod(pk_jp, &e);
+    if (e == pk_jp) pk_jfail("expected a number");
+    pk_jp = e;
+    return v;
+}
+
+static void pk_utf8(char **q, unsigned cp) {
+    if (cp < 0x80) *(*q)++ = cp;
+    else if (cp < 0x800) { *(*q)++ = 0xC0 | cp >> 6; *(*q)++ = 0x80 | (cp & 0x3F); }
+    else if (cp < 0x10000) { *(*q)++ = 0xE0 | cp >> 12; *(*q)++ = 0x80 | (cp >> 6 & 0x3F); *(*q)++ = 0x80 | (cp & 0x3F); }
+    else { *(*q)++ = 0xF0 | cp >> 18; *(*q)++ = 0x80 | (cp >> 12 & 0x3F); *(*q)++ = 0x80 | (cp >> 6 & 0x3F); *(*q)++ = 0x80 | (cp & 0x3F); }
+}
+
+char *pk_json_string(void) {
+    pk_hold++;
+    if (*pk_jp != '"') pk_jfail("expected a string");
+    pk_jp++;
+    char *r = pk_alloc_text(strlen(pk_jp) + 1), *q = r;
+    while (*pk_jp && *pk_jp != '"') {
+        if (*pk_jp != '\\') { *q++ = *pk_jp++; continue; }
+        pk_jp++;
+        char c = *pk_jp++;
+        if (c == 'n') *q++ = '\n'; else if (c == 't') *q++ = '\t'; else if (c == 'r') *q++ = '\r';
+        else if (c == 'b') *q++ = '\b'; else if (c == 'f') *q++ = '\f';
+        else if (c == 'u') {
+            unsigned cp = (unsigned)strtoul((char[]){pk_jp[0], pk_jp[1], pk_jp[2], pk_jp[3], 0}, 0, 16);
+            pk_jp += 4;
+            if (cp >= 0xD800 && cp < 0xDC00 && pk_jp[0] == '\\' && pk_jp[1] == 'u') {  /* surrogate pair */
+                unsigned lo = (unsigned)strtoul((char[]){pk_jp[2], pk_jp[3], pk_jp[4], pk_jp[5], 0}, 0, 16);
+                cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
+                pk_jp += 6;
+            }
+            pk_utf8(&q, cp);
+        }
+        else if (c == '"' || c == '\\' || c == '/') *q++ = c;
+        else pk_jfail("unknown escape in a string");
+    }
+    if (*pk_jp != '"') pk_jfail("a string never ends");
+    pk_jp++;
+    *q = 0;
+    pk_hold--; return r;
+}
+
+void pk_json_expect(long long c) {
+    pk_jws();
+    if (c == 'v') pk_jfail(*pk_jp ? "expected a value" : "the text ends in the middle of a value");
+    if (*pk_jp != c) {
+        static char m[48];
+        snprintf(m, sizeof m, *pk_jp ? "expected %c, got %c" : "expected %c before the end", (char)c, *pk_jp);
+        pk_jfail(m);
+    }
+    pk_jp++;
+}
+
+void pk_json_begin(const char *text, const char *file, long long line) { pk_jp = text; pk_jfile = file; pk_jline = line; }
+void pk_json_end(void) { pk_jws(); if (*pk_jp) pk_jfail("extra text after the value"); }
 
 long long pk_write_file(const char *path, const char *text) {
     FILE *f = fopen(path, "wb");
@@ -1231,6 +1412,7 @@ void pk_index_panic(const char *file, long long line, long long i, long long len
 }
 
 char *pk_input(const char *prompt) {
+    pk_hold++;
     fputs(prompt, stdout);
     fflush(stdout);
     size_t cap = 0;
@@ -1240,7 +1422,7 @@ char *pk_input(const char *prompt) {
     if (buf[n - 1] == '\n') n--;
     char *r = pk_strndup(buf, n);  /* getline's buffer is plain malloc; hand the program a collected copy */
     free(buf);
-    return r;
+    pk_hold--; return r;
 }
 """
 
@@ -1469,7 +1651,91 @@ class Codegen:
         return ptr
 
     # -- program
+    JSON_SRC = """
+enum Json {
+  null
+  bool(b: bool)
+  number(n: float)
+  string(s: str)
+  array(items: [Json])
+  object(fields: [str: Json])
+
+  fn get(key: str) -> Json {
+    match self {
+      .object(fields) {
+        if key in fields { return fields[key] }
+        throw "no key \\"\\(key)\\" in this JSON object"
+      }
+      else { throw "not a JSON object, cannot look up \\"\\(key)\\"" }
+    }
+  }
+
+  fn at(i: int) -> Json {
+    match self {
+      .array(items) { return items[i] }
+      else { throw "not a JSON array, cannot take item \\(i)" }
+    }
+  }
+
+  fn str() -> str {
+    match self {
+      .string(s) { return s }
+      else { throw "this JSON value is not a string" }
+    }
+  }
+
+  fn num() -> float {
+    match self {
+      .number(n) { return n }
+      else { throw "this JSON value is not a number" }
+    }
+  }
+
+  fn int() -> int {
+    return int(self.num())
+  }
+
+  fn truth() -> bool {
+    match self {
+      .bool(b) { return b }
+      else { throw "this JSON value is not a bool" }
+    }
+  }
+
+  fn keys() -> [str] {
+    match self {
+      .object(fields) { return fields.keys() }
+      else { throw "not a JSON object, it has no keys" }
+    }
+  }
+
+  fn items() -> [Json] {
+    match self {
+      .array(items) { return items }
+      else { throw "not a JSON array, it has no items" }
+    }
+  }
+
+  fn text() -> str {
+    match self {
+      .null { return "null" }
+      .bool(b) { return str(b) }
+      .number(n) {
+        if n == float(int(n)) and abs(n) < 1000000000000000.0 { return str(int(n)) }
+        return str(n)
+      }
+      .string(s) { return json_quote(s) }
+      .array(items) { return "[" + items.map(fn(x) => x.text()).join(",") + "]" }
+      .object(fields) {
+        return "{" + fields.keys().map(fn(k) => json_quote(k) + ":" + fields[k].text()).join(",") + "}"
+      }
+    }
+  }
+}
+"""
+
     def program(self, items):
+        items = Parser(lex(self.JSON_SRC, 900 * STRIDE + 1)).program() + items  # the Json enum ships with every program
         structs = [x for x in items if isinstance(x, Struct)]
         enums = [x for x in items if isinstance(x, Enum)]
         fns = [(f.name, f, []) for f in items if isinstance(f, Fn)]
@@ -1498,7 +1764,7 @@ class Codegen:
         for key, f, recv in fns:
             if key in self.fns:
                 raise PlankError(f.line, f"function {key!r} defined twice")
-            if key in BUILTINS or key in self.structs or key in self.enums:  # math helpers like sqrt can be redefined, these cannot
+            if (key in BUILTINS or key in self.structs or key in self.enums) and not key.startswith("Json."):  # math helpers like sqrt can be redefined, these cannot
                 raise PlankError(f.line, f"{key!r} is a built-in or a struct, pick another name")
             params = recv + f.params
             fty = ir.FunctionType(self.ll(f.ret, f.line), [self.ll(t, f.line) for _, t in params])
@@ -2819,6 +3085,118 @@ class Codegen:
     def b_write_file(self, e, args):
         ok = self.call_c("pk_write_file", "int", *self.typed(e, args, "str", "str"))
         return self.builder.trunc(ok, LL["bool"]), "bool"
+
+    def b_run(self, e, args):
+        """run("cmd") -> str: stdout; the exit code is in status() right after."""
+        return self.call_c("pk_run", "str", *self.typed(e, args, "str")), "str"
+
+    def b_status(self, e, args):
+        self.typed(e, args)
+        return self.call_c("pk_run_code", "int"), "int"
+
+    def b_quote(self, e, args):
+        return self.call_c("pk_quote", "str", *self.typed(e, args, "str")), "str"
+
+    def b_json_quote(self, e, args):
+        return self.call_c("pk_json_quote", "str", *self.typed(e, args, "str")), "str"
+
+    def b_http(self, e, args):
+        """http(method, url, body = "", headers: [str] = []) -> str body; status() holds the HTTP code."""
+        if any(e.labels):
+            raise PlankError(e.line, "http() arguments go by position: http(method, url, body, headers)")
+        tys = [t for _, t in args]
+        want = ["str", "str", "str", "[str]"]
+        if not 2 <= len(args) <= 4 or any(not fits(t, w) for t, w in zip(tys, want)):
+            raise PlankError(e.line, "http(method, url, body?, headers?) takes str, str, str and [str]")
+        vals = [v for v, _ in args]
+        if len(vals) < 3:
+            vals.append(self.cstr(""))
+        if len(vals) < 4 or tys[3] == "[]":
+            empty = self.builder.call(self.c("pk_list_new", LIST, LL["int"], LL["int"]), [ir.Constant(LL["int"], 0), ir.Constant(LL["int"], 8)])
+            vals = vals[:3] + [empty]
+        return self.call_c("pk_http", "str", *vals), "str"
+
+    def b_json_parse(self, e, args):
+        """json_parse(text) -> Json, or a throw naming what was wrong."""
+        text, = self.typed(e, args, "str")
+        b = self.builder
+        b.call(self.c("pk_json_begin", ir.VoidType(), LL["str"], LL["str"], LL["int"]), [text] + self.where(e.line))
+        val = b.call(self.json_reader(), [])
+        b.call(self.c("pk_json_end", ir.VoidType()), [])
+        return val, "Json"
+
+    def json_reader(self):
+        """A recursive private function that reads one JSON value from the runtime's cursor into a Json."""
+        name = "json.read"
+        if name in self.module.globals:
+            return self.module.globals[name]
+        fn = ir.Function(self.module, ir.FunctionType(self.ll("Json"), []), name)
+        fn.linkage = "private"
+        saved = self.builder, self.scopes, self.fn_ret, self.loops, self.captured, self.has_try, self.tries
+        self.builder = ir.IRBuilder(fn.append_basic_block("entry"))
+        self.scopes, self.fn_ret, self.loops, self.captured, self.has_try, self.tries = [{}], "Json", [], set(), False, 0
+        b = self.builder
+        c = b.call(self.c("pk_json_next", LL["int"]), [])
+        done = fn.append_basic_block("done")
+        sw = b.switch(c, done)
+        def case(ch, build):
+            bb = fn.append_basic_block("j" + ch)
+            sw.add_case(ir.Constant(LL["int"], ord(ch)), bb)
+            b.position_at_end(bb)
+            b.ret(build())
+        def make(casename, args_vals):
+            tag, fields = self.enums["Json"].case(casename)
+            info = self.enums["Json"]
+            ptr_ty = info.type.as_pointer()
+            nbytes = b.ptrtoint(b.gep(ir.Constant(ptr_ty, None), [ir.Constant(I32, 1)]), LL["int"])
+            obj = b.bitcast(self.call_c("pk_alloc", "str", nbytes), ptr_ty)
+            b.store(ir.Constant(LL["int"], tag), b.gep(obj, [ir.Constant(I32, 0), ir.Constant(I32, 0)]))
+            for i, (v, (_, fty)) in enumerate(zip(args_vals, fields)):
+                slot = b.gep(obj, [ir.Constant(I32, 0), ir.Constant(I32, 1 + i)])
+                b.store(v, b.bitcast(slot, self.ll(fty).as_pointer()))
+            return obj
+        case("n", lambda: (b.call(self.c("pk_json_null", ir.VoidType()), []), make("null", []))[1])
+        for ch in "tf":
+            case(ch, lambda: make("bool", [b.trunc(b.call(self.c("pk_json_bool", LL["int"]), []), LL["bool"])]))
+        for ch in "-0123456789":
+            case(ch, lambda: make("number", [b.call(self.c("pk_json_number", LL["float"]), [])]))
+        case('"', lambda: make("string", [b.call(self.c("pk_json_string", LL["str"]), [])]))
+        expect = self.c("pk_json_expect", ir.VoidType(), LL["int"])
+        def seq(open_ch, close_ch, each):
+            b.call(expect, [ir.Constant(LL["int"], ord(open_ch))])
+            loop, body, out = (fn.append_basic_block(n) for n in ("loop", "item", "end"))
+            b.branch(loop)
+            b.position_at_end(loop)
+            nxt = b.call(self.c("pk_json_next", LL["int"]), [])
+            b.cbranch(b.icmp_signed("==", nxt, ir.Constant(LL["int"], ord(close_ch))), out, body)
+            b.position_at_end(body)
+            each()
+            after = b.call(self.c("pk_json_next", LL["int"]), [])
+            is_comma = b.icmp_signed("==", after, ir.Constant(LL["int"], ord(",")))
+            with b.if_then(is_comma):
+                b.call(expect, [ir.Constant(LL["int"], ord(","))])
+            b.branch(loop)
+            b.position_at_end(out)
+            b.call(expect, [ir.Constant(LL["int"], ord(close_ch))])
+        def array():
+            lst = b.call(self.c("pk_list_new", LIST, LL["int"], LL["int"]), [ir.Constant(LL["int"], 4), ir.Constant(LL["int"], 8)])
+            seq("[", "]", lambda: self.push(lst, b.call(fn, []), "Json"))
+            return make("array", [lst])
+        def obj():
+            d = b.call(self.c("pk_dict_new", LL["str"], LL["int"]), [ir.Constant(LL["int"], 1)])
+            def pair():
+                key = b.call(self.c("pk_json_string", LL["str"]), [])
+                b.call(expect, [ir.Constant(LL["int"], ord(":"))])
+                b.store(b.call(fn, []), self.dict_slot(d, ("str", "Json"), key, "str", 0, "pk_dict_put"))
+            seq("{", "}", pair)
+            return make("object", [d])
+        case("[", array)
+        case("{", obj)
+        b.position_at_end(done)
+        b.call(self.c("pk_json_expect", ir.VoidType(), LL["int"]), [ir.Constant(LL["int"], ord("v"))])  # fails with "expected v": a value
+        b.unreachable()
+        self.builder, self.scopes, self.fn_ret, self.loops, self.captured, self.has_try, self.tries = saved
+        return fn
 
     def b_read_stdin(self, e, args):
         self.typed(e, args)

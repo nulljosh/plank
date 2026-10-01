@@ -4,7 +4,7 @@ import glob, json, os, subprocess, sys
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(root)
-order = ["hello", "fib", "fizzbuzz", "primes", "sqrt", "strings", "text", "lists", "structs", "dicts", "enums", "optionals", "closures", "textkit", "world", "errors", "loops"]
+order = ["hello", "fib", "fizzbuzz", "primes", "sqrt", "strings", "text", "lists", "structs", "dicts", "enums", "optionals", "closures", "textkit", "world", "errors", "scripting", "loops"]
 examples = []
 for name in order:
     src = open(f"examples/{name}.pk").read()
@@ -15,7 +15,7 @@ for name in order:
     examples.append({"name": name, "src": src, "out": out, "ir": ir})
 # the apps: real programs, shown on the landing with their real output
 apps = []
-for name in ["calc", "todo", "wordfreq", "ledger", "maze", "life"]:
+for name in ["agent", "calc", "todo", "wordfreq", "ledger", "maze", "life"]:
     src = open(f"apps/{name}.pk").read()
     apps.append({"name": name, "about": src.split("\n")[0].lstrip("# "), "out": open(f"apps/{name}.out").read()})
 version = subprocess.run(["./plank", "--version"], capture_output=True, text=True).stdout.split()[-1]

@@ -1,0 +1,34 @@
+# Scripting: shell commands, JSON in and out, and HTTP. What a tool or an agent needs.
+fn main() {
+  let files = run("printf 'a\nb\nc'").split("\n")
+  print(files, status())
+  run("exit 3")
+  print("exit code", status())
+  print(run("echo " + quote("it's $HOME; safe")).trim())
+
+  let doc = json_parse("{\"name\": \"plank\", \"tags\": [\"small\", \"fast\"], \"stars\": 42, \"ok\": true, \"none\": null}")
+  print(doc.get("name").str(), doc.get("stars").int(), doc.get("ok").truth(), doc.get("tags").at(1).str())
+  print(doc.keys(), len(doc.get("tags").items()))
+  match doc.get("none") {
+    .null { print("null is null") }
+    else { print("?") }
+  }
+
+  let reply = Json.object(["answer": Json.number(42.0), "words": Json.array([Json.string("héllo \"q\""), Json.bool(false)])])
+  print(reply.text())
+  print(json_parse(reply.text()).get("words").at(0).str())
+
+  for bad in ["{\"a\": }", "[1, 2", "nope"] {
+    try {
+      json_parse(bad)
+    } catch err {
+      print(bad, "->", err)
+    }
+  }
+  try {
+    doc.get("missing")
+  } catch err {
+    print(err)
+  }
+  print(json_parse("[1.5, -2, 1e3, \"\\u00e9\\n\"]").text())
+}
