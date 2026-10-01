@@ -1,1 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#111"/><rect x="12" y="20" width="40" height="9" rx="2" fill="#fafafa"/><rect x="12" y="35" width="28" height="9" rx="2" fill="#fafafa"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#1c1a17"/><g transform="translate(5 5) scale(.84)">
+<defs><clipPath id="pkc"><path d="M3.00 45.82L3.00 37.85L14.97 44.76L14.97 52.73Z"/></clipPath>
+<mask id="pk"><rect width="64" height="64" fill="#fff"/>
+<g fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+<path d="M3.00 37.85L14.97 44.76L61.00 18.18M14.97 44.76L14.97 52.73"/>
+<g clip-path="url(#pkc)"><circle cx="8.98" cy="54.86" r="8.37"/><circle cx="8.98" cy="54.86" r="12.36"/></g>
+<path d=""/>
+</g></mask></defs>
+<path mask="url(#pk)" fill="#f3efe4" stroke="#f3efe4" stroke-width="2" stroke-linejoin="round" d="M3.00 37.85L49.03 11.27L61.00 18.18L61.00 26.15L14.97 52.73L3.00 45.82Z"/>
+</g></svg>
