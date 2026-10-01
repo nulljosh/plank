@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "0.8.0"
+VERSION = "0.8.1"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -537,7 +537,7 @@ class Parser:
 
     def call_args(self):
         """Arguments up to ), each optionally labeled: f(1, by: 2)."""
-        args, labels = [], []
+        args, labels, opened = [], [], self.toks[self.i - 1].line
         while not self.at(")"):
             label = None
             if self.at("name") and self.toks[self.i + 1].kind == ":":
@@ -547,19 +547,27 @@ class Parser:
                 raise PlankError(self.tok.line, "once one argument has a label, the rest need one too")
             args.append(self.expr())
             labels.append(label)
-            if not self.at(")"):
-                self.expect(",")
+            self.sep(")", opened)
         self.expect(")")
         return args, labels
 
     def args(self, close):
-        out = []
+        out, opened = [], self.toks[self.i - 1].line
         while not self.at(close):
             out.append(self.expr())
-            if not self.at(close):
-                self.expect(",")
+            self.sep(close, opened)
         self.expect(close)
         return out
+
+    def sep(self, close, opened):
+        """After an item in (...) or [...]: a comma, the closer, or a clear error."""
+        if self.at(","):
+            self.next()
+        elif not self.at(close):
+            if self.at("}", "eof", "nl"):
+                raise PlankError(self.tok.line, f"missing {close} for the {'(' if close == ')' else '['} opened on line {opened}")
+            got = self.tok.kind if self.tok.val is None else repr(self.tok.val)
+            raise PlankError(self.tok.line, f"expected , or {close} here, got {got}")
 
     def atom(self):
         t = self.next()

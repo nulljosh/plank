@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Plank, a compiled language you can read in an evening</title>
-<meta name="description" content="A small compiled language whose whole compiler is one file. Functions, ints, floats, bools, strings, loops. Native binaries through LLVM.">
+<meta name="description" content="A small compiled language whose whole compiler is one file. Structs, enums, closures, optionals, lists and dicts, compiled to native binaries through LLVM.">
 <meta property="og:title" content="Plank">
 <meta property="og:description" content="A compiled language you can read in an evening.">
 <meta property="og:image" content="https://plank.heyitsmejosh.com/og.png">
@@ -49,7 +49,7 @@
   .win { border: 1px solid var(--border2, #ddd); border-radius: 14px; background: var(--bg2, #f5f5f5); overflow: hidden; box-shadow: var(--shadow-lg, 0 20px 60px rgba(0,0,0,.12)); }
   .bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border, #eee); }
   .bar i { width: 11px; height: 11px; border-radius: 50%; background: var(--border2, #ccc); }
-  .tabs { margin-left: 14px; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+  .tabs { margin-left: 14px; min-width: 0; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
   .tabs::-webkit-scrollbar { display: none; }
   .tabs button, .mode button { font: inherit; font-size: .8rem; color: var(--text2, #666); background: none; border: 0; padding: 4px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
   .tabs button[aria-selected="true"], .mode button[aria-pressed="true"] { color: var(--text, #111); background: var(--border, #e8e8e8); }
@@ -85,7 +85,7 @@
 
   @media (max-width: 720px) {
     .hero { padding: 64px 16px 40px; }
-    .panes { grid-template-columns: 1fr; }
+    .panes { grid-template-columns: minmax(0, 1fr); }  /* minmax keeps long IR lines from widening the page */
     .pane + .pane { border-left: 0; border-top: 1px solid var(--border, #eee); }
     pre { height: 15rem; }
     .facts, .steps { grid-template-columns: 1fr 1fr; }
@@ -106,7 +106,7 @@
   <svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><defs><clipPath id="pkc"><path d="M3.00 45.29L3.00 38.38L14.97 45.29L14.97 52.20Z"/></clipPath><mask id="pk"><rect width="64" height="64" fill="#fff"/><g fill="none" stroke="#000" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.00 38.38L14.97 45.29L61.00 18.71M14.97 45.29L14.97 52.20"/><g clip-path="url(#pkc)"><circle cx="8.98" cy="53.58" r="7.26"/><circle cx="8.98" cy="53.58" r="10.71"/></g><path d="M10.56 36.36L32.47 23.71L35.81 22.35L38.77 21.21L41.36 20.29L43.56 19.59L45.38 19.11L46.82 18.85L47.89 18.80L48.57 18.98L48.88 19.37L48.80 19.99L48.34 20.82L47.51 21.87L46.29 23.14L44.70 24.63L42.72 26.34L40.37 28.27L23.98 37.74M19.36 32.94L31.51 25.92L33.23 25.22L34.76 24.64L36.09 24.16L37.22 23.80L38.16 23.55L38.91 23.42L39.45 23.39L39.81 23.48L39.96 23.69L39.92 24.00L39.69 24.43L39.26 24.98L38.63 25.63L37.81 26.40L36.79 27.28L35.58 28.27L28.95 32.10"/></g></mask></defs><path mask="url(#pk)" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M3.00 38.38L49.03 11.80L61.00 18.71L61.00 25.62L14.97 52.20L3.00 45.29Z"/></svg>
   <h1>Introducing <span class="brand">Plank.</span></h1>
   <p class="eyebrow"><a href="https://github.com/nulljosh/plank/releases">v<span id="ver">0.1</span></a></p>
-  <p class="lede">A compiled language you can read in an evening. One file turns functions, ints, floats, bools and strings into a native binary. LLVM does the hard part. You get to read the rest.</p>
+  <p class="lede">A compiled language you can read in an evening. One file turns structs, enums, closures, lists and dicts into a native binary. LLVM does the hard part. You get to read the rest.</p>
   <div class="cta">
     <a class="btn solid" href="#run">Run it</a>
     <a class="btn" href="https://github.com/nulljosh/plank/blob/main/docs/SPEC.md">Read the reference</a>
@@ -132,7 +132,7 @@
 </div>
 
 <div class="facts reveal" aria-label="Plank in numbers">
-  <div class="fact"><b>4</b><span>types, no implicit casts</span></div>
+  <div class="fact"><b>18/23</b><span>everyday features Python, Ruby and Swift have</span></div>
   <div class="fact"><b>1</b><span>file is the whole compiler</span></div>
   <div class="fact"><b>2</b><span>platforms, macOS and Linux</span></div>
   <div class="fact"><b>0.03s</b><span>to run fib(35) natively</span></div>
@@ -202,7 +202,9 @@
   var c = document.getElementById("bg"), ctx = c.getContext("2d"), planks = [], W, H;
   function ink() { return getComputedStyle(document.body).color; }
   function resize() {
+    var same = planks.length && c.width === innerWidth * devicePixelRatio;
     W = c.width = innerWidth * devicePixelRatio; H = c.height = innerHeight * devicePixelRatio;
+    if (same) return;  // a phone's address bar changes the height on every scroll; keep the planks where they are
     planks = [];
     for (var i = 0; i < 26; i++) planks.push({ x: Math.random() * W, y: Math.random() * H, w: (120 + Math.random() * 260) * devicePixelRatio, h: (10 + Math.random() * 14) * devicePixelRatio, v: (0.08 + Math.random() * 0.25) * devicePixelRatio * (Math.random() < 0.5 ? -1 : 1), a: 0.02 + Math.random() * 0.03 });
   }

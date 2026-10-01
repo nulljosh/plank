@@ -4,7 +4,7 @@
 
 Building a language sounds like a year of work. Real compilers are a hundred thousand lines. Most tutorials stop right before the part where it makes a binary.
 
-Plank is a small compiled language whose whole compiler is one Python file. You write functions, ints, floats, bools, strings, if, while, for, and it hands you a native binary. LLVM does the register allocation and the optimizer. The file does the rest, and you can read it in an evening.
+Plank is a small compiled language whose whole compiler is one Python file. You write structs, enums with match, optionals, closures, lists and dicts, and it hands you a native binary. LLVM does the register allocation and the optimizer. The file does the rest, and you can read it in an evening.
 
 ```
 fn fib(n: int) -> int {
