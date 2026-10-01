@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "0.1.1"
+VERSION = "0.2.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -31,9 +31,9 @@ KEYWORDS = {"fn", "let", "var", "if", "else", "while", "for", "in", "return",
             "break", "continue", "true", "false", "and", "or", "not"}
 TOKEN_RE = re.compile(r"""
     (?P<ws>[ \t\r]+) | (?P<comment>\#[^\n]*) | (?P<nl>\n) |
-    (?P<float>\d+\.\d+(?:[eE][+-]?\d+)?) | (?P<int>\d+) | (?P<str>"(?:[^"\\]|\\.)*") |
+    (?P<float>\d+\.\d+(?:[eE][+-]?\d+)?) | (?P<int>\d+) |
     (?P<name>[A-Za-z_]\w*) |
-    (?P<op>->|\.\.|==|!=|<=|>=|[-+*/%<>=(){}:,])
+    (?P<op>\+=|-=|\*=|/=|%=|->|\.\.|==|!=|<=|>=|[-+*/%<>=(){}:,])
 """, re.X)
 
 
@@ -47,23 +47,64 @@ class Tok:
 ESCAPES = {"n": "\n", "t": "\t", '"': '"', "\\": "\\", "0": "\0"}
 
 
+def close_paren(src, i, line):
+    """Index just past the ) that closes an interpolation opened before i."""
+    depth = 1
+    while depth:
+        if i >= len(src):
+            raise PlankError(line, "\\( in a string needs a closing )")
+        if src[i] == '"':
+            i = string_end(src, i, line)
+            continue
+        depth += {"(": 1, ")": -1}.get(src[i], 0)
+        i += 1
+    return i
+
+
+def string_end(src, i, line):
+    """Index just past the closing quote of the string that opens at i."""
+    i += 1
+    while i < len(src) and src[i] != '"':
+        if src[i] == "\\" and src[i + 1:i + 2] == "(":
+            i = close_paren(src, i + 2, line)
+        else:
+            i += 2 if src[i] == "\\" else 1
+    if i >= len(src):
+        raise PlankError(line, "this string never ends, add a closing \"")
+    return i + 1
+
+
 def unescape(body, line):
-    out, i = [], 0
+    """Decode escapes. A string with \\(expr) in it comes back as a list of
+    text and (source, line) pieces for the parser to stitch together."""
+    parts, out, i = [], [], 0
     while i < len(body):
         c = body[i]
         if c == "\\":
             i += 1
+            if body[i] == "(":
+                j = close_paren(body, i + 1, line)
+                parts += ["".join(out), (body[i + 1:j - 1], line)]
+                out, i = [], j
+                continue
             if body[i] not in ESCAPES:
                 raise PlankError(line, f"unknown escape \\{body[i]}")
             c = ESCAPES[body[i]]
         out.append(c)
         i += 1
-    return "".join(out)
+    parts.append("".join(out))
+    return parts[0] if len(parts) == 1 else parts
 
 
 def lex(src):
     toks, line, pos, depth = [], 1, 0, 0
     while pos < len(src):
+        if src[pos] == '"':
+            end = string_end(src, pos, line)
+            toks.append(Tok("str", unescape(src[pos + 1:end - 1], line), line))
+            line += src.count("\n", pos, end)
+            pos = end
+            continue
         m = TOKEN_RE.match(src, pos)
         if not m:
             raise PlankError(line, f"unexpected character {src[pos]!r}")
@@ -79,8 +120,6 @@ def lex(src):
             toks.append(Tok("int", int(text), line))
         elif kind == "float":
             toks.append(Tok("float", float(text), line))
-        elif kind == "str":
-            toks.append(Tok("str", unescape(text[1:-1], line), line))
         elif kind == "name":
             toks.append(Tok(text if text in KEYWORDS else "name", text, line))
         else:
@@ -100,6 +139,8 @@ class Node:
 class Num(Node): val: object; ty: str
 @dataclass
 class Str(Node): val: str
+@dataclass
+class Interp(Node): parts: list
 @dataclass
 class Bool(Node): val: bool
 @dataclass
@@ -245,6 +286,10 @@ class Parser:
         if self.at("name") and self.toks[self.i + 1].kind == "=":
             self.next(); self.next()
             return Assign(t.line, t.val, self.expr())
+        if self.at("name") and self.toks[self.i + 1].kind in ("+=", "-=", "*=", "/=", "%="):
+            self.next()
+            op = self.next().kind[0]
+            return Assign(t.line, t.val, Binary(t.line, op, Name(t.line, t.val), self.expr()))
         return ExprStmt(t.line, self.expr())
 
     def if_(self):
@@ -285,7 +330,9 @@ class Parser:
         if t.kind == "float":
             return Num(t.line, t.val, "float")
         if t.kind == "str":
-            return Str(t.line, t.val)
+            if isinstance(t.val, str):
+                return Str(t.line, t.val)
+            return Interp(t.line, [Str(t.line, p) if isinstance(p, str) else interp_expr(*p) for p in t.val])
         if t.kind in ("true", "false"):
             return Bool(t.line, t.kind == "true")
         if t.kind == "(":
@@ -303,8 +350,87 @@ class Parser:
                 self.expect(")")
                 return Call(t.line, t.val, args)
             return Name(t.line, t.val)
+        if t.kind in ("nl", "eof"):
+            raise PlankError(t.line, "this line ends in the middle of an expression")
         got = t.kind if t.val is None else repr(t.val)
         raise PlankError(t.line, f"unexpected {got}")
+
+
+def interp_expr(src, line):
+    p = Parser([Tok(t.kind, t.val, line) for t in lex(src)])
+    e = p.expr()
+    if not p.at("nl"):
+        raise PlankError(line, f"cannot read \\({src}) as one expression")
+    return e
+
+
+# ---------------------------------------------------------------- runtime
+# The handful of things LLVM does not hand you: joining strings, reading a
+# line, turning numbers into text. Compiled by cc next to your program.
+RUNTIME = r"""
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+void pk_panic(const char *file, long long line, const char *msg) {
+    fflush(stdout);
+    fprintf(stderr, "%s:%lld: %s\n", file, line, msg);
+    exit(1);
+}
+
+/* ponytail: nothing is ever freed. Fine for programs that run and exit; an arena or refcounts when that stops being true. */
+void *pk_alloc(long long n) {
+    void *p = malloc(n);
+    if (!p) { fputs("plank: out of memory\n", stderr); exit(1); }
+    return p;
+}
+
+char *pk_concat(const char *a, const char *b) {
+    size_t x = strlen(a), y = strlen(b);
+    char *r = pk_alloc(x + y + 1);
+    memcpy(r, a, x);
+    memcpy(r + x, b, y + 1);
+    return r;
+}
+
+/* length in characters, not bytes: count every byte that does not continue a UTF-8 sequence */
+long long pk_len(const char *s) {
+    long long n = 0;
+    for (; *s; s++) n += ((unsigned char)*s & 0xC0) != 0x80;
+    return n;
+}
+
+char *pk_str_int(long long v) { char *r = pk_alloc(24); snprintf(r, 24, "%lld", v); return r; }
+char *pk_str_float(double v) { char *r = pk_alloc(32); snprintf(r, 32, "%.15g", v); return r; }
+
+static const char *pk_number_end(const char *e) { while (isspace((unsigned char)*e)) e++; return e; }
+
+long long pk_parse_int(const char *s, const char *file, long long line) {
+    char *e;
+    long long v = strtoll(s, &e, 10);
+    if (e == s || *pk_number_end(e)) pk_panic(file, line, "int() got text that is not a whole number");
+    return v;
+}
+
+double pk_parse_float(const char *s, const char *file, long long line) {
+    char *e;
+    double v = strtod(s, &e);
+    if (e == s || *pk_number_end(e)) pk_panic(file, line, "float() got text that is not a number");
+    return v;
+}
+
+char *pk_input(const char *prompt) {
+    fputs(prompt, stdout);
+    fflush(stdout);
+    size_t cap = 0;
+    char *buf = NULL;
+    ssize_t n = getline(&buf, &cap, stdin);
+    if (n <= 0) return "";
+    if (buf[n - 1] == '\n') buf[n - 1] = 0;
+    return buf;
+}
+"""
 
 
 # ---------------------------------------------------------------- codegen
@@ -313,7 +439,8 @@ LL = {"int": ir.IntType(64), "float": ir.DoubleType(), "bool": ir.IntType(1),
 INT_OPS = {"+": "add", "-": "sub", "*": "mul", "/": "sdiv", "%": "srem"}
 FLOAT_OPS = {"+": "fadd", "-": "fsub", "*": "fmul", "/": "fdiv", "%": "frem"}
 CMP = {"==", "!=", "<", ">", "<=", ">="}
-BUILTINS = {"print", "int", "float"}
+BUILTINS = {"print", "int", "float", "str", "len", "input"}  # user functions cannot take these names
+FMT = {"int": "%lld", "float": "%.15g", "str": "%s", "bool": "%s"}
 
 
 @dataclass
@@ -325,6 +452,7 @@ class Var:
 
 class Codegen:
     def __init__(self, name):
+        self.file = name
         self.module = ir.Module(name=name)
         self.module.triple = TRIPLE
         self.fns = {}       # name -> (ir func, param types, ret type)
@@ -332,10 +460,27 @@ class Codegen:
         self.loops = []     # (continue block, break block)
         self.strings = {}
         self.builder = self.fn_ret = None
-        printf_ty = ir.FunctionType(ir.IntType(32), [LL["str"]], var_arg=True)
-        self.printf = ir.Function(self.module, printf_ty, "printf")
+        self.printf = self.c("printf", ir.IntType(32), LL["str"], var_arg=True)
 
     # -- helpers
+    def c(self, name, ret, *args, var_arg=False):
+        """A C function from libc, libm or RUNTIME, declared on first use."""
+        if name in self.module.globals:
+            return self.module.globals[name]
+        return ir.Function(self.module, ir.FunctionType(ret, args, var_arg=var_arg), name)
+
+    def call_c(self, name, ret, *args):
+        return self.builder.call(self.c(name, LL[ret], *[a.type for a in args]), list(args))
+
+    def where(self, line):
+        return [self.cstr(self.file), ir.Constant(LL["int"], line)]
+
+    def to_str(self, val, ty):
+        if ty == "str":
+            return val
+        if ty == "bool":
+            return self.builder.select(val, self.cstr("true"), self.cstr("false"))
+        return self.call_c("pk_str_" + ty, "str", val)
     def cstr(self, s):
         if s not in self.strings:
             data = bytearray(s.encode() + b"\0")
@@ -367,7 +512,7 @@ class Codegen:
         for f in fns:
             if f.name in self.fns:
                 raise PlankError(f.line, f"function {f.name!r} defined twice")
-            if f.name in BUILTINS:
+            if f.name in BUILTINS:  # math helpers like sqrt can be redefined, these cannot
                 raise PlankError(f.line, f"{f.name!r} is a built-in, pick another name")
             fty = ir.FunctionType(LL[f.ret], [LL[t] for _, t in f.params])
             self.fns[f.name] = (ir.Function(self.module, fty, "pk_" + f.name),
@@ -528,6 +673,15 @@ class Codegen:
     def e_Str(self, e):
         return self.cstr(e.val), "str"
 
+    def e_Interp(self, e):
+        out = None
+        for part in e.parts:
+            if isinstance(part, Str) and not part.val:
+                continue
+            val = self.to_str(*self.expr(part))
+            out = val if out is None else self.call_c("pk_concat", "str", out, val)
+        return out if out is not None else self.cstr(""), "str"
+
     def e_Bool(self, e):
         return ir.Constant(LL["bool"], int(e.val)), "bool"
 
@@ -553,12 +707,18 @@ class Codegen:
         lhs, lt = self.expr(e.left)
         rhs, rt = self.expr(e.right)
         if lt != rt:
-            raise PlankError(e.line, f"{lt} {e.op} {rt}: types must match, use int() or float()")
+            fix = "str()" if "str" in (lt, rt) else "int() or float()"
+            raise PlankError(e.line, f"{lt} {e.op} {rt}: types must match, use {fix}")
         b = self.builder
+        if lt == "str" and e.op == "+":
+            return self.call_c("pk_concat", "str", lhs, rhs), "str"
+        if lt == "str" and e.op in CMP:
+            diff = self.call_c("strcmp", "int", lhs, rhs)
+            return b.icmp_signed(e.op, diff, ir.Constant(diff.type, 0)), "bool"
         if e.op in CMP:
             if lt == "float":
                 return b.fcmp_ordered(e.op, lhs, rhs), "bool"
-            if lt == "str" or (lt == "bool" and e.op not in ("==", "!=")):
+            if lt == "bool" and e.op not in ("==", "!="):
                 raise PlankError(e.line, f"cannot compare {lt} with {e.op}")
             return b.icmp_signed(e.op, lhs, rhs), "bool"
         if lt == "int":
@@ -589,38 +749,107 @@ class Codegen:
 
     def e_Call(self, e):
         b = self.builder
-        args = [self.expr(a) for a in e.args]
-        if e.name == "print":
-            if len(args) != 1:
-                raise PlankError(e.line, "print takes one argument")
-            val, ty = args[0]
-            fmt = {"int": "%lld\n", "float": "%.15g\n", "str": "%s\n", "bool": "%s\n"}[ty]
-            if ty == "bool":
-                val = b.select(val, self.cstr("true"), self.cstr("false"))
-            b.call(self.printf, [self.cstr(fmt), val])
-            return None, "void"
-        if e.name in ("int", "float"):
-            if len(args) != 1:
-                raise PlankError(e.line, f"{e.name}() takes one argument")
-            val, ty = args[0]
-            if ty == e.name:
-                return val, ty
-            if e.name == "int" and ty == "float":
-                return b.fptosi(val, LL["int"]), "int"
-            if e.name == "int" and ty == "bool":
-                return b.zext(val, LL["int"]), "int"
-            if e.name == "float" and ty == "int":
-                return b.sitofp(val, LL["float"]), "float"
-            raise PlankError(e.line, f"cannot convert {ty} to {e.name}")
-        if e.name not in self.fns:
+        if e.name in self.fns:
+            func, ptypes, ret = self.fns[e.name]
+            args = [self.expr(a) for a in e.args]
+            if len(args) != len(ptypes):
+                raise PlankError(e.line, f"{e.name}() takes {len(ptypes)} argument{'s' * (len(ptypes) != 1)}, got {len(args)}")
+            for i, ((_, got), want) in enumerate(zip(args, ptypes)):
+                if got != want:
+                    raise PlankError(e.line, f"{e.name}() argument {i + 1} should be {want}, got {got}")
+            return b.call(func, [v for v, _ in args]), ret
+        builtin = getattr(self, "b_" + e.name, None)
+        if builtin is None:
             raise PlankError(e.line, f"unknown function {e.name!r}")
-        func, ptypes, ret = self.fns[e.name]
-        if len(args) != len(ptypes):
-            raise PlankError(e.line, f"{e.name}() takes {len(ptypes)} argument{'s' * (len(ptypes) != 1)}, got {len(args)}")
-        for i, ((_, got), want) in enumerate(zip(args, ptypes)):
-            if got != want:
-                raise PlankError(e.line, f"{e.name}() argument {i + 1} should be {want}, got {got}")
-        return b.call(func, [v for v, _ in args]), ret
+        return builtin(e, [self.expr(a) for a in e.args])
+
+    def arity(self, e, args, *counts):
+        if len(args) not in counts:
+            want = " or ".join(map(str, counts))
+            raise PlankError(e.line, f"{e.name}() takes {want} argument{'s' * (counts != (1,))}, got {len(args)}")
+
+    # -- built-ins: each gets the call and its evaluated (value, type) args
+    def b_print(self, e, args):
+        vals = [self.to_str(v, t) if t == "bool" else v for v, t in args]
+        fmt = " ".join(FMT[t] for _, t in args) + "\n"
+        self.builder.call(self.printf, [self.cstr(fmt)] + vals)
+        return None, "void"
+
+    def b_str(self, e, args):
+        self.arity(e, args, 1)
+        return self.to_str(*args[0]), "str"
+
+    def b_len(self, e, args):
+        self.arity(e, args, 1)
+        val, ty = args[0]
+        if ty != "str":
+            raise PlankError(e.line, f"len() needs a str, got {ty}")
+        return self.call_c("pk_len", "int", val), "int"
+
+    def b_input(self, e, args):
+        self.arity(e, args, 0, 1)
+        if args and args[0][1] != "str":
+            raise PlankError(e.line, f"input() takes a str prompt, got {args[0][1]}")
+        return self.call_c("pk_input", "str", args[0][0] if args else self.cstr("")), "str"
+
+    def b_int(self, e, args):
+        return self.convert(e, args, "int")
+
+    def b_float(self, e, args):
+        return self.convert(e, args, "float")
+
+    def convert(self, e, args, to):
+        self.arity(e, args, 1)
+        b = self.builder
+        val, ty = args[0]
+        if ty == to:
+            return val, ty
+        if ty == "str":
+            return self.call_c("pk_parse_" + to, to, val, *self.where(e.line)), to
+        if to == "int" and ty == "float":
+            return b.fptosi(val, LL["int"]), "int"
+        if to == "int" and ty == "bool":
+            return b.zext(val, LL["int"]), "int"
+        if to == "float" and ty == "int":
+            return b.sitofp(val, LL["float"]), "float"
+        raise PlankError(e.line, f"cannot convert {ty} to {to}")
+
+    def number(self, e, args, n):
+        self.arity(e, args, n)
+        tys = {t for _, t in args}
+        if len(tys) != 1 or tys - {"int", "float"}:
+            raise PlankError(e.line, f"{e.name}() needs {'numbers of one type' if n > 1 else 'an int or a float'}, got {', '.join(t for _, t in args)}")
+        return [v for v, _ in args], tys.pop()
+
+    def b_abs(self, e, args):
+        (v,), ty = self.number(e, args, 1)
+        if ty == "float":
+            return self.call_c("fabs", "float", v), ty
+        return self.builder.select(self.builder.icmp_signed("<", v, ir.Constant(v.type, 0)), self.builder.neg(v), v), ty
+
+    def b_min(self, e, args):
+        return self.pick(e, args, "<")
+
+    def b_max(self, e, args):
+        return self.pick(e, args, ">")
+
+    def pick(self, e, args, op):
+        (x, y), ty = self.number(e, args, 2)
+        b = self.builder
+        smaller = b.fcmp_ordered(op, x, y) if ty == "float" else b.icmp_signed(op, x, y)
+        return b.select(smaller, x, y), ty
+
+    def libm(self, e, args, n=1):
+        self.arity(e, args, n)
+        for _, t in args:
+            if t != "float":
+                raise PlankError(e.line, f"{e.name}() needs float, got {t}; wrap it in float()")
+        return self.call_c(e.name, "float", *[v for v, _ in args]), "float"
+
+    b_sqrt = b_floor = b_ceil = b_round = libm
+
+    def b_pow(self, e, args):
+        return self.libm(e, args, 2)
 
 
 # ---------------------------------------------------------------- driver
@@ -647,12 +876,16 @@ def build(path, out=None):
     module = compile_source(src, os.path.basename(path))
     tm, mod = optimize(str(module))
     out = out or os.path.splitext(path)[0]
-    with tempfile.NamedTemporaryFile(suffix=".o", delete=False) as obj:
-        obj.write(tm.emit_object(mod))
+    tmp = tempfile.mkdtemp()
+    obj, rt = os.path.join(tmp, "prog.o"), os.path.join(tmp, "runtime.c")
+    with open(obj, "wb") as f:
+        f.write(tm.emit_object(mod))
+    with open(rt, "w") as f:
+        f.write(RUNTIME)
     try:
-        subprocess.run(["cc", obj.name, "-o", out], check=True)
+        subprocess.run(["cc", "-O2", "-w", obj, rt, "-o", out, "-lm"], check=True)
     finally:
-        os.unlink(obj.name)
+        os.unlink(obj); os.unlink(rt); os.rmdir(tmp)
     return out
 
 

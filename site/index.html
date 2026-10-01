@@ -148,7 +148,7 @@
   <h2>How a program becomes a binary</h2>
   <p>Four steps, each a plain function or class in the file, in the same order you read them.</p>
   <div class="steps">
-    <div class="step"><b>Lex</b><span>One regex turns text into tokens. Newlines end statements.</span></div>
+    <div class="step"><b>Lex</b><span>One regex and a small string scanner turn text into tokens. Newlines end statements.</span></div>
     <div class="step"><b>Parse</b><span>Recursive descent for statements, Pratt for expressions.</span></div>
     <div class="step"><b>Generate</b><span>One walk emits LLVM IR and checks types as it goes.</span></div>
     <div class="step"><b>Link</b><span>LLVM optimizes, your C compiler links against libc.</span></div>
@@ -157,8 +157,8 @@
 
 <section class="copy wrap reveal">
   <h2>What is in the box</h2>
-  <p>int, float, bool, str. <code>let</code> binds once, <code>var</code> can change. if, else, while, for over a range, break and continue. Functions in any order, recursion included. UTF-8 strings. Errors that name the file and line and tell you what to do instead.</p>
-  <p>Missing on purpose: arrays, structs, string operations. They are next, and each one has to earn its lines.</p>
+  <p>int, float, bool, str. <code>let</code> binds once, <code>var</code> can change. if, else, while, for over a range, break and continue. Functions in any order, recursion included. UTF-8 strings that join, compare and interpolate: <code>"\(name) has \(len(name)) letters"</code>. Errors that name the file and line and tell you what to do instead.</p>
+  <p>Next: lists, structs, dicts, enums. The goal is a language that feels like Swift or Python and still reads in an evening.</p>
 </section>
 
 <section class="copy wrap run reveal" id="run">

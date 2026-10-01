@@ -25,11 +25,11 @@ Functions can be declared in any order. A function with a return type must retur
 | `int` | signed 64-bit | `42`, `0` |
 | `float` | 64-bit double | `3.14`, `2.0`, `1.5e3` |
 | `bool` | 1 bit | `true`, `false` |
-| `str` | C string, UTF-8 | `"hello\n"`, `"世界"` |
+| `str` | C string, UTF-8 | `"hello\n"`, `"世界"`, `"n is \(n)"` |
 
-String escapes are `\n`, `\t`, `\"`, `\\` and `\0`. Anything else after a backslash is an error. A float literal needs digits on both sides of the dot.
+String escapes are `\n`, `\t`, `\"`, `\\` and `\0`. Anything else after a backslash is an error, except `\(`, which starts an interpolation: `"\(name) has \(len(name)) letters"` drops the value of any expression into the string. Ints, floats and bools turn into text the same way `print` shows them. The expression inside can hold its own strings. A float literal needs digits on both sides of the dot.
 
-There are no implicit conversions. `1 + 2.0` is an error. Use `int(x)` and `float(x)`: float to int truncates, bool to int gives 0 or 1.
+There are no implicit conversions. `1 + 2.0` is an error. Use `int(x)`, `float(x)` and `str(x)`: float to int truncates, bool to int gives 0 or 1. `int("42")` and `float(" 2.5 ")` read numbers out of text and stop the program with the line number if the text is not one.
 
 ## Variables
 
@@ -41,11 +41,13 @@ var count: int = 0
 count = count + 1
 ```
 
+`x += 1` is `x = x + 1`. The same goes for `-=`, `*=`, `/=` and `%=`, and `+=` joins strings.
+
 Blocks open a scope. A name cannot be declared twice in the same scope, but an inner block can shadow an outer one.
 
 ## Operators
 
-From loosest to tightest: `or`, `and`, `not`, comparisons (`== != < > <= >=`), `+ -`, `* / %`, unary `-`. `and` and `or` short-circuit. Integer `/` truncates toward zero and `%` follows the sign of the left operand. Floats support all of these too. Strings support only being printed and passed around, no `+` and no `==` yet. Bools compare with `==` and `!=` only.
+From loosest to tightest: `or`, `and`, `not`, comparisons (`== != < > <= >=`), `+ -`, `* / %`, unary `-`. `and` and `or` short-circuit. Integer `/` truncates toward zero and `%` follows the sign of the left operand. Floats support all of these too. Strings join with `+` and compare with all six comparisons, alphabetically by byte. Bools compare with `==` and `!=` only.
 
 ## Control flow
 
@@ -72,7 +74,16 @@ Conditions must be `bool`. The `for` variable is an `int` and is a `let` inside 
 
 ## Built-ins
 
-`print(x)` prints any of the four types followed by a newline. Floats print with 15 significant digits, so `0.1 + 0.2` shows `0.3` and `1.0 / 3.0` shows `0.333333333333333`. You cannot define a function named `print`, `int` or `float`. `int(x)` and `float(x)` convert. That is the whole standard library for now.
+| Call | Does |
+|---|---|
+| `print(a, b, ...)` | Prints its arguments separated by spaces, then a newline. `print()` is a blank line. |
+| `str(x)`, `int(x)`, `float(x)` | Convert, see Types. |
+| `len(s)` | Length of a string in characters, so `len("世界")` is 2. |
+| `input(prompt)` | Prints the optional prompt, reads one line, drops the newline. Empty at end of input. |
+| `min(a, b)`, `max(a, b)`, `abs(x)` | Two ints or two floats in, the same type out. |
+| `sqrt`, `floor`, `ceil`, `round`, `pow(x, y)` | Float math from libm. |
+
+Floats print with 15 significant digits, so `0.1 + 0.2` shows `0.3` and `1.0 / 3.0` shows `0.333333333333333`. `print`, `str`, `int`, `float`, `len` and `input` are reserved. The math names are not: define your own `sqrt` and yours wins.
 
 ## Errors
 
@@ -82,4 +93,4 @@ Every error names the file and line:
 fib.pk:3: 'x' is a let, use var to reassign it
 ```
 
-Exit code 1 is a Plank error, 2 is a missing file, anything else is what your program returned.
+Exit code 1 is a Plank error, at compile time or a runtime one like a bad `int("x")`, 2 is a missing file, anything else is what your program returned.
