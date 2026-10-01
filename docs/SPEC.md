@@ -4,7 +4,9 @@ Everything the compiler accepts, in one page.
 
 ## Program
 
-A program is a list of functions. It needs a `fn main()` with no parameters and no return type. Statements end at the newline. Comments start with `#`.
+A program is a list of functions, structs and enums, and any number of `import "other.pk"` lines, which pull in everything another file defines. Paths are relative to the importing file, and a file is only read once however many times it is imported. Errors and runtime messages name the file they come from.
+
+A program's top level is a list of functions. It needs a `fn main()` with no parameters and no return type. Statements end at the newline. Comments start with `#`.
 
 ```
 fn add(a: int, b: int) -> int {
@@ -259,6 +261,14 @@ for i in 0..10 {   # 0 through 9, the bounds are evaluated once
 | `min(a, b)`, `max(a, b)`, `abs(x)` | Two ints or two floats in, the same type out. |
 | `sqrt`, `floor`, `ceil`, `round`, `pow(x, y)` | Float math from libm. |
 | `fixed(x, digits)` | A float as text with that many digits after the point. |
+| `args()` | The command-line arguments after the program: `plank run tool.pk a b` gives `["a", "b"]`. |
+| `read_file(path)` | The whole file as a `str?`, `nil` if it cannot be read. |
+| `write_file(path, text)` | Writes the file, `true` if it worked. |
+| `read_stdin()` | Everything on standard input, as one string. |
+| `env(name)` | An environment variable as a `str?`. |
+| `random(lo, hi)`, `random()` | An int from `lo` to `hi` inclusive, or a float from 0 up to 1. |
+| `time()` | Seconds since 1970 as a float, good for timing. |
+| `exit(code)` | Stops the program with that exit code. |
 
 Floats print with 15 significant digits, so `0.1 + 0.2` shows `0.3` and `1.0 / 3.0` shows `0.333333333333333`. `print`, `str`, `int`, `float`, `len` and `input` are reserved. The math names are not: define your own `sqrt` and yours wins.
 

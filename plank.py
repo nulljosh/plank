@@ -5,7 +5,7 @@
 # ///
 """Plank: a small compiled language. Lexer, parser, codegen, one file.
 
-    plank run hello.pk      compile and run
+    plank run hello.pk a b  compile and run, passing a and b to args()
     plank build hello.pk    native binary next to the source
     plank emit hello.pk     print the LLVM IR
 """
@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "0.9.0"
+VERSION = "0.10.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -24,10 +24,18 @@ class PlankError(Exception):
     def __init__(self, line, msg):
         super().__init__(msg)
         self.line = line
+        self.file = None
+
+
+STRIDE = 1_000_000  # lines in the k-th source file are numbered from k * STRIDE, so one int says file and line
+
+
+def locate(line, files):
+    return files[min(line // STRIDE, len(files) - 1)], line % STRIDE
 
 
 # ---------------------------------------------------------------- lexer
-KEYWORDS = {"fn", "struct", "enum", "match", "nil", "let", "var", "if", "else", "while", "for", "in", "return",
+KEYWORDS = {"fn", "import", "struct", "enum", "match", "nil", "let", "var", "if", "else", "while", "for", "in", "return",
             "break", "continue", "true", "false", "and", "or", "not"}
 TOKEN_RE = re.compile(r"""
     (?P<ws>[ \t\r]+) | (?P<comment>\#[^\n]*) | (?P<nl>\n) |
@@ -96,8 +104,8 @@ def unescape(body, line):
     return parts[0] if len(parts) == 1 else parts
 
 
-def lex(src):
-    toks, line, pos, depth = [], 1, 0, 0
+def lex(src, line=1):
+    toks, pos, depth = [], 0, 0
     while pos < len(src):
         if src[pos] == '"':
             end = string_end(src, pos, line)
@@ -198,6 +206,8 @@ class Given(Node): val: object; ty: str   # an already-computed value, so match 
 @dataclass
 class Fn(Node): name: str; params: list; ret: str; body: list; defaults: dict
 @dataclass
+class Import(Node): path: str
+@dataclass
 class Struct(Node): name: str; fields: list; defaults: dict; methods: list
 @dataclass
 class Enum(Node): name: str; cases: list; methods: list
@@ -241,7 +251,14 @@ class Parser:
         items = []
         self.skip_nl()
         while not self.at("eof"):
-            items.append(self.struct() if self.at("struct") else self.enum() if self.at("enum") else self.fn())
+            if self.at("import"):
+                line = self.next().line
+                path = self.expect("str").val
+                if not isinstance(path, str):
+                    raise PlankError(line, "an import path is plain text, no \\( )")
+                items.append(Import(line, path))
+            else:
+                items.append(self.struct() if self.at("struct") else self.enum() if self.at("enum") else self.fn())
             self.skip_nl()
         return items
 
@@ -649,6 +666,8 @@ RUNTIME = r"""
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
+#include <unistd.h>
 
 void pk_panic(const char *file, long long line, const char *msg) {
     fflush(stdout);
@@ -987,6 +1006,69 @@ PkList *pk_list_slice(PkList *l, long long size, long long a, long long b) {
     return r;
 }
 
+/* ---- the outside world: arguments, files, the clock, randomness */
+static int pk_argc;
+static char **pk_argv;
+void pk_set_args(int argc, char **argv) { pk_argc = argc; pk_argv = argv; }
+
+PkList *pk_args(void) {
+    PkList *l = pk_list_new(pk_argc, 8);
+    for (int i = 1; i < pk_argc; i++) *(char **)pk_list_push(l, 8) = pk_argv[i];
+    return l;
+}
+
+static char *pk_slurp(FILE *f) {
+    size_t cap = 4096, n = 0, got;
+    char *buf = pk_alloc(cap);
+    while ((got = fread(buf + n, 1, cap - n - 1, f)) > 0) {
+        n += got;
+        if (cap - n < 2) { cap *= 2; buf = realloc(buf, cap); }
+    }
+    buf[n] = 0;
+    return buf;
+}
+
+char *pk_read_file(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+    char *text = pk_slurp(f);
+    fclose(f);
+    return text;
+}
+
+char *pk_read_stdin(void) { return pk_slurp(stdin); }
+
+long long pk_write_file(const char *path, const char *text) {
+    FILE *f = fopen(path, "wb");
+    if (!f) return 0;
+    int ok = fputs(text, f) >= 0;
+    return fclose(f) == 0 && ok;
+}
+
+void pk_exit(long long code) { fflush(stdout); exit((int)code); }
+
+char *pk_env(const char *name) { return getenv(name); }
+
+double pk_time(void) {
+    struct timespec t;
+    clock_gettime(CLOCK_REALTIME, &t);
+    return t.tv_sec + t.tv_nsec / 1e9;
+}
+
+static unsigned long long pk_seed;
+static unsigned long long pk_next(void) {  /* xorshift64*, seeded from the clock and the process id */
+    if (!pk_seed) pk_seed = ((unsigned long long)(pk_time() * 1e6) ^ ((unsigned long long)getpid() << 32)) | 1;
+    pk_seed ^= pk_seed >> 12; pk_seed ^= pk_seed << 25; pk_seed ^= pk_seed >> 27;
+    return pk_seed * 2685821657736338717ULL;
+}
+
+long long pk_random_int(long long lo, long long hi) {
+    if (lo > hi) { long long t = lo; lo = hi; hi = t; }
+    return lo + (long long)(pk_next() % (unsigned long long)(hi - lo + 1));
+}
+
+double pk_random_float(void) { return (pk_next() >> 11) * (1.0 / 9007199254740992.0); }
+
 void pk_index_panic(const char *file, long long line, long long i, long long len) {
     char msg[96];
     snprintf(msg, sizeof msg, "index %lld is out of range for a list of %lld", i, len);
@@ -1119,8 +1201,8 @@ class Var:
 
 
 class Codegen:
-    def __init__(self, name, file=None):
-        self.file = file or name  # what runtime errors call the file: the path you typed
+    def __init__(self, name, file=None, files=None):
+        self.files = files or [file or name]  # what runtime errors call each source file: the path you typed
         self.module = ir.Module(name=name)
         self.module.triple = TRIPLE
         self.fns = {}       # name or Struct.method -> Sig
@@ -1162,7 +1244,8 @@ class Codegen:
         return self.builder.call(self.c(name, ret, *[a.type for a in args]), list(args))
 
     def where(self, line):
-        return [self.cstr(self.file), ir.Constant(LL["int"], line)]
+        path, n = locate(line, self.files)
+        return [self.cstr(path), ir.Constant(LL["int"], n)]
 
     def coerce(self, val, got, want):
         """Make a value that fits `want` into one: box it when an optional is expected, or give nil its type."""
@@ -1267,8 +1350,10 @@ class Codegen:
             raise PlankError(1, "need a `fn main()` with no parameters and no return type")
         for key, f, _ in fns:
             self.function(key, f)
-        entry = ir.Function(self.module, ir.FunctionType(ir.IntType(32), []), "main")
+        argv = LL["str"].as_pointer()
+        entry = ir.Function(self.module, ir.FunctionType(I32, [I32, argv]), "main")
         b = ir.IRBuilder(entry.append_basic_block())
+        b.call(self.c("pk_set_args", ir.VoidType(), I32, argv), entry.args)
         b.call(main.func, [])
         b.ret(ir.Constant(ir.IntType(32), 0))
         return self.module
@@ -2486,13 +2571,92 @@ class Codegen:
             raise PlankError(e.line, "fixed(x, digits) takes a float and an int: fixed(3.14159, 2) is \"3.14\"")
         return self.call_c("pk_fixed", "str", args[0][0], args[1][0]), "str"
 
+    def maybe(self, ptr, ty):
+        """A C pointer that may be NULL, as a Plank optional."""
+        b, want = self.builder, ty + "?"
+        with b.if_else(b.icmp_unsigned("!=", ptr, ir.Constant(ptr.type, None))) as (yes, no):
+            with yes:
+                some, yes_bb = self.coerce(ptr, ty, want), b.block
+            with no:
+                no_bb = b.block
+        phi = b.phi(self.ll(want))
+        phi.add_incoming(some, yes_bb)
+        phi.add_incoming(ir.Constant(self.ll(want), None), no_bb)
+        return phi, want
+
+    def typed(self, e, args, *want):
+        if [t for _, t in args] != list(want):
+            sig = ", ".join(want)
+            raise PlankError(e.line, f"{e.name}() takes ({sig}), got ({', '.join(t for _, t in args)})")
+        return [v for v, _ in args]
+
+    def b_args(self, e, args):
+        self.typed(e, args)
+        return self.call_c("pk_args", LIST), "[str]"
+
+    def b_read_file(self, e, args):
+        return self.maybe(self.call_c("pk_read_file", "str", *self.typed(e, args, "str")), "str")
+
+    def b_write_file(self, e, args):
+        ok = self.call_c("pk_write_file", "int", *self.typed(e, args, "str", "str"))
+        return self.builder.trunc(ok, LL["bool"]), "bool"
+
+    def b_read_stdin(self, e, args):
+        self.typed(e, args)
+        return self.call_c("pk_read_stdin", "str"), "str"
+
+    def b_env(self, e, args):
+        return self.maybe(self.call_c("pk_env", "str", *self.typed(e, args, "str")), "str")
+
+    def b_exit(self, e, args):
+        self.builder.call(self.c("pk_exit", ir.VoidType(), LL["int"]), self.typed(e, args, "int"))
+        return None, "void"
+
+    def b_time(self, e, args):
+        self.typed(e, args)
+        return self.call_c("pk_time", "float"), "float"
+
+    def b_random(self, e, args):
+        if not args:
+            return self.call_c("pk_random_float", "float"), "float"
+        return self.call_c("pk_random_int", "int", *self.typed(e, args, "int", "int")), "int"
+
     def b_pow(self, e, args):
         return self.libm(e, args, 2)
 
 
 # ---------------------------------------------------------------- driver
+def load(src, path):
+    """Parse a program and every file it imports, each once. Returns the items and the file list."""
+    files, items, todo = [path], [], [(src, path)]
+    seen = {os.path.realpath(path)} if os.path.exists(path) else set()
+    while todo:
+        text, at = todo.pop(0)
+        for it in Parser(lex(text, files.index(at) * STRIDE + 1)).program():
+            if not isinstance(it, Import):
+                items.append(it)
+                continue
+            target = os.path.normpath(os.path.join(os.path.dirname(at), it.path))
+            if os.path.realpath(target) in seen:
+                continue
+            try:
+                with open(target) as f:
+                    todo.append((f.read(), target))
+            except OSError:
+                raise PlankError(it.line, f"cannot import {it.path!r}: no file at {target}")
+            seen.add(os.path.realpath(target))
+            files.append(target)
+    return items, files
+
+
 def compile_source(src, name="plank", file=None):
-    return Codegen(name, file).program(Parser(lex(src)).program())
+    files = [file or name]
+    try:
+        items, files = load(src, file or name)
+        return Codegen(name, file, files).program(items)
+    except PlankError as err:
+        err.file, err.line = locate(err.line, files)
+        raise
 
 
 def optimize(module_text, level=2):
@@ -2542,21 +2706,22 @@ def main(argv=sys.argv[1:]):
         return 2
     path = rest[0]
     out = rest[rest.index("-o") + 1] if "-o" in rest else None
+    prog_args = [a for i, a in enumerate(rest[1:], 1) if a != "-o" and (i < 2 or rest[i - 1] != "-o")]
     try:
         if cmd == "emit":
             with open(path) as f:
-                print(compile_source(f.read(), os.path.basename(path)))
+                print(compile_source(f.read(), os.path.basename(path), path))
             return 0
         if cmd == "build":
             print(build(path, out))
             return 0
         exe = build(path, out or os.path.join(tempfile.mkdtemp(), "a.out"))
-        code = subprocess.run([exe]).returncode
+        code = subprocess.run([exe] + prog_args).returncode
         if not out:
             os.unlink(exe)
         return code
     except PlankError as err:
-        print(f"{path}:{err.line}: {err}", file=sys.stderr)
+        print(f"{err.file or path}:{err.line}: {err}", file=sys.stderr)
         return 1
     except FileNotFoundError:
         print(f"plank: no such file {path}", file=sys.stderr)

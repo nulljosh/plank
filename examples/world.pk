@@ -1,0 +1,22 @@
+# Talking to the world: imports, files, arguments, environment, time, randomness.
+import "lib/money.pk"
+
+fn main() {
+  let book = Ledger("josh")
+  book.add(120.0)
+  book.add(-35.5)
+  print(book.owner, dollars(book.balance()))
+
+  let path = "/tmp/plank-world-example.txt"
+  print(write_file(path, "line one\nline two\n"))
+  if let text = read_file(path) {
+    print(text.trim().split("\n"))
+  }
+  print(read_file("/no/such/file") == nil)
+
+  print(args(), env("HOME") != nil, env("PLANK_SURELY_UNSET"))
+  let start = time()
+  let roll = random(1, 6)
+  let r = random()
+  print(roll >= 1 and roll <= 6, r >= 0.0 and r < 1.0, time() >= start)
+}

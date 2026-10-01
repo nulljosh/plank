@@ -32,6 +32,7 @@ BAD = [
     ("fn main() {\n  break\n}\n", ":2: break outside a loop"),
     ("fn main() {\n  print(1\n}\n", ":3: missing ) for the ( opened on line 2"),
     ("fn main() {\n  let s = \"abc\"\n  s[0] = \"x\"\n}\n", ":3: strings cannot be changed in place"),
+    ("import \"nowhere.pk\"\nfn main() {\n}\n", ":1: cannot import 'nowhere.pk'"),
     # run time
     ("fn main() {\n  print(\"abc\"[5])\n}\n", ":2: index 5 is out of range for a string of 3"),
     ("fn main() {\n  let xs = [1, 2]\n  print(xs[2])\n}\n", ":3: index 2 is out of range for a list of 2"),

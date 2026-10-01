@@ -1,0 +1,17 @@
+# A small library: imported by examples/world.pk, never run on its own.
+struct Ledger {
+  owner: str
+  entries: [float] = []
+
+  fn add(amount: float) {
+    self.entries.append(amount)
+  }
+
+  fn balance() -> float {
+    return self.entries.reduce(0.0, fn(acc, x) => acc + x)
+  }
+}
+
+fn dollars(x: float) -> str {
+  return "$" + fixed(x, 2)
+}
