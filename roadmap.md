@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Next (the scorecard in docs/COMPARE.md, one release each)
-- [ ] 0.6 enums, `match`, optionals
+- [ ] 0.7 optionals: `int?`, `nil`, `if let`, `??`, `d.get(k)`
 - [ ] 0.7 closures, `map`, `filter`, `reduce`
 - [ ] 0.8 string methods, imports, files and args
 - [ ] `plank fmt`

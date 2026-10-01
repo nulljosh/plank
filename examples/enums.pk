@@ -1,0 +1,57 @@
+# Enums carry values; match takes them apart and checks every case is handled.
+enum Shape {
+  circle(r: float)
+  rect(w: float, h: float)
+  dot
+
+  fn area() -> float {
+    match self {
+      .circle(r) { return 3.14159 * r * r }
+      .rect(w, h) { return w * h }
+      .dot { return 0.0 }
+    }
+  }
+}
+
+enum Light {
+  red, yellow, green
+}
+
+fn next(l: Light) -> Light {
+  match l {
+    .red { return Light.green }
+    .green { return Light.yellow }
+    .yellow { return Light.red }
+  }
+}
+
+fn describe(n: int) -> str {
+  match n {
+    0 { return "none" }
+    1, 2, 3 { return "a few" }
+    else { return "lots" }
+  }
+}
+
+fn main() {
+  let shapes = [Shape.circle(1.0), Shape.rect(w: 2.0, h: 3.0), Shape.dot]
+  for s in shapes {
+    print(s, s.area())
+  }
+
+  var light = Light.red
+  for i in 0..4 {
+    print(light)
+    light = next(light)
+  }
+  print(light == Light.yellow, light != Light.red)
+
+  for n in [0, 2, 9] {
+    print(n, describe(n))
+  }
+  match "plank" {
+    "swift" { print("fast") }
+    "plank" { print("small") }
+    else { print("?") }
+  }
+}

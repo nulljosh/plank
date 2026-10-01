@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -27,7 +27,7 @@ class PlankError(Exception):
 
 
 # ---------------------------------------------------------------- lexer
-KEYWORDS = {"fn", "struct", "let", "var", "if", "else", "while", "for", "in", "return",
+KEYWORDS = {"fn", "struct", "enum", "match", "let", "var", "if", "else", "while", "for", "in", "return",
             "break", "continue", "true", "false", "and", "or", "not"}
 TOKEN_RE = re.compile(r"""
     (?P<ws>[ \t\r]+) | (?P<comment>\#[^\n]*) | (?P<nl>\n) |
@@ -182,9 +182,15 @@ class Continue(Node): pass
 @dataclass
 class ExprStmt(Node): expr: Node
 @dataclass
+class Given(Node): val: object; ty: str   # an already-computed value, so match evaluates its subject once
+@dataclass
 class Fn(Node): name: str; params: list; ret: str; body: list; defaults: dict
 @dataclass
 class Struct(Node): name: str; fields: list; defaults: dict; methods: list
+@dataclass
+class Enum(Node): name: str; cases: list; methods: list
+@dataclass
+class Match(Node): subject: Node; arms: list; other: list
 
 
 # ---------------------------------------------------------------- parser
@@ -223,15 +229,83 @@ class Parser:
         items = []
         self.skip_nl()
         while not self.at("eof"):
-            items.append(self.struct() if self.at("struct") else self.fn())
+            items.append(self.struct() if self.at("struct") else self.enum() if self.at("enum") else self.fn())
             self.skip_nl()
         return items
 
-    def struct(self):
-        line = self.expect("struct").line
+    def type_name(self):
         name = self.expect("name")
         if not name.val[0].isupper():
-            raise PlankError(line, f"struct names start with a capital letter: {name.val.capitalize()}")
+            raise PlankError(name.line, f"type names start with a capital letter: {name.val.capitalize()}")
+        return name.val
+
+    def enum(self):
+        line = self.expect("enum").line
+        name = self.type_name()
+        self.expect("{")
+        cases, methods = [], []
+        self.skip_nl()
+        while not self.at("}"):
+            if self.at("fn"):
+                methods.append(self.fn())
+            else:
+                case = self.expect("name").val
+                fields = []
+                if self.at("("):
+                    self.next()
+                    while not self.at(")"):
+                        fname = self.expect("name").val
+                        self.expect(":")
+                        fields.append((fname, self.type()))
+                        if not self.at(")"):
+                            self.expect(",")
+                    self.expect(")")
+                cases.append((case, fields))
+                if self.at(","):
+                    self.next()
+            self.skip_nl()
+        self.expect("}")
+        return Enum(line, name, cases, methods)
+
+    def match(self):
+        line = self.expect("match").line
+        subject = self.expr()
+        self.expect("{")
+        arms, other = [], None
+        self.skip_nl()
+        while not self.at("}"):
+            if self.at("else"):
+                self.next()
+                other = self.block()
+            else:
+                pats = [self.pattern()]
+                while self.at(","):
+                    self.next()
+                    pats.append(self.pattern())
+                arms.append((pats, self.block()))
+            self.skip_nl()
+        self.expect("}")
+        return Match(line, subject, arms, other)
+
+    def pattern(self):
+        """.case, .case(a, b) or a constant like 3 or "hi"."""
+        if not self.at("."):
+            return self.expr()
+        self.next()
+        case = self.expect("name").val
+        names = []
+        if self.at("("):
+            self.next()
+            while not self.at(")"):
+                names.append(self.expect("name").val)
+                if not self.at(")"):
+                    self.expect(",")
+            self.expect(")")
+        return (case, names)
+
+    def struct(self):
+        line = self.expect("struct").line
+        name = self.type_name()
         self.expect("{")
         fields, defaults, methods = [], {}, []
         self.skip_nl()
@@ -249,7 +323,7 @@ class Parser:
                     self.next()
             self.skip_nl()
         self.expect("}")
-        return Struct(line, name.val, fields, defaults, methods)
+        return Struct(line, name, fields, defaults, methods)
 
     def fn(self):
         line = self.expect("fn").line
@@ -311,6 +385,8 @@ class Parser:
             return Let(t.line, name, ty, self.expr(), t.kind == "var")
         if self.at("if"):
             return self.if_()
+        if self.at("match"):
+            return self.match()
         if self.at("while"):
             self.next()
             cond = self.expr()
@@ -702,6 +778,18 @@ class Sig:
 
 
 @dataclass
+class EnumInfo:
+    type: object    # {i64 tag, i64 slot, ...}; values are pointers to it
+    cases: list     # [(name, [(field, type)])]
+
+    def case(self, name):
+        for tag, (case, fields) in enumerate(self.cases):
+            if case == name:
+                return tag, fields
+        return None, None
+
+
+@dataclass
 class StructInfo:
     type: object    # the LLVM struct; values are pointers to it
     fields: list    # [(name, type)]
@@ -751,6 +839,7 @@ class Codegen:
         self.module.triple = TRIPLE
         self.fns = {}       # name or Struct.method -> Sig
         self.structs = {}   # name -> StructInfo
+        self.enums = {}     # name -> EnumInfo
         self.scopes = []
         self.loops = []     # (continue block, break block)
         self.strings = {}
@@ -766,6 +855,8 @@ class Codegen:
             return LL[ty]
         if ty in self.structs:
             return self.structs[ty].type.as_pointer()
+        if ty in self.enums:
+            return self.enums[ty].type.as_pointer()
         raise PlankError(line, f"unknown type {ty!r}")
 
     def c(self, name, ret, *args, var_arg=False):
@@ -794,6 +885,8 @@ class Codegen:
             return self.builder.call(self.show_list(ty), [val])
         if ty in self.structs:
             return self.builder.call(self.show_struct(ty), [val])
+        if ty in self.enums:
+            return self.builder.call(self.show_enum(ty), [val])
         return self.call_c("pk_str_" + ty, "str", val)
     def cstr(self, s):
         if s not in self.strings:
@@ -824,18 +917,34 @@ class Codegen:
     # -- program
     def program(self, items):
         structs = [x for x in items if isinstance(x, Struct)]
+        enums = [x for x in items if isinstance(x, Enum)]
         fns = [(f.name, f, []) for f in items if isinstance(f, Fn)]
-        for st in structs:  # name every struct first so fields can point at each other
-            if st.name in self.structs:
-                raise PlankError(st.line, f"struct {st.name!r} defined twice")
-            self.structs[st.name] = StructInfo(self.module.context.get_identified_type(st.name), st.fields, st.defaults)
+        for t in structs + enums:  # name every type first so fields can point at each other
+            if t.name in self.structs or t.name in self.enums:
+                raise PlankError(t.line, f"type {t.name!r} defined twice")
+            ll_type = self.module.context.get_identified_type(t.name)
+            if isinstance(t, Struct):
+                self.structs[t.name] = StructInfo(ll_type, t.fields, t.defaults)
+            else:
+                self.enums[t.name] = EnumInfo(ll_type, t.cases)
         for st in structs:
             self.structs[st.name].type.set_body(*[self.ll(t, st.line) for _, t in st.fields])
-            fns += [(f"{st.name}.{m.name}", m, [("self", st.name)]) for m in st.methods]
+        for en in enums:
+            names = [c for c, _ in en.cases]
+            for c in names:
+                if names.count(c) > 1:
+                    raise PlankError(en.line, f"{en.name} has two cases called {c}")
+            for _, fields in en.cases:
+                for _, fty in fields:
+                    self.ll(fty, en.line)
+            slots = max([len(f) for _, f in en.cases] + [0])
+            self.enums[en.name].type.set_body(LL["int"], *[LL["int"]] * slots)  # tag, then 8-byte payload slots
+        for t in structs + enums:
+            fns += [(f"{t.name}.{m.name}", m, [("self", t.name)]) for m in t.methods]
         for key, f, recv in fns:
             if key in self.fns:
                 raise PlankError(f.line, f"function {key!r} defined twice")
-            if key in BUILTINS or key in self.structs:  # math helpers like sqrt can be redefined, these cannot
+            if key in BUILTINS or key in self.structs or key in self.enums:  # math helpers like sqrt can be redefined, these cannot
                 raise PlankError(f.line, f"{key!r} is a built-in or a struct, pick another name")
             params = recv + f.params
             fty = ir.FunctionType(self.ll(f.ret, f.line), [self.ll(t, f.line) for _, t in params])
@@ -942,6 +1051,84 @@ class Codegen:
         self.builder.position_at_end(merge)
         if not live:
             self.builder.unreachable()
+
+    def s_Match(self, s):
+        val, ty = self.expr(s.subject)
+        b = self.builder
+        merge = b.append_basic_block("endmatch")
+        live = False
+        if ty in self.enums:
+            info = self.enums[ty]
+            tag = b.load(b.gep(val, [ir.Constant(I32, 0), ir.Constant(I32, 0)]))
+            other_bb = b.append_basic_block("other")
+            switch = b.switch(tag, other_bb)
+            seen = set()
+            for pats, body in s.arms:
+                arm = b.append_basic_block("case")
+                binds = None
+                for pat in pats:
+                    if not isinstance(pat, tuple):
+                        raise PlankError(s.line, f"match on {ty} wants cases like .{info.cases[0][0]}")
+                    case, names = pat
+                    t, fields = info.case(case)
+                    if t is None:
+                        raise PlankError(s.line, f"{ty} has no case .{case}")
+                    if case in seen:
+                        raise PlankError(s.line, f".{case} is matched twice")
+                    seen.add(case)
+                    if names and len(pats) > 1:
+                        raise PlankError(s.line, "an arm that binds values can only match one case")
+                    if names and len(names) != len(fields):
+                        raise PlankError(s.line, f".{case} carries {len(fields)} value{'s' * (len(fields) != 1)}, the pattern names {len(names)}")
+                    if names:
+                        binds = list(zip(names, fields, range(len(fields))))
+                    switch.add_case(ir.Constant(LL["int"], t), arm)
+                b.position_at_end(arm)
+                self.scopes.append({})
+                for name, (_, fty), i in binds or []:
+                    slot = b.gep(val, [ir.Constant(I32, 0), ir.Constant(I32, 1 + i)])
+                    self.builder.store(b.load(b.bitcast(slot, self.ll(fty).as_pointer())), self.declare(name, fty, False, s.line))
+                live |= self.arm(body, merge)
+                self.scopes.pop()
+            missing = [c for c, _ in info.cases if c not in seen]
+            if missing and s.other is None:
+                raise PlankError(s.line, f"match on {ty} misses {', '.join('.' + c for c in missing)}; handle {'it' if len(missing) == 1 else 'them'} or add an else")
+            b.position_at_end(other_bb)
+            if s.other is None or not missing:
+                b.unreachable()
+                if s.other is not None:
+                    raise PlankError(s.line, "this match covers every case, the else can never run")
+            else:
+                live |= self.arm(s.other, merge)
+        else:
+            for pats, body in s.arms:
+                hit = None
+                for pat in pats:
+                    if isinstance(pat, tuple):
+                        raise PlankError(s.line, f".{pat[0]} is an enum case, but this match is on {ty}")
+                    eq = self.e_Binary(Binary(s.line, "==", Given(s.line, val, ty), pat))[0]
+                    hit = eq if hit is None else b.or_(hit, eq)
+                arm, nxt = b.append_basic_block("case"), b.append_basic_block("next")
+                b.cbranch(hit, arm, nxt)
+                b.position_at_end(arm)
+                live |= self.arm(body, merge)
+                b.position_at_end(nxt)
+            if s.other is not None:
+                live |= self.arm(s.other, merge)
+            else:
+                b.branch(merge)
+                live = True
+        b.position_at_end(merge)
+        if not live:
+            b.unreachable()
+
+    def arm(self, body, merge):
+        """Emit one arm; True if it can fall through to the end of the match."""
+        self.stmts(body)
+        if self.builder.block.is_terminated:
+            return False
+        self.builder.branch(merge)
+        return True
 
     def s_While(self, s):
         cond_bb = self.builder.append_basic_block("while")
@@ -1226,8 +1413,10 @@ class Codegen:
         self.builder.store(val, self.builder.bitcast(at, self.ll(elem).as_pointer()))
 
     def e_Method(self, e):
+        if self.is_enum_name(e.target):
+            return self.make_case(e, e.target.name, e.name, e)
         target, ty = self.expr(e.target)
-        if ty in self.structs:
+        if ty in self.structs or ty in self.enums:
             sig = self.fns.get(f"{ty}.{e.name}")
             if sig is None:
                 raise PlankError(e.line, f"{ty} has no method {e.name}()")
@@ -1281,6 +1470,57 @@ class Codegen:
         self.builder = outer
         return fn
 
+    def e_Given(self, e):
+        return e.val, e.ty
+
+    def make_case(self, e, ename, case, args_node):
+        info = self.enums[ename]
+        tag, fields = info.case(case)
+        if tag is None:
+            raise PlankError(e.line, f"{ename} has no case {case}; it has {', '.join(c for c, _ in info.cases)}")
+        if args_node is None and fields:
+            raise PlankError(e.line, f"{ename}.{case} carries {', '.join(f'{n}: {t}' for n, t in fields)}; pass them in ()")
+        vals = self.arrange(args_node, f"{ename}.{case}", fields, {}) if args_node else []
+        b = self.builder
+        ptr_ty = info.type.as_pointer()
+        nbytes = b.ptrtoint(b.gep(ir.Constant(ptr_ty, None), [ir.Constant(I32, 1)]), LL["int"])
+        obj = b.bitcast(self.call_c("pk_alloc", "str", nbytes), ptr_ty)
+        b.store(ir.Constant(LL["int"], tag), b.gep(obj, [ir.Constant(I32, 0), ir.Constant(I32, 0)]))
+        for i, (v, (_, fty)) in enumerate(zip(vals, fields)):
+            slot = b.gep(obj, [ir.Constant(I32, 0), ir.Constant(I32, 1 + i)])
+            b.store(v, b.bitcast(slot, self.ll(fty).as_pointer()))
+        return obj, ename
+
+    def is_enum_name(self, node):
+        return isinstance(node, Name) and node.name in self.enums and not any(node.name in sc for sc in self.scopes)
+
+    def show_enum(self, ty):
+        """circle(r: 2), or just empty, the way Swift prints a case."""
+        name = "show." + ty
+        if name in self.module.globals:
+            return self.module.globals[name]
+        fn = ir.Function(self.module, ir.FunctionType(LL["str"], [self.ll(ty)]), name)
+        fn.linkage = "private"
+        outer, self.builder = self.builder, ir.IRBuilder(fn.append_basic_block("entry"))
+        b, obj, info = self.builder, fn.args[0], self.enums[ty]
+        tag = b.load(b.gep(obj, [ir.Constant(I32, 0), ir.Constant(I32, 0)]))
+        bad = fn.append_basic_block("bad")
+        switch = b.switch(tag, bad)
+        for t, (case, fields) in enumerate(info.cases):
+            bb = fn.append_basic_block(case)
+            switch.add_case(ir.Constant(LL["int"], t), bb)
+            b.position_at_end(bb)
+            out = self.cstr(case + ("(" if fields else ""))
+            for i, (fname, fty) in enumerate(fields):
+                slot = b.bitcast(b.gep(obj, [ir.Constant(I32, 0), ir.Constant(I32, 1 + i)]), self.ll(fty).as_pointer())
+                label = (", " if i else "") + fname + ": "
+                out = self.call_c("pk_concat", "str", self.call_c("pk_concat", "str", out, self.cstr(label)), self.quoted(b.load(slot), fty))
+            b.ret(self.call_c("pk_concat", "str", out, self.cstr(")")) if fields else out)
+        b.position_at_end(bad)
+        b.unreachable()
+        self.builder = outer
+        return fn
+
     def e_Bool(self, e):
         return ir.Constant(LL["bool"], int(e.val)), "bool"
 
@@ -1316,6 +1556,11 @@ class Codegen:
         if lt == "str" and e.op in CMP:
             diff = b.call(self.c("strcmp", ir.IntType(32), LL["str"], LL["str"]), [lhs, rhs])  # C int, 32 bits
             return b.icmp_signed(e.op, diff, ir.Constant(diff.type, 0)), "bool"
+        if lt in self.enums and e.op in ("==", "!="):
+            if any(f for _, f in self.enums[lt].cases):
+                raise PlankError(e.line, f"{lt} cases carry values, so == is ambiguous; use match")
+            tags = [b.load(b.gep(v, [ir.Constant(I32, 0), ir.Constant(I32, 0)])) for v in (lhs, rhs)]
+            return b.icmp_signed(e.op, *tags), "bool"
         if e.op in CMP:
             if lt == "float":
                 return b.fcmp_ordered(e.op, lhs, rhs), "bool"
@@ -1418,6 +1663,8 @@ class Codegen:
         return self.builder.gep(obj, [ir.Constant(I32, 0), ir.Constant(I32, i)]), self.structs[ty].fields[i][1]
 
     def e_Field(self, e):
+        if self.is_enum_name(e.target):
+            return self.make_case(e, e.target.name, e.name, None)
         ptr, ty = self.field_ptr(e)
         return self.builder.load(ptr), ty
 

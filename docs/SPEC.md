@@ -119,6 +119,32 @@ print(a.balance, a)  # 50 Account(owner: "josh", balance: 50)
 
 Build one by calling its name with the fields in order or by label; fields with a default can be left out. Methods get `self` without asking for it and reach fields through `self.x`. Like lists, structs are shared: a function that changes `p.x` changes it for everyone holding `p`, and `let` only fixes which struct the name points at. `print` and `str` show a struct the way you would build it.
 
+## Enums and match
+
+An enum is one of a fixed set of cases, and a case can carry values. Methods work the same as on structs.
+
+```
+enum Shape {
+  circle(r: float)
+  rect(w: float, h: float)
+  dot
+
+  fn area() -> float {
+    match self {
+      .circle(r) { return 3.14159 * r * r }
+      .rect(w, h) { return w * h }
+      .dot { return 0.0 }
+    }
+  }
+}
+
+let s = Shape.rect(w: 2.0, h: 3.0)   # a case with values is built like a struct
+print(s, s.area())                    # rect(w: 2, h: 3) 6
+let d = Shape.dot                     # a case without values needs no ()
+```
+
+`match` picks the first arm that fits. On an enum, each arm names cases with a leading dot and can bind the carried values to new names. The compiler refuses a match that forgets a case, and one with an `else` that can never run. On ints, floats, bools and strings, arms list constants, several to an arm with commas, and `else` catches the rest. `==` compares enums whose cases carry nothing; for the rest, use `match`. Enums are shared and print as their case.
+
 ## Operators
 
 From loosest to tightest: `or`, `and`, `not`, comparisons (`== != < > <= >=` and `in`), `+ -`, `* / %`, unary `-`. `and` and `or` short-circuit. Integer `/` truncates toward zero and `%` follows the sign of the left operand. Floats support all of these too. Strings join with `+` and compare with all six comparisons, alphabetically by byte. Bools compare with `==` and `!=` only.
