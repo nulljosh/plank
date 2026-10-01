@@ -14,4 +14,4 @@
 - [ ] Remove the brown theme; pick a color from clrs.cc.
 - [ ] Needs a logo.
 - [ ] Needs a why.md etc.
-- [ ] Refresh README, less corny.
+- [x] Refresh README, less corny. Cut the golf cart and "whole product" lines, tightened the opener.

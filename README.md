@@ -1,6 +1,6 @@
 # Plank
 
-Building a language always sounds like a year of work. You read about parsers and register allocators and you close the tab. Every real compiler is a hundred thousand lines you will never finish reading. Every tutorial stops right before the part where it makes a binary. That's the gap.
+Building a language sounds like a year of work. Real compilers are a hundred thousand lines. Most tutorials stop right before the part where it makes a binary.
 
 Plank is a small compiled language whose whole compiler is one Python file. You write functions, ints, floats, bools, strings, if, while, for, and it hands you a native binary. LLVM does the register allocation and the optimizer. The file does the rest, and you can read it in an evening.
 
@@ -25,9 +25,7 @@ $ plank fib.pk
 ...
 ```
 
-That's it. That's the whole product.
-
-Most language tutorials build a tree-walking interpreter and call it a day, which is like learning to drive in a golf cart. Plank goes the other way. It skips the interpreter and goes straight to machine code, so the thing you build on day one is the thing a real compiler builds, just smaller. Same road, smaller car.
+Most language tutorials stop at a tree-walking interpreter. Plank skips the interpreter and goes straight to machine code, so what you build on day one is what a real compiler builds, just smaller.
 
 v0 is what you see here: the core types, functions, control flow, one file, native binaries on macOS and Linux. v1 adds arrays, structs and a `len`, which is enough to write real programs in it. It is free and stays free. It exists to be read, forked and taught from.
 
