@@ -1,3 +1,5 @@
+<img src="icon.svg" width="80" alt="Plank logo">
+
 # Plank
 
 Building a language sounds like a year of work. Real compilers are a hundred thousand lines. Most tutorials stop right before the part where it makes a binary.
