@@ -66,4 +66,4 @@ git clone https://github.com/nulljosh/plank && cd plank
 python3 test.py                    # every example, app and tests/*.pk, the error messages, then all of it under GC stress
 ```
 
-Needs `uv` and a C compiler for linking (`cc`). The first run installs llvmlite on its own. The language reference is in `docs/SPEC.md`, the file map in `docs/ARCHITECTURE.md`, and how it stacks up against Python, Ruby and Swift in `docs/COMPARE.md`. Live at [plank.heyitsmejosh.com](https://plank.heyitsmejosh.com).
+Needs `uv` and a C compiler for linking (`cc`). The first run installs llvmlite on its own. The language reference is in `docs/SPEC.md`, the file map in `docs/ARCHITECTURE.md`, how it stacks up against Python, Ruby and Swift in `docs/COMPARE.md`, and the design philosophy, taken from Hackers and Painters, in `docs/HACKERS-AND-PAINTERS.md`. Live at [plank.heyitsmejosh.com](https://plank.heyitsmejosh.com).

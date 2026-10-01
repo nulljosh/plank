@@ -11,6 +11,7 @@ One file does the work. Everything else is examples, tests and docs.
 | `tests/*.pk` | The language testing itself: strings, lists, dicts, types, control. Each is a Plank program full of `assert` that prints `ok`. |
 | `test.py` | Compiles every example, diffs the output, and runs every `tests/*.pk`, checks 27 error messages at compile time and run time, then runs everything again with the collector firing every 4KB. CI runs it on macOS and Ubuntu. |
 | `docs/SPEC.md` | The language reference. |
+| `docs/HACKERS-AND-PAINTERS.md` | Paul Graham's book summarized, and the eight design rules Plank takes from it. |
 | `docs/COMPARE.md` | The scorecard against Python, Ruby and Swift. The roadmap works down it. |
 | `site/index.html`, `site/icon.svg`, `wrangler.toml` | The landing page at plank.heyitsmejosh.com, deployed as Cloudflare static assets. Drifting-plank canvas, hero, and a demo window that plays the real examples. |
 | `tools/gen-demo.py`, `site/demo.js` | The generator reads every example, its `.out`, and `plank emit` output into `demo.js`. `test.py` fails if `demo.js` is stale, so the landing can never show output the compiler did not produce. |

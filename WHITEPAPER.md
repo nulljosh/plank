@@ -1,5 +1,7 @@
 # Why Plank is shaped this way
 
+The short version comes from Paul Graham's Hackers and Painters: a language is a medium for sketching, its power is measured in how short programs get, and it should be built from a few ideas that generate the rest. `docs/HACKERS-AND-PAINTERS.md` has the summary and the rules. The rest of this paper is how those rules became decisions.
+
 Plank is a compiled language whose only goal is to be understood in full by one person in one sitting. Every design choice below falls out of that.
 
 ## One file
