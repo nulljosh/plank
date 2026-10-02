@@ -9,13 +9,14 @@
     plank build hello.pk    native binary next to the source
     plank emit hello.pk     print the LLVM IR
     plank test [dir]        run every .pk in dir (default tests/); each must print ok
+    plank repl              type Plank a line at a time and see what it does
 """
 import os, platform, re, subprocess, sys, tempfile
 from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -3823,6 +3824,66 @@ def build(path, out=None):
     return out
 
 
+def repl():
+    """A conversation with the compiler. Every entry rebuilds and reruns the whole program, so what you
+    see is always what a real binary printed; only the new output is shown. fn, struct, enum and import
+    entries define things, anything else runs, and a bare expression is printed."""
+    try:
+        import readline  # arrow keys and history where the platform has it
+    except ImportError:
+        pass
+    print(f"plank {VERSION}. Type Plank; a bare expression prints itself. Ctrl-D or exit leaves.")
+    decls, body, shown, pending, depth = [], [], 0, [], 0
+    tmp = tempfile.mkdtemp()
+    path = os.path.join(tmp, "repl.pk")
+    keyword = re.compile(r"^\s*(let|var|if|while|for|match|try|throw|return|break|continue)\b")
+    assign = re.compile(r"^\s*[\w.\[\]!]+\s*(=|\+=|-=|\*=|/=|%=)[^=]")
+    def attempt(new_decls, new_body):
+        with open(path, "w") as f:
+            f.write("\n".join(new_decls) + "\nfn main() {\n" + "\n".join(new_body) + "\n}\n")
+        exe = build(path, os.path.join(tmp, "a.out"))
+        got = subprocess.run([exe], capture_output=True, text=True)
+        os.unlink(exe)
+        return got
+    while True:
+        try:
+            line = input(". " if pending else "> ")
+        except EOFError:
+            print()
+            return 0
+        if not pending and line.strip() in ("exit", "quit"):
+            return 0
+        pending.append(line)
+        depth += line.count("{") - line.count("}")
+        if depth > 0 or not line.strip():
+            if not line.strip() and depth <= 0:
+                pending = []
+            continue
+        entry, pending, depth = "\n".join(pending), [], 0
+        is_decl = re.match(r"^\s*(fn|struct|enum|import)\b", entry)
+        candidates = [entry] if is_decl or keyword.match(entry) or assign.match(entry) or "\n" in entry else [f"print({entry})", entry]
+        err = None
+        for text in candidates:
+            try:
+                got = attempt(decls + ([text] if is_decl else []), body + ([] if is_decl else [text]))
+            except PlankError as e:
+                err = str(e)
+                continue
+            if got.returncode != 0:
+                err = got.stderr.strip().replace(path + ":", "line ")
+                continue
+            if is_decl:
+                decls.append(text)
+            else:
+                body.append(text)
+            sys.stdout.write(got.stdout[shown:])
+            shown = len(got.stdout)
+            err = None
+            break
+        if err:
+            print("error:", err)
+
+
 def run_tests(folder):
     """Every .pk in the folder is a test; it passes when it exits 0 and prints exactly `ok`."""
     import glob
@@ -3853,6 +3914,8 @@ def main(argv=sys.argv[1:]):
     if argv[0] == "--version":
         print(f"plank {VERSION}")
         return 0
+    if argv[0] == "repl":
+        return repl()
     cmd, rest = (argv[0], argv[1:]) if argv[0] in ("run", "build", "emit", "test") else ("run", argv)
     if cmd == "test":
         return run_tests(rest[0] if rest else "tests")

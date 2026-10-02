@@ -60,9 +60,18 @@ Most language tutorials stop at a tree-walking interpreter. Plank skips the inte
 
 It is free and stays free. It exists to be read, forked and taught from.
 
+## Install
+
+```
+brew install nulljosh/plank/plank
+```
+
+Or clone the repo and run `./plank` straight from it. Either way you need a C compiler for linking (`cc`), and the first run fetches llvmlite by itself through `uv`.
+
 ## Usage
 
 ```
+plank repl                     type Plank a line at a time and see what it does
 plank run file.pk [args...]    compile and run; args() sees the arguments
 plank build file.pk [-o out]   native binary, next to the source by default
 plank emit file.pk             print the LLVM IR
@@ -70,7 +79,7 @@ plank test [dir]               run every .pk in a folder; each passes by printin
 plank --version
 ```
 
-Needs `uv` and a C compiler (`cc`). The first run installs llvmlite by itself. `PLANK_GC=4000` collects every 4KB, for shaking out bugs.
+`PLANK_GC=4000` collects every 4KB, for shaking out bugs. The REPL rebuilds the whole program after every line and shows only the new output, so what you see is always what a real binary printed.
 
 ## The language in a minute
 

@@ -81,6 +81,16 @@ for src, want in BAD:
 if fails:
     sys.exit(1)
 
+# the repl: only new output shows, a bad line is dropped, a bare expression prints itself
+script = "let xs = [3, 1]\nxs.sorted()\nfn twice(n: int) -> int {\n  return n * 2\n}\ntwice(21)\nnope\nxs.append(9)\nlen(xs)\n"
+got = subprocess.run(["./plank", "repl"], input=script, capture_output=True, text=True).stdout
+want = "[1, 3]\n42\nerror: unknown variable 'nope'\n3\n"
+ok = want in got.replace("> ", "").replace(". ", "")  # prompts are printed inline, strip them
+print(("ok   " if ok else "FAIL ") + "plank repl")
+if not ok:
+    print(got)
+    sys.exit(1)
+
 # the score typed on the landing page must match the scorecard
 import re
 score = re.search(r"(\d+) of (\d+)\.", open("docs/COMPARE.md").read()).groups()

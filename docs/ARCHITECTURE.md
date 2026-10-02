@@ -10,6 +10,8 @@ One file does the work. Everything else is examples, tests and docs.
 | `apps/*.pk` | Seven real programs: a tool-using agent loop that talks to Ollama over HTTP and JSON, a calculator with its own parser, a to-do CLI that saves to a file, word frequency, a budget ledger, a maze solver, Game of Life. Each has a `.out`; `test.py` runs them like the examples and the landing shows their output. |
 | `tests/*.pk` | The language testing itself: strings, lists, dicts, types, control. Each is a Plank program full of `assert` that prints `ok`. |
 | `list_helper` in `plank.py` | first, last, index_of, insert, remove_at, reverse, sum, min, max on lists, mostly inline IR; min and max sort a copy and take an end. |
+| `plank repl` | Keeps the definitions and statements typed so far, rebuilds and reruns the whole program after each entry, and prints only the output past what was shown before. A bare expression is tried as `print(...)` first. A line that fails to compile or run is dropped. |
+| `nulljosh/homebrew-plank` | The Homebrew tap: `brew install nulljosh/plank/plank` installs `plank.py` as `plank` with `uv` as a dependency. Bump the formula's url and sha256 at each release. |
 | `plank test [dir]` | Built into the CLI: compiles every `.pk` in the folder and passes it when it exits 0 printing `ok`. `test.py` is the repo's own suite; `plank test` is for programs written in Plank. |
 | `test.py` | Compiles every example, diffs the output, and runs every `tests/*.pk`, checks 27 error messages at compile time and run time, then runs everything again with the collector firing every 4KB. CI runs it on macOS and Ubuntu. |
 | `docs/SPEC.md` | The language reference. |

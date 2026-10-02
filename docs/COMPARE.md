@@ -47,4 +47,6 @@ Out of scope for now, on purpose: threads and async, a package manager, a REPL, 
 | `match` as an expression | yes | yes | yes | yes (1.5) |
 | Index or key in a `for` | enumerate, items | each_with_index | enumerated | yes (1.5) |
 | `while let` | walrus | no | yes | yes (1.5) |
+| A REPL | yes | irb | yes | yes (1.6) |
+| One-line install | yes | yes | Xcode | `brew install` (1.6) |
 | Tests in the language | unittest | minitest | XCTest | `assert` + `plank test` (1.3) |
