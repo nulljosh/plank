@@ -6,6 +6,8 @@ Everything the compiler accepts, in one page.
 
 A program is a list of functions, structs and enums, and any number of `import "other.pk"` lines, which pull in everything another file defines. Paths are relative to the importing file, and a file is only read once however many times it is imported. Errors and runtime messages name the file they come from.
 
+`import "lib/shapes.pk" as shapes` keeps the file's names under its own name instead: `shapes.area_of(k)`, `shapes.Shape("box", shapes.Kind.square(3.0))`, a type written `shapes.Shape`, and `shapes.area_of` as a value. Inside the module nothing changes; it refers to its own names plainly. Two files can then both define `parse`.
+
 A program's top level is a list of functions. It needs a `fn main()` with no parameters and no return type. Statements end at the newline. Comments start with `#`.
 
 ```

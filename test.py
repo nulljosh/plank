@@ -66,6 +66,7 @@ BAD = [
     ("struct P {\n  x: int\n}\nfn main() {\n  print(P(1)?.x)\n}\n", ":5: ?. is for an optional, and P is never nil"),
     ("extern fn nope_not_real(x: int) -> int\nfn main() {\n  print(nope_not_real(1))\n}\n", ":0: the C library has no function called nope_not_real"),
     ("fn main() {\n  print(clock(5))\n}\n", ":2: clock() takes a format string, got int"),
+    (f"import \"{os.path.abspath('examples/lib/money.pk')}\" as money\nfn main() {{\n  print(money.nope())\n}}\n", ":3: module money has nothing called nope"),
     # run time
     ("fn main() {\n  print(\"x\".matches(\"[\"))\n}\n", ":2: bad pattern"),
     ("fn main() {\n  let xs = [1]\n  xs.insert(5, 2)\n}\n", ":3: index 5 is out of range for a list of 1"),

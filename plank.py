@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "2.2.0"
+VERSION = "2.3.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -233,7 +233,7 @@ class Fn(Node): name: str; params: list; ret: str; body: list; defaults: dict; t
 @dataclass
 class OptChain(Node): target: Node; name: str; args: list; labels: list   # args None for a field
 @dataclass
-class Import(Node): path: str
+class Import(Node): path: str; alias: str = None
 @dataclass
 class Struct(Node): name: str; fields: list; defaults: dict; methods: list; tparams: list = None
 @dataclass
@@ -256,6 +256,7 @@ TYPES = {"int", "float", "bool", "str"}
 class Parser:
     def __init__(self, toks):
         self.toks, self.i = toks, 0
+        self.aliases = set()  # import "x.pk" as x: x.Name is a type from there
 
     @property
     def tok(self):
@@ -288,7 +289,12 @@ class Parser:
                 path = self.expect("str").val
                 if not isinstance(path, str):
                     raise PlankError(line, "an import path is plain text, no \\( )")
-                items.append(Import(line, path))
+                alias = None
+                if self.at("name") and self.tok.val == "as":
+                    self.next()
+                    alias = self.expect("name").val
+                    self.aliases.add(alias)
+                items.append(Import(line, path, alias))
             elif self.at("extern"):
                 self.next()
                 f = self.fn(extern=True)
@@ -506,6 +512,12 @@ class Parser:
             self.expect("]")
             return self.optional(f"[{inner}]")
         t = self.expect("name")
+        if t.val in self.aliases and self.at("."):  # money.Ledger
+            self.next()
+            inner = self.expect("name")
+            if not inner.val[0].isupper():
+                raise PlankError(inner.line, f"type names start with a capital letter: {t.val}.{inner.val.capitalize()}")
+            return self.optional(f"{t.val}.{inner.val}" + (f"<{self.type_args()}>" if self.at("<") else ""))
         if t.val not in TYPES and not t.val[0].isupper():  # capitalized names are structs, checked in codegen
             raise PlankError(t.line, f"unknown type {t.val!r}")
         name = t.val
@@ -944,7 +956,7 @@ class Fmt:
     # -- declarations
     def item(self, it, indent):
         if isinstance(it, Import):
-            return self.emit(indent, f'import {quote(it.path)}', it.line)
+            return self.emit(indent, f'import {quote(it.path)}' + (f" as {it.alias}" if it.alias else ""), it.line)
         if isinstance(it, Fn):
             return self.fn(it, indent)
         head = f"{'struct' if isinstance(it, Struct) else 'enum'} {it.name}{self.tparams(it.tparams if isinstance(it, Struct) else None)} {{"
@@ -2304,9 +2316,11 @@ def tuple_parts(ty):
 
 def generic_name(ty):
     """("Stack", ["int"]) for "Stack<int>", None for anything else."""
-    if not ty or not ty[0].isupper() or "<" not in ty or not ty.endswith(">"):
+    if not ty or "<" not in ty or not ty.endswith(">"):
         return None
     base, rest = ty.split("<", 1)
+    if not base.split(".")[-1][:1].isupper():
+        return None
     args, depth, cur = [], 0, ""
     for c in rest[:-1]:
         if c == "," and depth == 0:
@@ -2354,8 +2368,9 @@ class Var:
 
 
 class Codegen:
-    def __init__(self, name, file=None, files=None, uses_json=True):
+    def __init__(self, name, file=None, files=None, uses_json=True, modules=()):
         self.uses_json = uses_json  # the Json enum is only compiled in when the program mentions it
+        self.modules = set(modules)  # import aliases: x.parse(), x.Point
         self.files = files or [file or name]  # what runtime errors call each source file: the path you typed
         self.module = ir.Module(name=name)
         self.module.triple = TRIPLE
@@ -3502,8 +3517,10 @@ enum Json {
         self.builder.store(val, self.builder.bitcast(at, self.ll(elem).as_pointer()))
 
     def e_Method(self, e):
+        if isinstance(e.target, Name) and e.target.name in self.modules and self.find(e.target.name) is None:
+            return self.e_Call(Call(e.line, f"{e.target.name}.{e.name}", e.args, e.labels))  # x.parse(...), x.Point(...)
         if self.is_enum_name(e.target):
-            return self.make_case(e, e.target.name, e.name, e)
+            return self.make_case(e, self.qualified(e.target), e.name, e)
         target, ty = self.expr(e.target)
         if f"{ty}.{e.name}" in self.generics:
             return self.call_generic(Call(e.line, f"{ty}.{e.name}", [Given(e.line, target, ty)] + e.args, [None] + e.labels))
@@ -3595,8 +3612,16 @@ enum Json {
             b.store(v, b.bitcast(slot, self.ll(fty).as_pointer()))
         return obj, ename
 
+    def qualified(self, node):
+        """A type or function spelled as a name, or module.Name; None when it is a variable or anything else."""
+        if isinstance(node, Name) and not any(node.name in sc for sc in self.scopes):
+            return node.name
+        if isinstance(node, Field) and isinstance(node.target, Name) and node.target.name in self.modules and self.find(node.target.name) is None:
+            return f"{node.target.name}.{node.name}"
+        return None
+
     def is_enum_name(self, node):
-        return isinstance(node, Name) and node.name in self.enums and not any(node.name in sc for sc in self.scopes)
+        return self.qualified(node) in self.enums
 
     def show_enum(self, ty):
         """circle(r: 2), or just empty, the way Swift prints a case."""
@@ -3897,6 +3922,9 @@ enum Json {
         var = self.lookup(e.name, e.line)
         return self.builder.load(var.ptr, name=e.name), var.ty
 
+    def fn_value_error(self, e, full):
+        raise PlankError(e.line, f"{full} is generic; call it, or wrap it: fn(x) => {full}(x)")
+
     def fn_value(self, name):
         """A top-level function used as a value: a constant closure around a small wrapper."""
         sig = self.fns[name]
@@ -4135,6 +4163,9 @@ enum Json {
             raise PlankError(e.line, f"{e.name}() does not take labels")
         builtin = getattr(self, "b_" + e.name, None)
         if builtin is None:
+            if "." in e.name and e.name.split(".")[0] in self.modules:
+                alias, rest = e.name.split(".", 1)
+                raise PlankError(e.line, f"module {alias} has nothing called {rest}")
             raise PlankError(e.line, f"unknown function {e.name!r}")
         args = []
         for a in e.args:
@@ -4344,8 +4375,13 @@ enum Json {
         return self.builder.gep(obj, [ir.Constant(I32, 0), ir.Constant(I32, i)]), self.structs[ty].fields[i][1]
 
     def e_Field(self, e):
+        if isinstance(e.target, Name) and e.target.name in self.modules and self.find(e.target.name) is None:
+            full = f"{e.target.name}.{e.name}"
+            if full in self.fns or full in self.generics:
+                return self.fn_value(full) if full in self.fns else self.fn_value_error(e, full)
+            raise PlankError(e.line, f"module {e.target.name} has no function called {e.name}")
         if self.is_enum_name(e.target):
-            return self.make_case(e, e.target.name, e.name, None)
+            return self.make_case(e, self.qualified(e.target), e.name, None)
         ptr, ty = self.field_ptr(e)
         return self.builder.load(ptr), ty
 
@@ -4716,34 +4752,68 @@ enum Json {
 # ---------------------------------------------------------------- driver
 def load(src, path):
     """Parse a program and every file it imports, each once. Returns the items and the file list."""
-    files, items, todo, uses_json = [path], [], [(src, path)], False
+    files, items, todo, uses_json, modules = [path], [], [(src, path, None)], False, set()
     seen = {os.path.realpath(path)} if os.path.exists(path) else set()
     while todo:
-        text, at = todo.pop(0)
+        text, at, alias = todo.pop(0)
         toks = lex(text, files.index(at) * STRIDE + 1)
         uses_json |= any(t.kind == "name" and t.val in ("Json", "json_parse") for t in toks)
-        for it in Parser(toks).program():
+        parsed = Parser(toks).program()
+        if alias:
+            parsed = qualify(parsed, alias)
+            modules.add(alias)
+        for it in parsed:
             if not isinstance(it, Import):
                 items.append(it)
                 continue
             target = os.path.normpath(os.path.join(os.path.dirname(at), it.path))
             if os.path.realpath(target) in seen:
+                if it.alias and it.alias not in modules:
+                    raise PlankError(it.line, f"{it.path} is already imported; use the name it has")
                 continue
             try:
                 with open(target) as f:
-                    todo.append((f.read(), target))
+                    todo.append((f.read(), target, it.alias))
             except OSError:
                 raise PlankError(it.line, f"cannot import {it.path!r}: no file at {target}")
             seen.add(os.path.realpath(target))
             files.append(target)
-    return items, files, uses_json
+    return items, files, uses_json, modules
+
+
+def qualify(items, alias):
+    """Every top-level name in a module becomes alias.name, and every reference to it inside the module follows."""
+    fns = {it.name for it in items if isinstance(it, Fn)}
+    types = {it.name for it in items if isinstance(it, (Struct, Enum))}
+    own = fns | types
+    pat = re.compile(r"(?<![\w.])(" + "|".join(sorted(map(re.escape, types), key=len, reverse=True)) + r")\b") if types else None
+    def sub(ty):
+        return pat.sub(lambda m: f"{alias}.{m.group(1)}", ty) if pat and ty else ty
+    for it in items:
+        if isinstance(it, Import):
+            continue
+        it.name = f"{alias}.{it.name}"
+        for node in walk(it):
+            if isinstance(node, Call) and node.name.split("<")[0] in own:
+                node.name = f"{alias}.{node.name}"
+            elif isinstance(node, Name) and node.name in own:
+                node.name = f"{alias}.{node.name}"
+            for field in node.__dataclass_fields__:
+                v = getattr(node, field)
+                if field in ("ty", "ret") and isinstance(v, str):
+                    setattr(node, field, sub(v))
+                elif field in ("params", "fields") and isinstance(v, list):
+                    setattr(node, field, [(n, sub(t) if t else t) for n, t in v])
+                elif field == "cases" and isinstance(v, list):
+                    setattr(node, field, [(c, [(n, sub(t)) for n, t in fs]) for c, fs in v])
+    return items
 
 
 def compile_source(src, name="plank", file=None):
     files = [file or name]
     try:
-        items, files, uses_json = load(src, file or name)
-        return Codegen(name, file, files, uses_json).program(items)
+        items, files, uses_json, modules = load(src, file or name)
+        return Codegen(name, file, files, uses_json, modules).program(items)
     except PlankError as err:
         err.file, err.line = locate(err.line, files)
         raise

@@ -1,0 +1,25 @@
+# A module: imported as shapes, so its names never clash with yours.
+enum Kind {
+  circle(r: float)
+  square(side: float)
+}
+
+struct Shape {
+  name: str
+  kind: Kind
+
+  fn area() -> float {
+    return area_of(self.kind)
+  }
+}
+
+fn area_of(k: Kind) -> float {
+  match k {
+    .circle(r) { return 3.14159 * r * r }
+    .square(side) { return side * side }
+  }
+}
+
+fn biggest(shapes: [Shape]) -> Shape? {
+  return shapes.sorted(by: fn(a, b) => a.area() > b.area()).first()
+}

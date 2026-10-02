@@ -1,0 +1,22 @@
+# import as: a module's names live under its own name.
+import "../examples/lib/shapes.pk" as shapes
+
+import "../examples/lib/money.pk" as money
+
+fn area_of(n: int) -> int {
+  return n * n
+}
+
+fn main() {
+  let box = shapes.Shape(name: "box", kind: shapes.Kind.square(2.0))
+  assert(box.area() == 4.0 and shapes.area_of(box.kind) == 4.0 and area_of(3) == 9, "module and local names side by side")
+  let typed: shapes.Shape = box
+  assert(typed.name == "box" and str(box) == "shapes.Shape(name: \"box\", kind: square(side: 2))", "module types and printing")
+  let f = shapes.area_of
+  assert(f(shapes.Kind.circle(1.0)) > 3.0, "a module function as a value")
+  assert(shapes.biggest([box, shapes.Shape("dot", shapes.Kind.circle(0.1))])?.name == "box", "optionals through a module")
+  let book = money.Ledger("t")
+  book.add(1.5)
+  assert(money.dollars(book.balance()) == "$1.50", "a second module")
+  print("ok")
+}

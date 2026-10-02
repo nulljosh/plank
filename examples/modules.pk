@@ -1,0 +1,25 @@
+# Modules: import a file as a name, and its functions, structs and enums live under that name.
+import "lib/shapes.pk" as shapes
+
+import "lib/money.pk" as money
+
+fn area_of(n: int) -> int {
+  return n * n
+}
+
+fn main() {
+  let s = shapes.Shape("unit", shapes.Kind.circle(1.0))
+  let t: shapes.Shape = shapes.Shape(name: "box", kind: shapes.Kind.square(3.0))
+  print(s.area(), t.area(), shapes.area_of(t.kind), area_of(4))
+  let big = shapes.biggest([s, t])
+  print(big?.name, big?.area())
+  let book = money.Ledger("josh")
+  book.add(2.5)
+  print(money.dollars(book.balance()), book)
+  let f = shapes.area_of
+  print(f(shapes.Kind.square(2.0)))
+  match s.kind {
+    .circle(r) { print("round", r) }
+    else { print("not round") }
+  }
+}
