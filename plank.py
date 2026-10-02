@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "1.7.0"
+VERSION = "1.8.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -133,6 +133,9 @@ def lex(src, line=1, comments=None):
             line += 1
         elif kind == "int":
             toks.append(Tok("int", int(text), line))
+        elif kind == "float" and toks and toks[-1].kind == "." and "e" not in text.lower():
+            a, b = text.split(".")  # t.0.1 is two tuple parts, not a float
+            toks += [Tok("int", int(a), line), Tok(".", ".", line), Tok("int", int(b), line)]
         elif kind == "float":
             toks.append(Tok("float", float(text), line))
             toks[-1].text = text  # so plank fmt can print 1.5e3 the way it was written
@@ -183,6 +186,10 @@ class Binary(Node): op: str; left: Node; right: Node
 class Call(Node): name: str; args: list; labels: list
 @dataclass
 class Let(Node): name: str; ty: str; expr: Node; mutable: bool
+@dataclass
+class LetTuple(Node): names: list; expr: Node; mutable: bool
+@dataclass
+class Tuple(Node): items: list
 @dataclass
 class Assign(Node): target: Node; expr: Node
 @dataclass
@@ -456,6 +463,16 @@ class Parser:
         return ", ".join(args)
 
     def type(self):
+        if self.at("("):
+            line = self.next().line
+            parts = [self.type()]
+            while self.at(","):
+                self.next()
+                parts.append(self.type())
+            self.expect(")")
+            if len(parts) < 2:
+                raise PlankError(line, "a tuple type has at least two parts: (int, str)")
+            return self.optional(f"({', '.join(parts)})")
         if self.at("fn"):
             self.next()
             self.expect("(")
@@ -507,6 +524,15 @@ class Parser:
         t = self.tok
         if self.at("let", "var"):
             self.next()
+            if self.at("("):  # let (q, r) = divmod(7, 2)
+                self.next()
+                names = [self.expect("name").val]
+                while self.at(","):
+                    self.next()
+                    names.append(self.expect("name").val)
+                self.expect(")")
+                self.expect("=")
+                return LetTuple(t.line, names, self.expr(), t.kind == "var")
             name = self.expect("name").val
             ty = None
             if self.at(":"):
@@ -670,7 +696,13 @@ class Parser:
                     e = Index(line, e, start)
                 self.expect("]")
                 continue
-            name = self.expect("name").val
+            tok = self.next()
+            if tok.kind == "int":  # t.0, a tuple part
+                name = f"_{tok.val}"
+            elif tok.kind == "name":
+                name = tok.val
+            else:
+                raise PlankError(tok.line, "expected a field or method name after .")
             if self.at("("):
                 self.next()
                 e = Method(line, e, name, *self.call_args())
@@ -756,6 +788,13 @@ class Parser:
             return Bool(t.line, t.kind == "true")
         if t.kind == "(":
             e = self.expr()
+            if self.at(","):  # (a, b): a tuple
+                items = [e]
+                while self.at(","):
+                    self.next()
+                    items.append(self.expr())
+                self.expect(")")
+                return Tuple(t.line, items)
             self.expect(")")
             return e
         if t.kind == "if":
@@ -968,6 +1007,8 @@ class Fmt:
 
     def stmt(self, s, indent):
         e = lambda x: self.expr(x, indent)
+        if isinstance(s, LetTuple):
+            return self.emit(indent, f"{'var' if s.mutable else 'let'} ({', '.join(s.names)}) = {e(s.expr)}", s.line)
         if isinstance(s, Let):
             ty = f": {s.ty}" if s.ty else ""
             return self.emit(indent, f"{'var' if s.mutable else 'let'} {s.name}{ty} = {e(s.expr)}", s.line)
@@ -1113,6 +1154,8 @@ class Fmt:
             return "nil"
         if isinstance(x, Name):
             return x.name
+        if isinstance(x, Tuple):
+            return "(" + ", ".join(self.expr(i, indent) for i in x.items) + ")"
         if isinstance(x, Unary):
             inner = self.wrap(x.expr, indent, self.UNARY if x.op == "-" else 100)  # not (a in b) keeps its parens
             return ("-" + inner) if x.op == "-" else ("not " + inner)
@@ -1141,7 +1184,8 @@ class Fmt:
         if isinstance(x, Method):
             return f"{self.atom(x.target, indent)}.{x.name}({self.args(x.args, x.labels, indent)})"
         if isinstance(x, Field):
-            return f"{self.atom(x.target, indent)}.{x.name}"
+            name = x.name[1:] if re.fullmatch(r"_\d+", x.name) else x.name
+            return f"{self.atom(x.target, indent)}.{name}"
         if isinstance(x, Index):
             return f"{self.atom(x.target, indent)}[{self.expr(x.index, indent)}]"
         if isinstance(x, Slice):
@@ -1225,6 +1269,7 @@ RUNTIME = r"""
 #include <time.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <regex.h>
 
 /* try blocks form a stack; a panic with a try open jumps to it instead of exiting */
 typedef struct PkTry { jmp_buf jb; struct PkTry *prev; } PkTry;
@@ -1722,6 +1767,88 @@ PkList *pk_list_slice(PkList *l, long long size, long long a, long long b) {
     pk_hold--; return r;
 }
 
+void pk_sleep(double seconds) {
+    if (seconds <= 0) return;
+    struct timespec t = { (time_t)seconds, (long)((seconds - (time_t)seconds) * 1e9) };
+    nanosleep(&t, 0);
+}
+
+/* ---- regular expressions: POSIX extended, from the C library. One compiled pattern is cached. */
+static regex_t *pk_re(const char *pat, const char *file, long long line) {
+    static regex_t re;
+    static char last[512];
+    static int have;
+    if (have && !strcmp(last, pat)) return &re;
+    if (have) { regfree(&re); have = 0; }
+    int err = regcomp(&re, pat, REG_EXTENDED);
+    if (err) {
+        static char msg[256];
+        char why[160];
+        regerror(err, &re, why, sizeof why);
+        snprintf(msg, sizeof msg, "bad pattern \"%.60s\": %s", pat, why);
+        pk_panic(file, line, msg);
+    }
+    snprintf(last, sizeof last, "%s", pat);
+    have = strlen(pat) < sizeof last;
+    return &re;
+}
+
+long long pk_matches(const char *s, const char *pat, const char *file, long long line) {
+    return regexec(pk_re(pat, file, line), s, 0, 0, 0) == 0;
+}
+
+/* the whole match and every group, or NULL when the pattern does not match */
+PkList *pk_captures(const char *s, const char *pat, const char *file, long long line) {
+    regex_t *re = pk_re(pat, file, line);
+    regmatch_t m[16];
+    if (regexec(re, s, 16, m, 0)) return 0;
+    pk_hold++;
+    size_t n = re->re_nsub + 1 < 16 ? re->re_nsub + 1 : 16;
+    PkList *l = pk_list_new(n, 8);
+    for (size_t i = 0; i < n; i++)
+        *(char **)pk_list_push(l, 8) = m[i].rm_so < 0 ? "" : pk_strndup(s + m[i].rm_so, m[i].rm_eo - m[i].rm_so);
+    pk_hold--;
+    return l;
+}
+
+PkList *pk_find_all(const char *s, const char *pat, const char *file, long long line) {
+    regex_t *re = pk_re(pat, file, line);
+    pk_hold++;
+    PkList *l = pk_list_new(4, 8);
+    regmatch_t m;
+    int flags = 0;
+    while (*s && regexec(re, s, 1, &m, flags) == 0) {
+        *(char **)pk_list_push(l, 8) = pk_strndup(s + m.rm_so, m.rm_eo - m.rm_so);
+        s += m.rm_eo > 0 ? m.rm_eo : 1;
+        flags = REG_NOTBOL;
+    }
+    pk_hold--;
+    return l;
+}
+
+char *pk_replace_all(const char *s, const char *pat, const char *rep, const char *file, long long line) {
+    regex_t *re = pk_re(pat, file, line);
+    pk_hold++;
+    size_t cap = strlen(s) * 2 + strlen(rep) * 4 + 16, n = 0, k = strlen(rep);
+    char *out = pk_alloc_text(cap);
+    regmatch_t m;
+    int flags = 0;
+    while (*s && regexec(re, s, 1, &m, flags) == 0) {
+        size_t keep = m.rm_so, step = m.rm_eo > 0 ? m.rm_eo : 1;
+        if (n + keep + k + 2 > cap) { cap = (cap + keep + k) * 2; out = pk_grow(out, cap); }
+        memcpy(out + n, s, keep); n += keep;
+        memcpy(out + n, rep, k); n += k;
+        if (m.rm_eo == 0) out[n++] = *s;  /* an empty match: copy one character so we move on */
+        s += step;
+        flags = REG_NOTBOL;
+    }
+    size_t rest = strlen(s);
+    if (n + rest + 1 > cap) out = pk_grow(out, n + rest + 1);
+    memcpy(out + n, s, rest + 1);
+    pk_hold--;
+    return out;
+}
+
 /* ---- the outside world: arguments, files, the clock, randomness */
 static int pk_argc;
 static char **pk_argv;
@@ -2081,6 +2208,22 @@ def walk(node):
             yield from walk(getattr(node, f))
 
 
+def tuple_parts(ty):
+    """["int", "str"] for "(int, str)", None for anything else."""
+    if not ty.startswith("(") or not ty.endswith(")"):
+        return None
+    parts, depth, cur = [], 0, ""
+    for c in ty[1:-1]:
+        if c == "," and depth == 0:
+            parts.append(cur.strip())
+            cur = ""
+            continue
+        depth += (c in "<[(") - (c in ">])")
+        cur += c
+    parts.append(cur.strip())
+    return parts
+
+
 def generic_name(ty):
     """("Stack", ["int"]) for "Stack<int>", None for anything else."""
     if not ty or not ty[0].isupper() or "<" not in ty or not ty.endswith(">"):
@@ -2157,6 +2300,8 @@ class Codegen:
         """The LLVM type for a Plank type. Every list is the same pointer; [int] vs [str] lives in the Plank type."""
         if ty.endswith("?"):
             return self.ll(ty[:-1], line).as_pointer()  # an optional points at a boxed value, or is null
+        if tuple_parts(ty):
+            return self.tuple_struct(ty, line).as_pointer()
         if fn_sig(ty):
             return CLOSURE
         if ty.startswith("["):
@@ -2211,6 +2356,8 @@ class Codegen:
             return self.builder.call(self.show_dict(ty), [val])
         if ty.startswith("["):
             return self.builder.call(self.show_list(ty), [val])
+        if tuple_parts(ty):
+            return self.builder.call(self.show_tuple(ty), [val])
         if ty in self.structs:
             return self.builder.call(self.show_struct(ty), [val])
         if ty in self.enums:
@@ -2908,7 +3055,20 @@ enum Json {
         "chars": ("pk_chars", [], "[str]"),
     }
 
+    REGEX_METHODS = {"matches": ("pk_matches", ["str"], "bool"), "captures": ("pk_captures", ["str"], "[str]?"),
+                     "find_all": ("pk_find_all", ["str"], "[str]"), "replace_all": ("pk_replace_all", ["str", "str"], "str")}
+
     def str_method(self, e, s, args):
+        if e.name in self.REGEX_METHODS:
+            fn, want, ret = self.REGEX_METHODS[e.name]
+            if [t for _, t in args] != want:
+                raise PlankError(e.line, f"{e.name}() takes ({', '.join(want)}), got ({', '.join(t for _, t in args)})")
+            vals = [s] + [v for v, _ in args] + self.where(e.line)
+            if ret == "bool":
+                return self.builder.trunc(self.call_c(fn, "int", *vals), LL["bool"]), "bool"
+            if ret == "[str]?":
+                return self.maybe(self.call_c(fn, LIST, *vals), "[str]")
+            return self.call_c(fn, LIST if ret == "[str]" else ret, *vals), ret
         if e.name not in self.STR_METHODS:
             raise PlankError(e.line, f"str has no method {e.name}(); try {', '.join(m + '()' for m in self.STR_METHODS)}")
         fn, want, ret = self.STR_METHODS[e.name]
@@ -3387,6 +3547,51 @@ enum Json {
         phi.add_incoming(c, c_bb)
         return phi, ty
 
+    def tuple_struct(self, ty, line=0):
+        """(int, str) as a struct with fields _0 and _1, made the first time the type is named."""
+        if ty not in self.structs:
+            parts = tuple_parts(ty)
+            ll_type = self.module.context.get_identified_type(ty)
+            self.structs[ty] = StructInfo(ll_type, [(f"_{i}", t) for i, t in enumerate(parts)], {})
+            ll_type.set_body(*[self.ll(t, line) for t in parts])
+        return self.structs[ty].type
+
+    def e_Tuple(self, e):
+        items = [self.expr(x) for x in e.items]
+        for x, (_, t) in zip(e.items, items):
+            if t in ("nil", "[]", "[:]"):
+                raise PlankError(x.line, f"a tuple part cannot be a bare {t}; give it a type first, like let x: int? = nil")
+        ty = f"({', '.join(t for _, t in items)})"
+        self.tuple_struct(ty, e.line)
+        return self.construct(Call(e.line, ty, [Given(e.line, v, t) for v, t in items], [None] * len(items))), ty
+
+    def s_LetTuple(self, s):
+        val, ty = self.expr(s.expr)
+        parts = tuple_parts(ty)
+        if parts is None:
+            raise PlankError(s.line, f"let ({', '.join(s.names)}) needs a tuple on the right, got {ty}")
+        if len(parts) != len(s.names):
+            raise PlankError(s.line, f"this tuple has {len(parts)} parts, the let names {len(s.names)}")
+        b = self.builder
+        for i, (name, t) in enumerate(zip(s.names, parts)):
+            b.store(b.load(b.gep(val, [ir.Constant(I32, 0), ir.Constant(I32, i)])), self.declare(name, t, s.mutable, s.line))
+
+    def show_tuple(self, ty):
+        name = "show." + ty
+        if name in self.module.globals:
+            return self.module.globals[name]
+        fn = ir.Function(self.module, ir.FunctionType(LL["str"], [self.ll(ty)]), name)
+        fn.linkage = "private"
+        outer, self.builder = self.builder, ir.IRBuilder(fn.append_basic_block("entry"))
+        b = self.builder
+        out = self.cstr("(")
+        for i, t in enumerate(tuple_parts(ty)):
+            part = self.quoted(b.load(b.gep(fn.args[0], [ir.Constant(I32, 0), ir.Constant(I32, i)])), t)
+            out = self.call_c("pk_concat", "str", self.call_c("pk_concat", "str", out, self.cstr(", " if i else "")), part)
+        b.ret(self.call_c("pk_concat", "str", out, self.cstr(")")))
+        self.builder = outer
+        return fn
+
     def e_Nil(self, e):
         return ir.Constant(LL["str"], None), "nil"
 
@@ -3800,6 +4005,11 @@ enum Json {
             return self.unify(pk[1], ak[1], tparams, binds, line, what)
         if is_list(pattern) and is_list(actual) and actual != "[]":
             return self.unify(pattern[1:-1], actual[1:-1], tparams, binds, line, what)
+        pt, at_ = tuple_parts(pattern), tuple_parts(actual)
+        if pt and at_ and len(pt) == len(at_):
+            for x, y in zip(pt, at_):
+                self.unify(x, y, tparams, binds, line, what)
+            return
         ps, as_ = fn_sig(pattern), fn_sig(actual)
         if ps and as_ and len(ps[0]) == len(as_[0]):
             for x, y in zip(ps[0] + [ps[1]], as_[0] + [as_[1]]):
@@ -3873,6 +4083,8 @@ enum Json {
             raise PlankError(e.line, f"{ty} has no fields")
         fields = [n for n, _ in self.structs[ty].fields]
         if e.name not in fields:
+            if tuple_parts(ty):
+                raise PlankError(e.line, f"this tuple has {len(fields)} parts, .0 to .{len(fields) - 1}; there is no .{e.name[1:]}")
             raise PlankError(e.line, f"{ty} has no field {e.name!r}, it has {', '.join(fields)}")
         i = fields.index(e.name)
         return self.builder.gep(obj, [ir.Constant(I32, 0), ir.Constant(I32, i)]), self.structs[ty].fields[i][1]
@@ -4162,6 +4374,11 @@ enum Json {
 
     def b_exit(self, e, args):
         self.builder.call(self.c("pk_exit", ir.VoidType(), LL["int"]), self.typed(e, args, "int"))
+        return None, "void"
+
+    def b_sleep(self, e, args):
+        self.typed(e, args, "float")
+        self.builder.call(self.c("pk_sleep", ir.VoidType(), LL["float"]), [args[0][0]])
         return None, "void"
 
     def b_time(self, e, args):

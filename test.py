@@ -59,7 +59,11 @@ BAD = [
     ("fn main() {\n  for i, x in 0..3 {\n  }\n}\n", ":2: a range gives one number at a time"),
     ("fn main() {\n  print([\"a\"].sum())\n}\n", ":2: sum() needs a list of int or float, got [str]"),
     ("fn main() {\n  let f = fn(x: int) {\n    if x > 0 { return 1 }\n    return \"s\"\n  }\n}\n", ":4: returning str from a function that returns int"),
+    ("fn main() {\n  let t = (1, 2)\n  print(t.5)\n}\n", ":3: this tuple has 2 parts, .0 to .1; there is no .5"),
+    ("fn main() {\n  let (a, b) = 5\n}\n", ":2: let (a, b) needs a tuple on the right, got int"),
+    ("fn main() {\n  let (a, b) = (1, 2, 3)\n}\n", ":2: this tuple has 3 parts, the let names 2"),
     # run time
+    ("fn main() {\n  print(\"x\".matches(\"[\"))\n}\n", ":2: bad pattern"),
     ("fn main() {\n  let xs = [1]\n  xs.insert(5, 2)\n}\n", ":3: index 5 is out of range for a list of 1"),
     ("fn main() {\n  json_parse(\"[1,\")\n}\n", ":2: bad JSON: the text ends in the middle of a value"),
     ("fn main() {\n  json_parse(\"{}\").get(\"x\")\n}\n", "no key \"x\" in this JSON object"),

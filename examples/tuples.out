@@ -1,0 +1,13 @@
+3 2 (2, 1) 1
+("ada", 36) ada 36 (36, "ada") 36
+2.5 9 3
+a 1
+b 2
+((1, 2), "x") 2
+true true false
+["36", "28", "85"] 3
+["ada 36", "ada", "36"] nil
+ada 37
+ada #, linus #, grace # -
+true
+bad pattern "(": parentheses not balanced

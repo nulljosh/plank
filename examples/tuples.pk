@@ -1,0 +1,44 @@
+# Tuples and multiple return values, regular expressions, and sleep.
+fn divmod(a: int, b: int) -> (int, int) {
+  return (a / b, a % b)
+}
+
+fn stats(xs: [float]) -> (float, float, int) {
+  return (xs.min() ?? 0.0, xs.max() ?? 0.0, len(xs))
+}
+
+fn swap<A, B>(p: (A, B)) -> (B, A) {
+  return (p.1, p.0)
+}
+
+fn main() {
+  let (q, r) = divmod(17, 5)
+  print(q, r, divmod(9, 4), divmod(9, 4).1)
+  let pair = ("ada", 36)
+  print(pair, pair.0, pair.1, swap(pair), swap(pair).0)
+  let (lo, hi, n) = stats([2.5, 9.0, 4.0])
+  print(lo, hi, n)
+  let pairs = [("a", 1), ("b", 2)]
+  for p in pairs {
+    print(p.0, p.1)
+  }
+  let nested = ((1, 2), "x")
+  print(nested, nested.0.1)
+
+  let text = "ada 36, linus 28, grace 85"
+  print(text.matches("[0-9]+"), text.matches("^[a-z]+ [0-9]+"), "abc".matches("[0-9]"))
+  print(text.find_all("[0-9]+"), len(text.find_all("[a-z]+")))
+  print(text.captures("([a-z]+) ([0-9]+)"), "no digits".captures("[0-9]+"))
+  if let caps = text.captures("([a-z]+) ([0-9]+)") {
+    print(caps[1], int(caps[2]) + 1)
+  }
+  print(text.replace_all("[0-9]+", "#"), "aaa".replace_all("a*", "-"))
+  let t0 = time()
+  sleep(0.05)
+  print(time() - t0 >= 0.05)
+  try {
+    text.matches("(")
+  } catch err {
+    print(err)
+  }
+}

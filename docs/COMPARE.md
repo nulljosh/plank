@@ -50,4 +50,7 @@ Out of scope for now, on purpose: threads and async, a package manager, a REPL, 
 | A REPL | yes | irb | yes | yes (1.6) |
 | One-line install | yes | yes | Xcode | `brew install` (1.6) |
 | A formatter | black | rubocop | swift-format | `plank fmt` (1.7) |
+| Tuples and multiple return values | yes | yes | yes | yes (1.8) |
+| Regular expressions | re | built in | Regex | POSIX, on str (1.8) |
+| sleep | yes | yes | yes | yes (1.8) |
 | Tests in the language | unittest | minitest | XCTest | `assert` + `plank test` (1.3) |

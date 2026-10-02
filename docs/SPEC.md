@@ -57,6 +57,7 @@ Functions and structs can be declared in any order. A function with a return typ
 | `[K: V]` | dict, int or str keys, shared | `["a": 1]`, `[1: "one"]`, `[:]` |
 | `T?` | a `T` or `nil` | `nil`, or any `T` |
 | `fn(A, B) -> R` | a function or closure | `fn(x: int) => x * 2`, `double` |
+| `(A, B)` | a tuple, two or more values of any types | `(1, "one")`, `("ada", 36, true)` |
 | `str` | C string, UTF-8 | `"hello\n"`, `"世界"`, `"n is \(n)"` |
 
 String escapes are `\n`, `\t`, `\"`, `\\` and `\0`. Anything else after a backslash is an error, except `\(`, which starts an interpolation: `"\(name) has \(len(name)) letters"` drops the value of any expression into the string. Ints, floats and bools turn into text the same way `print` shows them. The expression inside can hold its own strings. A float literal needs digits on both sides of the dot.
@@ -77,6 +78,21 @@ count = count + 1
 
 Blocks open a scope. A name cannot be declared twice in the same scope, but an inner block can shadow an outer one.
 
+## Tuples
+
+A tuple groups a few values without naming a struct. Read parts with `.0`, `.1`; take it apart with `let (a, b) = ...`; a function returns several values by returning one.
+
+```
+fn divmod(a: int, b: int) -> (int, int) {
+  return (a / b, a % b)
+}
+let (q, r) = divmod(17, 5)   # 3 and 2
+let pair = ("ada", 36)
+print(pair.0, pair, ((1, 2), 3).0.1)   # ada ("ada", 36) 2
+```
+
+Tuples print the way you write them and work in lists, dicts, closures and generics.
+
 ## String tools
 
 ```
@@ -95,7 +111,16 @@ for c in "héllo" { ... }      # one character at a time
 fixed(3.14159, 2)             # "3.14"
 ```
 
-Indexes and lengths count characters, not bytes. Strings never change in place; every tool returns a new one. `upper` and `lower` change ASCII letters and leave the rest alone.
+Regular expressions are POSIX extended, straight from the C library, so `[0-9]+` and `([a-z]+)=([a-z]+)` work and `\d` does not:
+
+```
+"plank 1.8".matches("[0-9]+\\.[0-9]+")        # true
+"a1b22".find_all("[0-9]+")                  # ["1", "22"]
+"key=value".captures("([a-z]+)=([a-z]+)")   # ["key=value", "key", "value"], a [str]?, nil when nothing matches
+"a-b_c".replace_all("[-_]", " ")            # "a b c"
+```
+
+A pattern that does not compile throws `bad pattern ...`. Indexes and lengths count characters, not bytes. Strings never change in place; every tool returns a new one. `upper` and `lower` change ASCII letters and leave the rest alone.
 
 ## Lists
 
@@ -289,6 +314,7 @@ Conditions must be `bool`. The `for` variable is an `int` and is a `let` inside 
 | `env(name)` | An environment variable as a `str?`. |
 | `random(lo, hi)`, `random()` | An int from `lo` to `hi` inclusive, or a float from 0 up to 1. |
 | `time()` | Seconds since 1970 as a float, good for timing. |
+| `sleep(seconds)` | Waits that long, a float. |
 | `exit(code)` | Stops the program with that exit code. |
 | `run(cmd)` | Runs a shell command, returns its output; `status()` has the exit code right after. |
 | `quote(s)` | Shell-quotes one argument, so `run("ls " + quote(name))` is safe with any name. |

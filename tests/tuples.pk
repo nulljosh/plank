@@ -1,0 +1,35 @@
+# Tuples, destructuring, regex, sleep.
+fn minmax(xs: [int]) -> (int, int) {
+  return (xs.min() ?? 0, xs.max() ?? 0)
+}
+
+fn main() {
+  let (lo, hi) = minmax([4, 9, 1])
+  assert(lo == 1 and hi == 9, "destructure a returned tuple")
+  let t = ("x", 2.5, true)
+  assert(t.0 == "x" and t.1 == 2.5 and t.2, "parts by index")
+  assert(str(t) == "(\"x\", 2.5, true)" and str((1, (2, 3))) == "(1, (2, 3))", "printing")
+  assert(((1, 2), 3).0.1 == 2, "nested parts")
+  var (a, b) = (1, 2)
+  a += b
+  assert(a == 3, "var tuple parts can change")
+  let rows = [("ada", 36), ("linus", 28)]
+  assert(rows[1].0 == "linus" and rows.map(fn(r) => r.1).sum() == 64, "tuples in lists and closures")
+  assert("plank 1.8".matches("[0-9]+\\.[0-9]+") and not "plank".matches("[0-9]"), "matches")
+  assert("a1b22c333".find_all("[0-9]+").join(",") == "1,22,333", "find_all")
+  let caps = "key=value".captures("([a-z]+)=([a-z]+)")
+  assert(caps != nil and caps![1] == "key" and caps![2] == "value" and len(caps!) == 3, "captures with groups")
+  assert("nothing".captures("[0-9]") == nil, "captures with no match")
+  assert("a-b_c".replace_all("[-_]", " ") == "a b c", "replace_all")
+  let t0 = time()
+  sleep(0.01)
+  assert(time() - t0 >= 0.01, "sleep waits")
+  var bad = ""
+  try {
+    "x".matches("[")
+  } catch err {
+    bad = err
+  }
+  assert(bad.starts_with("bad pattern"), "a bad pattern is a catchable error")
+  print("ok")
+}
