@@ -1,0 +1,6 @@
+Set[3, 1, 2] 3 true false true
+Set[3, 1, 2, 9] Set[2] Set[3, 1]
+3
+2
+5 ["and", "bat", "cat", "hat", "the"]
+0 false Set[]

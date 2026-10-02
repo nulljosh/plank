@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "2.3.0"
+VERSION = "2.4.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -34,8 +34,8 @@ STRIDE = 1_000_000  # lines in the k-th source file are numbered from k * STRIDE
 
 
 def locate(line, files):
-    if line // STRIDE == 900:
-        return "<built-in Json>", line % STRIDE
+    if line // STRIDE >= 900:
+        return "<built-in " + ("Json" if line // STRIDE == 900 else "Set") + ">", line % STRIDE
     return files[min(line // STRIDE, len(files) - 1)], line % STRIDE
 
 
@@ -2368,8 +2368,9 @@ class Var:
 
 
 class Codegen:
-    def __init__(self, name, file=None, files=None, uses_json=True, modules=()):
+    def __init__(self, name, file=None, files=None, uses_json=True, modules=(), uses_set=True):
         self.uses_json = uses_json  # the Json enum is only compiled in when the program mentions it
+        self.uses_set = uses_set    # same for Set<T>
         self.modules = set(modules)  # import aliases: x.parse(), x.Point
         self.files = files or [file or name]  # what runtime errors call each source file: the path you typed
         self.module = ir.Module(name=name)
@@ -2490,6 +2491,77 @@ class Codegen:
         return ptr
 
     # -- program
+    SET_SRC = """
+struct Set<T> {
+  members: [T: bool] = [:]
+
+  fn add(x: T) {
+    self.members[x] = true
+  }
+
+  fn remove(x: T) {
+    if x in self.members {
+      self.members.remove(x)
+    }
+  }
+
+  fn has(x: T) -> bool {
+    return x in self.members
+  }
+
+  fn size() -> int {
+    return len(self.members)
+  }
+
+  fn items() -> [T] {
+    return self.members.keys()
+  }
+
+  fn union(other: Set<T>) -> Set<T> {
+    let out = Set<T>()
+    for x in self.members {
+      out.add(x)
+    }
+    for x in other.members {
+      out.add(x)
+    }
+    return out
+  }
+
+  fn intersect(other: Set<T>) -> Set<T> {
+    let out = Set<T>()
+    for x in self.members {
+      if other.has(x) {
+        out.add(x)
+      }
+    }
+    return out
+  }
+
+  fn minus(other: Set<T>) -> Set<T> {
+    let out = Set<T>()
+    for x in self.members {
+      if not other.has(x) {
+        out.add(x)
+      }
+    }
+    return out
+  }
+
+  fn text() -> str {
+    return "Set" + str(self.members.keys())
+  }
+}
+
+fn set_of<T>(xs: [T]) -> Set<T> {
+  let out = Set<T>()
+  for x in xs {
+    out.add(x)
+  }
+  return out
+}
+"""
+
     JSON_SRC = """
 enum Json {
   null
@@ -2576,6 +2648,8 @@ enum Json {
     def program(self, items):
         if self.uses_json:
             items = Parser(lex(self.JSON_SRC, 900 * STRIDE + 1)).program() + items
+        if self.uses_set:
+            items = Parser(lex(self.SET_SRC, 901 * STRIDE + 1)).program() + items
         structs = [x for x in items if isinstance(x, Struct) and not x.tparams]
         for st in items:
             if isinstance(st, Struct) and st.tparams:
@@ -2965,6 +3039,8 @@ enum Json {
 
     def s_ForIn(self, s):
         source, source_ty = self.expr(s.items)
+        if generic_name(source_ty) and generic_name(source_ty)[0] == "Set":
+            source, source_ty = self.e_Method(Method(s.line, Given(s.line, source, source_ty), "items", [], []))
         items, ty = source, source_ty
         if dict_kv(ty):
             items, ty = self.call_c("pk_dict_keys", LIST, items), f"[{dict_kv(ty)[0]}]"
@@ -3303,6 +3379,8 @@ enum Json {
                 raise PlankError(e.line, f"in on a str looks for a str, got {it}")
             hit = b.call(self.c("strstr", LL["str"], LL["str"], LL["str"]), [coll, item])
             return b.icmp_unsigned("!=", hit, ir.Constant(LL["str"], None)), "bool"
+        if generic_name(ct) and generic_name(ct)[0] == "Set":
+            return self.e_Method(Method(e.line, Given(e.line, coll, ct), "has", [Given(e.line, item, it)], [None]))
         kv = dict_kv(ct)
         if kv:
             slot = self.dict_slot(coll, kv, item, it, e.line, "pk_dict_find")
@@ -4426,6 +4504,8 @@ enum Json {
         val, ty = args[0]
         if ty in ("[]", "[:]"):
             return ir.Constant(LL["int"], 0), "int"
+        if generic_name(ty) and generic_name(ty)[0] == "Set":
+            return self.e_Method(Method(e.line, Given(e.line, val, ty), "size", [], []))
         if dict_kv(ty):
             return self.call_c("pk_dict_len", "int", val), "int"
         if is_list(ty):
@@ -4752,12 +4832,13 @@ enum Json {
 # ---------------------------------------------------------------- driver
 def load(src, path):
     """Parse a program and every file it imports, each once. Returns the items and the file list."""
-    files, items, todo, uses_json, modules = [path], [], [(src, path, None)], False, set()
+    files, items, todo, uses_json, uses_set, modules = [path], [], [(src, path, None)], False, False, set()
     seen = {os.path.realpath(path)} if os.path.exists(path) else set()
     while todo:
         text, at, alias = todo.pop(0)
         toks = lex(text, files.index(at) * STRIDE + 1)
         uses_json |= any(t.kind == "name" and t.val in ("Json", "json_parse") for t in toks)
+        uses_set |= any(t.kind == "name" and t.val in ("Set", "set_of") for t in toks)
         parsed = Parser(toks).program()
         if alias:
             parsed = qualify(parsed, alias)
@@ -4778,7 +4859,7 @@ def load(src, path):
                 raise PlankError(it.line, f"cannot import {it.path!r}: no file at {target}")
             seen.add(os.path.realpath(target))
             files.append(target)
-    return items, files, uses_json, modules
+    return items, files, uses_json, modules, uses_set
 
 
 def qualify(items, alias):
@@ -4812,8 +4893,8 @@ def qualify(items, alias):
 def compile_source(src, name="plank", file=None):
     files = [file or name]
     try:
-        items, files, uses_json, modules = load(src, file or name)
-        return Codegen(name, file, files, uses_json, modules).program(items)
+        items, files, uses_json, modules, uses_set = load(src, file or name)
+        return Codegen(name, file, files, uses_json, modules, uses_set).program(items)
     except PlankError as err:
         err.file, err.line = locate(err.line, files)
         raise

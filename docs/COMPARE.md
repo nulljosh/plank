@@ -50,10 +50,11 @@ The goal: write the programs you would write in Python, Ruby or Swift, in Plank,
 | URL encoding | urllib | CGI | yes | yes (2.1) |
 | `==` that looks inside collections | yes | yes | Equatable | yes (2.2) |
 | Modules with a name of their own | import x | require | import | `import as` (2.3) |
+| Sets | set | Set | Set | `Set<T>` (2.4) |
 | Tests in the language | unittest | minitest | XCTest | `assert` + `plank test` (1.3) |
 
 Out of scope, on purpose: threads and async, a package manager, a JIT. Each is a project the size of Plank itself.
 
 ## Score
 
-47 of 47. Every row is a yes. The next rows are on `roadmap.md`; when one lands it joins the table.
+48 of 48. Every row is a yes. The next rows are on `roadmap.md`; when one lands it joins the table.

@@ -1,0 +1,18 @@
+# Sets: Set<T> over int or str, written in Plank itself.
+fn main() {
+  let a = set_of([3, 1, 2, 3, 1])
+  let b = Set<int>()
+  b.add(2)
+  b.add(9)
+  print(a.text(), len(a), 3 in a, 9 in a, b.has(9))
+  print(a.union(b).text(), a.intersect(b).text(), a.minus(b).text())
+  a.remove(1)
+  a.remove(42)
+  for x in a {
+    print(x)
+  }
+  let words = set_of("the cat and the hat and the bat".split())
+  print(len(words), words.items().sorted())
+  let empty = Set<str>()
+  print(len(empty), "x" in empty, empty.text())
+}

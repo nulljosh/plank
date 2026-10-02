@@ -10,7 +10,6 @@ A `/loop` that keeps Plank growing one release at a time toward 5.0, comparing i
 
 ## Next, in order
 
-1. Sets, `Set<T>`, on top of dicts
 3. `plank doc`: the SPEC generated from the compiler, so it can never drift
 4. Dates beyond `clock`: parse and add days
 5. A `--static` build for Linux, so a Joshua Tree script is one file

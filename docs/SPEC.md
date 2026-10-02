@@ -164,6 +164,19 @@ Reading a key that is not there stops the program and names the key; use `in` or
 
 `in` also works on lists, `3 in [1, 2, 3]`, and strings, `"lan" in "plank"`.
 
+## Sets
+
+`Set<T>` holds each int or str once, in the order it first arrived. It is written in Plank itself and compiled in when a program mentions it.
+
+```
+let a = set_of([3, 1, 2, 3])     # Set[3, 1, 2]
+a.add(9)
+a.remove(1)
+print(2 in a, len(a), a.items())  # true 3 [3, 2, 9]
+for x in a { ... }
+a.union(b), a.intersect(b), a.minus(b), a.text()
+```
+
 ## Structs
 
 A struct groups named fields and the functions that work on them. Names start with a capital letter.

@@ -1,0 +1,21 @@
+# Set<T>: add, remove, has, in, len, for, union, intersect, minus, set_of.
+fn main() {
+  let a = set_of([1, 2, 2, 3])
+  assert(len(a) == 3 and 2 in a and not (9 in a) and a.has(3), "set_of drops repeats")
+  a.add(4)
+  a.add(4)
+  a.remove(1)
+  a.remove(99)
+  assert(len(a) == 3 and a.items() == [2, 3, 4], "add and remove keep order of first arrival")
+  let b = set_of([3, 4, 5])
+  assert(a.union(b).items() == [2, 3, 4, 5] and a.intersect(b).items() == [3, 4] and a.minus(b).items() == [2], "set algebra")
+  var total = 0
+  for x in a {
+    total += x
+  }
+  assert(total == 9, "for over a set")
+  let s = Set<str>()
+  s.add("x")
+  assert("x" in s and s.text() == "Set[\"x\"]" and len(Set<int>()) == 0, "string sets and empty sets")
+  print("ok")
+}
