@@ -74,6 +74,7 @@ Or clone the repo and run `./plank` straight from it. Either way you need a C co
 plank repl                     type Plank a line at a time and see what it does
 plank run file.pk [args...]    compile and run; args() sees the arguments
 plank build file.pk [-o out]   native binary, next to the source by default
+plank build file.pk --static   a binary with no shared libraries, to copy to any Linux box
 plank emit file.pk             print the LLVM IR
 plank test [dir]               run every .pk in a folder; each passes by printing ok
 plank fmt [--check] [files]    lay out .pk files the house way; --check only reports

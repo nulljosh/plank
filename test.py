@@ -90,6 +90,19 @@ for src, want in BAD:
 if fails:
     sys.exit(1)
 
+# a static build runs; on Linux it carries libc, on macOS it is a normal binary with a note
+import tempfile
+exe = os.path.join(tempfile.mkdtemp(), "hello")
+built = subprocess.run(["./plank", "build", "examples/hello.pk", "--static", "-o", exe], capture_output=True, text=True)
+ran = subprocess.run([exe], capture_output=True, text=True) if built.returncode == 0 else None
+ok = ran is not None and ran.stdout == open("examples/hello.out").read()
+if sys.platform != "darwin" and ok:
+    ok = b"statically linked" in subprocess.run(["file", exe], capture_output=True).stdout or b"static-pie" in subprocess.run(["file", exe], capture_output=True).stdout
+print(("ok   " if ok else "FAIL ") + "plank build --static")
+if not ok:
+    print(built.stdout + built.stderr + (ran.stdout + ran.stderr if ran else ""))
+    sys.exit(1)
+
 # the repl: only new output shows, a bad line is dropped, a bare expression prints itself
 script = "let xs = [3, 1]\nxs.sorted()\nfn twice(n: int) -> int {\n  return n * 2\n}\ntwice(21)\nnope\nxs.append(9)\nlen(xs)\n"
 got = subprocess.run(["./plank", "repl"], input=script, capture_output=True, text=True).stdout

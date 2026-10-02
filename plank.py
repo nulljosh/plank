@@ -6,7 +6,7 @@
 """Plank: a small compiled language. Lexer, parser, codegen, one file.
 
     plank run hello.pk a b  compile and run, passing a and b to args()
-    plank build hello.pk    native binary next to the source
+    plank build hello.pk    native binary next to the source; --static for one you can copy to another Linux box
     plank emit hello.pk     print the LLVM IR
     plank test [dir]        run every .pk in dir (default tests/); each must print ok
     plank repl              type Plank a line at a time and see what it does
@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "2.5.0"
+VERSION = "2.6.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -4944,7 +4944,8 @@ def optimize(module_text, level=2):
     return tm, mod
 
 
-def build(path, out=None):
+def build(path, out=None, static=False):
+    """Compile, optimize and link. static asks for a binary with no shared libraries, which Linux can do and macOS cannot."""
     with open(path) as f:
         src = f.read()
     module = compile_source(src, os.path.basename(path), path)
@@ -4958,7 +4959,10 @@ def build(path, out=None):
         f.write(RUNTIME)
     try:
         libs = os.environ.get("PLANK_LIBS", "").split()  # extra -l flags for extern fn from other libraries
-        link = subprocess.run(["cc", "-O2", "-w", obj, rt, "-o", out, "-lm"] + libs, capture_output=True, text=True)
+        if static and sys.platform == "darwin":
+            print("plank: macOS has no static libc, so --static builds a normal binary here; it works as asked on Linux", file=sys.stderr)
+        flags = ["-static"] if static and sys.platform != "darwin" else []
+        link = subprocess.run(["cc", "-O2", "-w"] + flags + [obj, rt, "-o", out, "-lm"] + libs, capture_output=True, text=True)
         if link.returncode:
             missing = [a or b for a, b in re.findall(r'"_?(\w+)", referenced from|undefined reference to [`\x27]_?(\w+)', link.stderr)]
             if missing:
@@ -5070,6 +5074,8 @@ def main(argv=sys.argv[1:]):
         print("plank: need a .pk file", file=sys.stderr)
         return 2
     path = rest[0]
+    static = "--static" in rest
+    rest = [a for a in rest if a != "--static"]
     out = rest[rest.index("-o") + 1] if "-o" in rest else None
     prog_args = [a for i, a in enumerate(rest[1:], 1) if a != "-o" and (i < 2 or rest[i - 1] != "-o")]
     try:
@@ -5078,7 +5084,7 @@ def main(argv=sys.argv[1:]):
                 print(compile_source(f.read(), os.path.basename(path), path))
             return 0
         if cmd == "build":
-            print(build(path, out))
+            print(build(path, out, static))
             return 0
         exe = build(path, out or os.path.join(tempfile.mkdtemp(), "a.out"))
         code = subprocess.run([exe] + prog_args).returncode
