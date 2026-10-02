@@ -123,6 +123,21 @@ if fmt.returncode:
     print(fmt.stdout + fmt.stderr)
     sys.exit(1)
 
+# plank doc knows every built-in the compiler has, and nothing it does not
+import importlib.util
+spec_mod = importlib.util.spec_from_file_location("plankmod", "plank.py")
+builtins = set(re.findall(r"def b_(\w+)\(", open("plank.py").read())) | {"sqrt", "floor", "ceil", "round"}
+docs_names = set(re.findall(r'^    "(\w+)": \(', open("plank.py").read(), re.M))
+undoc = sorted(builtins - docs_names)
+extra = sorted(docs_names - builtins)
+print(("ok   " if not undoc and not extra else "FAIL ") + "plank doc covers the built-ins")
+if undoc or extra:
+    print("missing:", undoc, "extra:", extra)
+    sys.exit(1)
+shown = subprocess.run(["./plank", "doc", "sleep"], capture_output=True, text=True).stdout
+if "Waits that long" not in shown:
+    print("FAIL plank doc sleep"); sys.exit(1)
+
 # every built-in, keyword and method the compiler knows is in docs/SPEC.md, and every CLI command in README.md
 src = open("plank.py").read()
 spec = open("docs/SPEC.md").read()

@@ -56,10 +56,11 @@ The goal: write the programs you would write in Python, Ruby or Swift, in Plank,
 | Errors in the type, `Result` and `?` | no | no | `throws`, `try?` | `Result<T>`, `?` (3.1) |
 | Generic enums | no | no | yes | yes (3.1) |
 | Packages from the internet | pip | gem | SwiftPM | `import "github.com/..."` (3.2) |
+| Help from the tool itself | help() | ri | Quick Help | `plank doc` (3.3) |
 | Tests in the language | unittest | minitest | XCTest | `assert` + `plank test` (1.3) |
 
 Out of scope, on purpose: threads and async, a package manager, a JIT. Each is a project the size of Plank itself.
 
 ## Score
 
-53 of 53. Every row is a yes. The next rows are on `roadmap.md`; when one lands it joins the table.
+54 of 54. Every row is a yes. The next rows are on `roadmap.md`; when one lands it joins the table.

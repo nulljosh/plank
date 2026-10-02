@@ -10,6 +10,7 @@
     plank emit hello.pk     print the LLVM IR
     plank test [dir]        run every .pk in dir (default tests/); each must print ok
     plank repl              type Plank a line at a time and see what it does
+    plank doc [name]        every built-in in one line each, or one of them in full
     plank fmt [--check] [files]   lay out .pk files the house way; --check only reports
 """
 import os, platform, re, subprocess, sys, tempfile
@@ -17,7 +18,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "3.2.0"
+VERSION = "3.3.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -5222,6 +5223,71 @@ def repl():
             print("error:", err)
 
 
+DOCS = {
+    "print": ("print(a, b, ...)", "Prints its arguments separated by spaces, then a newline. print() is a blank line."),
+    "str": ("str(x) -> str", "Any value as text, the way print shows it."),
+    "int": ("int(x) -> int", "A float truncated, a bool as 0 or 1, or text like \"42\" read as a number; bad text stops the program."),
+    "float": ("float(x) -> float", "An int as a float, or text like \"2.5\" read as a number."),
+    "len": ("len(x) -> int", "Items in a list, dict or set, or characters in a string."),
+    "input": ("input(prompt = \"\") -> str", "Prints the prompt, reads one line, drops the newline. Empty at end of input."),
+    "abs": ("abs(x)", "The size of an int or float."),
+    "min": ("min(a, b)", "The smaller of two ints or two floats."),
+    "max": ("max(a, b)", "The larger of two ints or two floats."),
+    "sqrt": ("sqrt(x: float) -> float", "Square root."),
+    "floor": ("floor(x: float) -> float", "Rounds down."),
+    "ceil": ("ceil(x: float) -> float", "Rounds up."),
+    "round": ("round(x: float) -> float", "Rounds to the nearest whole number."),
+    "pow": ("pow(x: float, y: float) -> float", "x to the power y."),
+    "fixed": ("fixed(x: float, digits: int) -> str", "A float as text with that many digits after the point."),
+    "args": ("args() -> [str]", "The command-line arguments after the program."),
+    "read_file": ("read_file(path) -> str?", "The whole file, or nil if it cannot be read."),
+    "write_file": ("write_file(path, text) -> bool", "Writes the file; true when it worked."),
+    "append_file": ("append_file(path, text) -> bool", "Adds to the end of a file, creating it if needed."),
+    "read_stdin": ("read_stdin() -> str", "Everything on standard input."),
+    "exists": ("exists(path) -> bool", "Whether something is at that path."),
+    "is_dir": ("is_dir(path) -> bool", "Whether the path is a folder."),
+    "mkdir": ("mkdir(path) -> bool", "Makes a folder; true if it exists afterwards."),
+    "remove_file": ("remove_file(path) -> bool", "Deletes a file; true when it worked."),
+    "list_dir": ("list_dir(path) -> [str]", "The names inside a folder, sorted; empty when it cannot be read."),
+    "cwd": ("cwd() -> str", "The current folder."),
+    "env": ("env(name) -> str?", "An environment variable, or nil."),
+    "run": ("run(cmd) -> str", "Runs a shell command and returns its output; status() has the exit code."),
+    "status": ("status() -> int", "The exit code of the last run(), or the HTTP code of the last http()."),
+    "quote": ("quote(s) -> str", "Shell-quotes one argument, so run(\"ls \" + quote(name)) is safe."),
+    "http": ("http(method, url, body = \"\", headers: [str] = []) -> str", "Sends the request through curl and returns the body; status() has the code."),
+    "url_encode": ("url_encode(s) -> str", "a b/c as a%20b%2Fc, for building URLs."),
+    "json_parse": ("json_parse(text) -> Json", "Text to a Json value, or a throw naming what was wrong."),
+    "json_quote": ("json_quote(s) -> str", "A string as a JSON string literal."),
+    "time": ("time() -> float", "Seconds since 1970, with fractions."),
+    "clock": ("clock(fmt = \"%Y-%m-%d %H:%M:%S\", at = now) -> str", "The local time as text in a strftime layout, now or at another moment."),
+    "parse_time": ("parse_time(text, layout = \"%Y-%m-%d\") -> float?", "Text to seconds since 1970, or nil when it does not fit the layout."),
+    "sleep": ("sleep(seconds: float)", "Waits that long."),
+    "random": ("random(lo, hi) -> int, random() -> float", "An int from lo to hi inclusive, or a float from 0 up to 1."),
+    "zip": ("zip(xs, ys) -> [(X, Y)]", "Pairs two lists as far as the shorter one goes."),
+    "assert": ("assert(cond, message = \"\")", "Stops the program, or lands in the nearest catch, when cond is false."),
+    "exit": ("exit(code: int)", "Stops the program with that exit code."),
+}
+
+
+def show_docs(names):
+    """plank doc: every built-in in one line; plank doc name: one of them in full. Methods are in docs/SPEC.md."""
+    if not names:
+        width = max(len(sig) for sig, _ in DOCS.values())
+        for name in sorted(DOCS):
+            sig, what = DOCS[name]
+            print(f"{sig:<{width}}  {what}")
+        print("\nMethods on strings, lists, dicts, sets, Json and Result are in docs/SPEC.md at github.com/nulljosh/plank.")
+        return 0
+    bad = 0
+    for name in names:
+        if name in DOCS:
+            print(DOCS[name][0] + "\n  " + DOCS[name][1])
+        else:
+            print(f"plank doc: no built-in called {name}", file=sys.stderr)
+            bad = 1
+    return bad
+
+
 def run_tests(folder):
     """Every .pk in the folder is a test; it passes when it exits 0 and prints exactly `ok`."""
     import glob
@@ -5256,6 +5322,8 @@ def main(argv=sys.argv[1:]):
         return repl()
     if argv[0] == "fmt":
         return fmt_files(argv[1:])
+    if argv[0] == "doc":
+        return show_docs(argv[1:])
     cmd, rest = (argv[0], argv[1:]) if argv[0] in ("run", "build", "emit", "test") else ("run", argv)
     if cmd == "test":
         return run_tests(rest[0] if rest else "tests")

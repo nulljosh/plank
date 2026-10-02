@@ -78,6 +78,7 @@ plank build file.pk --static   a binary with no shared libraries, to copy to any
 plank emit file.pk             print the LLVM IR
 plank test [dir]               run every .pk in a folder; each passes by printing ok
 plank fmt [--check] [files]    lay out .pk files the house way; --check only reports
+plank doc [name]               every built-in in a line, or one in full
 plank --version
 ```
 
