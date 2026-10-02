@@ -5,7 +5,7 @@ struct Board {
   cells: [bool] = []
 
   fn at(x: int, y: int) -> bool {
-    return self.cells[((y + self.h) % self.h) * self.w + (x + self.w) % self.w]
+    return self.cells[(y + self.h) % self.h * self.w + (x + self.w) % self.w]
   }
 
   fn neighbours(x: int, y: int) -> int {

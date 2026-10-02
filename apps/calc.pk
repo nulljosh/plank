@@ -24,7 +24,7 @@ fn tokenize(src: str) -> Lexer {
   let lx = Lexer()
   var digits = ""
   for c in src + " " {
-    if c >= "0" and c <= "9" or c == "." {
+    if (c >= "0" and c <= "9") or c == "." {
       digits += c
       continue
     }

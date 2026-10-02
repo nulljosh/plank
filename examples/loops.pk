@@ -17,8 +17,7 @@ fn main() {
 
   if i > 5 {
     print("big")
-  }
-  else {
+  } else {
     print("small")
   }
 

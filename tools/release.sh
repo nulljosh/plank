@@ -32,7 +32,7 @@ done
 [ -n "$sha" ] || { echo "could not fetch the v$v tarball for the formula"; exit 1; }
 tap=../homebrew-plank
 [ -d "$tap" ] || git clone -q https://github.com/nulljosh/homebrew-plank "$tap"
-sed -i '' -e "s|tags/v[0-9.]*\.tar\.gz|tags/v$v.tar.gz|" -e "s|sha256 \".*\"|sha256 \"$sha\"|" "$tap/Formula/plank.rb"
+sed -i '' -e "s|tags/v[0-9.]*\.tar\.gz|tags/v$v.tar.gz|" -e "s|sha256 \".*\"|sha256 \"$sha\"|" "$tap/Formula/plank-lang.rb"
 git -C "$tap" commit -qam "plank $v" && git -C "$tap" push -q
 
 npx wrangler deploy 2>&1 | grep -E "Deployed|rror"

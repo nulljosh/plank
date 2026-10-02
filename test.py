@@ -91,6 +91,13 @@ if not ok:
     print(got)
     sys.exit(1)
 
+# every .pk in the repo is laid out the way plank fmt would lay it out
+fmt = subprocess.run(["./plank", "fmt", "--check"], capture_output=True, text=True)
+print(("ok   " if fmt.returncode == 0 else "FAIL ") + "plank fmt --check")
+if fmt.returncode:
+    print(fmt.stdout + fmt.stderr)
+    sys.exit(1)
+
 # the score typed on the landing page must match the scorecard
 import re
 score = re.search(r"(\d+) of (\d+)\.", open("docs/COMPARE.md").read()).groups()

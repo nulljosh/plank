@@ -5,7 +5,7 @@ fn words(text: str) -> [str] {
   for w in text.lower().split() {
     var clean = ""
     for c in w {
-      if c >= "a" and c <= "z" or c == "'" {
+      if (c >= "a" and c <= "z") or c == "'" {
         clean += c
       }
     }

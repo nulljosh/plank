@@ -11,7 +11,7 @@ fn main() {
   assert("  hi \t".trim() == "hi" and "".trim() == "", "trim")
   assert("Plank".upper() == "PLANK" and "Plank".lower() == "plank" and "é".upper() == "é", "case, ASCII only")
   assert("a-b-c".replace("-", "+") == "a+b+c" and "abc".replace("", "x") == "abc", "replace")
-  assert("plank".find("an") ?? -1 == 2 and "plank".find("z") == nil, "find")
+  assert(("plank".find("an") ?? -1) == 2 and "plank".find("z") == nil, "find")
   assert("plank".starts_with("pl") and not "plank".starts_with("nk") and "plank".ends_with("nk"), "starts and ends")
   assert("lan" in "plank" and not ("z" in "plank"), "in on strings")
   assert(len("héllo".chars()) == 5, "chars")
@@ -28,4 +28,3 @@ fn main() {
   assert(s == "bña", "for over characters")
   print("ok")
 }
-

@@ -10,13 +10,14 @@
     plank emit hello.pk     print the LLVM IR
     plank test [dir]        run every .pk in dir (default tests/); each must print ok
     plank repl              type Plank a line at a time and see what it does
+    plank fmt [--check] [files]   lay out .pk files the house way; --check only reports
 """
 import os, platform, re, subprocess, sys, tempfile
 from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "1.6.0"
+VERSION = "1.7.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -108,7 +109,7 @@ def unescape(body, line):
     return parts[0] if len(parts) == 1 else parts
 
 
-def lex(src, line=1):
+def lex(src, line=1, comments=None):
     toks, pos, depth = [], 0, 0
     while pos < len(src):
         if src[pos] == '"':
@@ -122,6 +123,8 @@ def lex(src, line=1):
             raise PlankError(line, f"unexpected character {src[pos]!r}")
         kind, text = m.lastgroup, m.group()
         pos = m.end()
+        if kind == "comment" and comments is not None:
+            comments.append((line, text))
         if kind in ("ws", "comment"):
             continue
         if kind == "nl":
@@ -132,6 +135,7 @@ def lex(src, line=1):
             toks.append(Tok("int", int(text), line))
         elif kind == "float":
             toks.append(Tok("float", float(text), line))
+            toks[-1].text = text  # so plank fmt can print 1.5e3 the way it was written
         elif kind == "name":
             toks.append(Tok(text if text in KEYWORDS else "name", text, line))
         else:
@@ -229,6 +233,11 @@ class Enum(Node): name: str; cases: list; methods: list
 class Match(Node): subject: Node; arms: list; other: list
 
 
+class Block(list):
+    """A list of statements that remembers the line of its closing brace, so the formatter keeps comments inside."""
+    end = 0
+
+
 # ---------------------------------------------------------------- parser
 PREC = {"or": 1, "and": 2, "in": 4, "??": 4.5, "==": 4, "!=": 4, "<": 4, ">": 4, "<=": 4, ">=": 4,
         "+": 5, "-": 5, "*": 6, "/": 6, "%": 6}
@@ -286,13 +295,15 @@ class Parser:
         line = self.expect("enum").line
         name = self.type_name()
         self.expect("{")
-        cases, methods = [], []
+        cases, methods, case_lines = [], [], []
         self.skip_nl()
         while not self.at("}"):
             if self.at("fn"):
                 methods.append(self.fn())
             else:
-                case = self.expect("name").val
+                case_tok = self.expect("name")
+                case = case_tok.val
+                case_lines.append(case_tok.line)
                 fields = []
                 if self.at("("):
                     self.next()
@@ -307,48 +318,56 @@ class Parser:
                 if self.at(","):
                     self.next()
             self.skip_nl()
-        self.expect("}")
-        return Enum(line, name, cases, methods)
+        end = self.expect("}").line
+        en = Enum(line, name, cases, methods)
+        en.end, en.case_lines = end, case_lines
+        return en
 
     def match(self):
         line = self.expect("match").line
         subject = self.expr()
         self.expect("{")
-        arms, other = [], None
+        arms, other, arm_lines, else_line = [], None, [], 0
         self.skip_nl()
         while not self.at("}"):
             if self.at("else"):
-                self.next()
+                else_line = self.next().line
                 other = self.block()
             else:
+                arm_lines.append(self.tok.line)
                 pats = [self.pattern()]
                 while self.at(","):
                     self.next()
                     pats.append(self.pattern())
                 arms.append((pats, self.block()))
             self.skip_nl()
-        self.expect("}")
-        return Match(line, subject, arms, other)
+        end = self.expect("}").line
+        m = Match(line, subject, arms, other)
+        m.end, m.arm_lines, m.else_line = end, arm_lines, else_line
+        return m
 
     def match_expr(self, line):
         """match as a value: each arm is one expression. Built as a closure that returns from a match statement."""
         subject = self.expr()
         self.expect("{")
-        arms, other = [], None
+        arms, other, arm_lines, else_line = [], None, [], 0
         self.skip_nl()
         while not self.at("}"):
             if self.at("else"):
-                self.next()
-                other = [Return(line, self.braced_expr())]
+                else_line = self.next().line
+                other = [Return(else_line, self.braced_expr())]
             else:
+                arm_lines.append(self.tok.line)
                 pats = [self.pattern()]
                 while self.at(","):
                     self.next()
                     pats.append(self.pattern())
                 arms.append((pats, [Return(line, self.braced_expr())]))
             self.skip_nl()
-        self.expect("}")
-        return CallValue(line, Lambda(line, [], None, [Match(line, subject, arms, other)]), [])
+        end = self.expect("}").line
+        m = Match(line, subject, arms, other)
+        m.end, m.arm_lines, m.else_line = end, arm_lines, else_line
+        return CallValue(line, Lambda(line, [], None, [m]), [])
 
     def pattern(self):
         """.case, .case(a, b) or a constant like 3 or "hi"."""
@@ -386,8 +405,10 @@ class Parser:
                 if self.at(","):
                     self.next()
             self.skip_nl()
-        self.expect("}")
-        return Struct(line, name, fields, defaults, methods, tparams)
+        end = self.expect("}").line
+        st = Struct(line, name, fields, defaults, methods, tparams)
+        st.end = end
+        return st
 
     def fn(self):
         line = self.expect("fn").line
@@ -472,14 +493,14 @@ class Parser:
 
     def block(self):
         self.expect("{")
-        stmts = []
+        stmts = Block()
         self.skip_nl()
         while not self.at("}"):
             stmts.append(self.stmt())
             if not self.at("}"):
                 self.expect("nl")
             self.skip_nl()
-        self.expect("}")
+        stmts.end = self.expect("}").line
         return stmts
 
     def stmt(self):
@@ -606,8 +627,10 @@ class Parser:
         if not self.at("else"):
             self.i = mark
         else:
-            self.next()
+            start = self.next().line
             other = [self.if_()] if self.at("if") else self.block()
+            if isinstance(other, Block):
+                other.start = start  # the else line, so the formatter measures blank lines from it
         return other
 
     def expr(self, prec=0):
@@ -651,6 +674,7 @@ class Parser:
             if self.at("("):
                 self.next()
                 e = Method(line, e, name, *self.call_args())
+                e.end = self.toks[self.i - 1].line
             else:
                 e = Field(line, e, name)
         return e
@@ -717,7 +741,9 @@ class Parser:
         if t.kind == "int":
             return Num(t.line, t.val, "int")
         if t.kind == "float":
-            return Num(t.line, t.val, "float")
+            n = Num(t.line, t.val, "float")
+            n.text = getattr(t, "text", None)
+            return n
         if t.kind == "str":
             if isinstance(t.val, str):
                 return Str(t.line, t.val)
@@ -748,7 +774,9 @@ class Parser:
             if not self.at(":"):
                 if not self.at("]"):
                     self.expect(",")
-                return List(t.line, [first] + self.args("]"))
+                node = List(t.line, [first] + self.args("]"))
+                node.end = self.toks[self.i - 1].line  # where the ] was, for the formatter
+                return node
             keys, vals = [first], []
             while True:
                 self.expect(":")
@@ -759,8 +787,10 @@ class Parser:
                 if self.at("]"):
                     break
                 keys.append(self.expr())
-            self.expect("]")
-            return Dict(t.line, keys, vals)
+            end = self.expect("]").line
+            node = Dict(t.line, keys, vals)
+            node.end = end
+            return node
         if t.kind == "name":
             name = t.val
             if name[0].isupper() and self.at("<"):  # Stack<int>(...), as long as a ( follows the >
@@ -774,7 +804,9 @@ class Parser:
                     self.i = mark
             if self.at("("):
                 self.next()
-                return Call(t.line, name, *self.call_args())
+                node = Call(t.line, name, *self.call_args())
+                node.end = self.toks[self.i - 1].line
+                return node
             return Name(t.line, t.val)
         if t.kind in ("nl", "eof"):
             raise PlankError(t.line, "this line ends in the middle of an expression")
@@ -788,6 +820,397 @@ def interp_expr(src, line):
     if not p.at("nl"):
         raise PlankError(line, f"cannot read \\({src}) as one expression")
     return e
+
+
+# ---------------------------------------------------------------- formatter
+def span_end(node):
+    """The last source line a node touches, closing braces included."""
+    def ends(v):
+        if isinstance(v, Block):
+            yield v.end
+        if isinstance(v, (list, tuple)):
+            for x in v:
+                yield from ends(x)
+    end = getattr(node, "end", 0)
+    for n in walk(node):
+        end = max(end, n.line, getattr(n, "end", 0))
+        for f in n.__dataclass_fields__:
+            end = max([end] + list(ends(getattr(n, f))))
+    return end
+
+
+def quote(text):
+    out = text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t").replace("\0", "\\0")
+    return '"' + out + '"'
+
+
+class Fmt:
+    """Source back out of the AST, laid out like the examples. Comments and single blank lines survive by line number."""
+    UNARY = 7
+
+    def __init__(self, comments):
+        self.comments = sorted(comments)
+        self.lines = []
+
+    def program(self, items):
+        prev = 0
+        for it in items:
+            if prev:
+                self.lines.append("")
+            prev = self.leading(it.line, 0, prev, gap=False)
+            self.item(it, 0)
+            prev = span_end(it)
+        self.leading(10 ** 9, 0, prev)
+        return "\n".join(self.lines).rstrip("\n") + "\n"
+
+    # -- comments and blank lines
+    def leading(self, line, indent, prev, gap=True):
+        """Emit every comment that sits before line; keep one blank line where the source had any. Returns the new prev."""
+        while self.comments and self.comments[0][0] < line:
+            l, text = self.comments.pop(0)
+            if gap and prev and l - prev > 1:
+                self.lines.append("")
+            self.lines.append(" " * indent + text)
+            prev = l
+        if gap and prev and line - prev > 1 and line < 10 ** 9:
+            self.lines.append("")
+        return prev
+
+    def trail(self, line):
+        if self.comments and self.comments[0][0] == line:
+            return "  " + self.comments.pop(0)[1]
+        return ""
+
+    def emit(self, indent, text, line):
+        self.lines.append(" " * indent + text + self.trail(line))
+
+    # -- declarations
+    def item(self, it, indent):
+        if isinstance(it, Import):
+            return self.emit(indent, f'import {quote(it.path)}', it.line)
+        if isinstance(it, Fn):
+            return self.fn(it, indent)
+        head = f"{'struct' if isinstance(it, Struct) else 'enum'} {it.name}{self.tparams(it.tparams if isinstance(it, Struct) else None)} {{"
+        self.emit(indent, head, it.line)
+        prev = it.line
+        if isinstance(it, Struct):
+            for name, ty in it.fields:
+                default = f" = {self.expr(it.defaults[name], indent + 2)}" if name in it.defaults else ""
+                self.lines.append(" " * (indent + 2) + f"{name}: {ty}{default}")
+        else:
+            row, row_line = [], None
+            for (case, fields), cl in zip(it.cases, getattr(it, "case_lines", [0] * len(it.cases))):
+                inner = ", ".join(f"{n}: {t}" for n, t in fields)
+                text = case + (f"({inner})" if fields else "")
+                if row and cl != row_line:  # cases that shared a line in the source stay together
+                    self.lines.append(" " * (indent + 2) + ", ".join(row))
+                    row = []
+                row.append(text)
+                row_line = cl
+            if row:
+                self.lines.append(" " * (indent + 2) + ", ".join(row))
+        for m in it.methods:
+            if m.line - prev <= 1:  # always one blank line before a method, never two
+                self.lines.append("")
+            prev = self.leading(m.line, indent + 2, prev)
+            self.fn(m, indent + 2)
+            prev = span_end(m)
+        self.leading(it.end, indent + 2, prev, gap=False)
+        self.lines.append(" " * indent + "}")
+
+    def tparams(self, tparams):
+        return f"<{', '.join(tparams)}>" if tparams else ""
+
+    def params(self, f, indent):
+        out = []
+        for name, ty in f.params:
+            defaults = getattr(f, "defaults", {})  # lambdas have none
+            default = f" = {self.expr(defaults[name], indent)}" if name in defaults else ""
+            out.append(f"{name}: {ty}{default}" if ty else name)
+        return ", ".join(out)
+
+    def fn(self, f, indent):
+        ret = f" -> {f.ret}" if f.ret and f.ret != "void" else ""
+        self.emit(indent, f"fn {f.name}{self.tparams(f.tparams)}({self.params(f, indent)}){ret} {{", f.line)
+        self.block(f.body, indent + 2, f.line)
+        self.lines.append(" " * indent + "}")
+
+    # -- statements
+    def block(self, stmts, indent, opened):
+        prev = opened
+        for st in stmts:
+            prev = self.leading(st.line, indent, prev)
+            self.stmt(st, indent)
+            prev = span_end(st)
+        self.leading(getattr(stmts, "end", 0) or prev, indent, prev, gap=False)
+
+    def inline_block(self, stmts, line):
+        """`{ stmt }` on one line, when the source had it that way and it is one simple statement."""
+        if not stmts:
+            return "{ }"
+        if len(stmts) == 1 and stmts[0].line == line and span_end(stmts[0]) == line and not isinstance(stmts[0], (If, IfLet, While, WhileLet, For, ForIn, Try, Match)):
+            keep = self.lines
+            self.lines = []
+            self.stmt(stmts[0], 0)
+            text, self.lines = self.lines[0], keep
+            return "{ " + text + " }"
+        return None
+
+    def body(self, stmts, indent, head, line, tail=""):
+        one = self.inline_block(stmts, line)
+        if one is not None:
+            self.emit(indent, head + " " + one + tail, line)
+            return True
+        self.emit(indent, head + " {", line)
+        self.block(stmts, indent + 2, line)
+        self.lines.append(" " * indent + "}" + tail)
+        return False
+
+    def stmt(self, s, indent):
+        e = lambda x: self.expr(x, indent)
+        if isinstance(s, Let):
+            ty = f": {s.ty}" if s.ty else ""
+            return self.emit(indent, f"{'var' if s.mutable else 'let'} {s.name}{ty} = {e(s.expr)}", s.line)
+        if isinstance(s, Assign):
+            if isinstance(s.expr, Binary) and s.expr.left is s.target and s.expr.op in "+-*/%":
+                return self.emit(indent, f"{e(s.target)} {s.expr.op}= {e(s.expr.right)}", s.line)
+            return self.emit(indent, f"{e(s.target)} = {e(s.expr)}", s.line)
+        if isinstance(s, ExprStmt):
+            return self.emit(indent, e(s.expr), s.line)
+        if isinstance(s, Return):
+            return self.emit(indent, "return" + (f" {e(s.expr)}" if s.expr is not None else ""), s.line)
+        if isinstance(s, Throw):
+            return self.emit(indent, f"throw {e(s.expr)}", s.line)
+        if isinstance(s, Break):
+            return self.emit(indent, "break", s.line)
+        if isinstance(s, Continue):
+            return self.emit(indent, "continue", s.line)
+        if isinstance(s, (If, IfLet)):
+            return self.if_(s, indent, "if")
+        if isinstance(s, While):
+            return self.body(s.body, indent, f"while {e(s.cond)}", s.line)
+        if isinstance(s, WhileLet):
+            return self.body(s.body, indent, f"while let {s.name} = {e(s.expr)}", s.line)
+        if isinstance(s, For):
+            return self.body(s.body, indent, f"for {s.name} in {e(s.start)}..{e(s.stop)}", s.line)
+        if isinstance(s, ForIn):
+            names = s.name + (f", {s.second}" if s.second else "")
+            return self.body(s.body, indent, f"for {names} in {e(s.items)}", s.line)
+        if isinstance(s, Try):
+            self.emit(indent, "try {", s.line)
+            self.block(s.body, indent + 2, s.line)
+            self.lines.append(" " * indent + f"}} catch {s.name} {{")
+            self.block(s.handler, indent + 2, getattr(s.body, "end", s.line))
+            return self.lines.append(" " * indent + "}")
+        if isinstance(s, Match):
+            return self.match(s, indent)
+        raise PlankError(s.line, f"plank fmt does not know how to print {type(s).__name__}")
+
+    def if_(self, s, indent, word):
+        e = lambda x: self.expr(x, indent)
+        head = f"{word} let {s.name} = {e(s.expr)}" if isinstance(s, IfLet) else f"{word} {e(s.cond)}"
+        if not s.other:
+            return self.body(s.then, indent, head, s.line)
+        if span_end(s) == s.line:
+            whole = self.inline_if(s)
+            if whole is not None:
+                return self.emit(indent, whole, s.line)
+        one = self.inline_block(s.then, s.line)
+        other_one = self.inline_block(s.other, s.line) if not (len(s.other) == 1 and isinstance(s.other[0], (If, IfLet))) else None
+        if one is not None and other_one is not None:
+            return self.emit(indent, f"{head} {one} else {other_one}", s.line)
+        self.emit(indent, head + " {", s.line)
+        self.block(s.then, indent + 2, s.line)
+        if len(s.other) == 1 and isinstance(s.other[0], (If, IfLet)):
+            self.lines.append(" " * indent + "} else " + "")
+            self.lines[-1] = self.lines[-1].rstrip()
+            keep = len(self.lines)
+            self.if_(s.other[0], indent, "if")
+            self.lines[keep - 1] += " " + self.lines[keep].strip()
+            del self.lines[keep]
+            return
+        self.lines.append(" " * indent + "} else {")
+        self.block(s.other, indent + 2, getattr(s.other, "start", 0) or getattr(s.then, "end", s.line))
+        self.lines.append(" " * indent + "}")
+
+    def inline_if(self, s):
+        """A whole if / else if / else chain as one line, or None if any part cannot be inline."""
+        head = f"if let {s.name} = {self.expr(s.expr)}" if isinstance(s, IfLet) else f"if {self.expr(s.cond)}"
+        then = self.inline_block(s.then, s.line)
+        if then is None:
+            return None
+        if not s.other:
+            return f"{head} {then}"
+        if len(s.other) == 1 and isinstance(s.other[0], (If, IfLet)):
+            rest = self.inline_if(s.other[0])
+            return None if rest is None else f"{head} {then} else {rest}"
+        other = self.inline_block(s.other, s.line)
+        return None if other is None else f"{head} {then} else {other}"
+
+    def pattern(self, pat, indent):
+        if isinstance(pat, tuple):
+            case, names = pat
+            return "." + case + (f"({', '.join(names)})" if names else "")
+        return self.expr(pat, indent)
+
+    def match(self, m, indent, as_value=False):
+        self.emit(indent, f"match {self.expr(m.subject, indent)} {{", m.line)
+        prev = m.line
+        arms = list(m.arms) + ([(None, m.other)] if m.other is not None else [])
+        lines = list(getattr(m, "arm_lines", [])) + ([getattr(m, "else_line", 0)] if m.other is not None else [])
+        for (pats, body), line in zip(arms, lines + [0] * len(arms)):
+            line = line or (body[0].line if body else prev)
+            prev = self.leading(line, indent + 2, prev)
+            head = "else" if pats is None else ", ".join(self.pattern(p, indent + 2) for p in pats)
+            if as_value:
+                self.lines.append(" " * (indent + 2) + f"{head} {{ {self.expr(body[0].expr, indent + 2)} }}")
+            else:
+                self.body(body, indent + 2, head, line)
+            prev = max([prev, getattr(body, "end", 0)] + [span_end(st) for st in body])
+        self.leading(getattr(m, "end", 0) or prev, indent + 2, prev, gap=False)
+        self.lines.append(" " * indent + "}")
+
+    # -- expressions: strings, with parentheses only where the tree needs them
+    def prec(self, x):
+        if isinstance(x, Binary):
+            return PREC[x.op]
+        if isinstance(x, Unary):
+            return self.UNARY
+        return 100
+
+    def wrap(self, x, indent, limit):
+        text = self.expr(x, indent)
+        return f"({text})" if self.prec(x) < limit or isinstance(x, (IfExpr, IfLetExpr, Lambda)) or self.is_match_value(x) else text
+
+    def atom(self, x, indent):
+        text = self.expr(x, indent)
+        return f"({text})" if isinstance(x, (Binary, Unary, IfExpr, IfLetExpr, Lambda)) or self.is_match_value(x) else text
+
+    def is_match_value(self, x):
+        return (isinstance(x, CallValue) and not x.args and isinstance(x.target, Lambda) and not x.target.params
+                and x.target.ret is None and len(x.target.body) == 1 and isinstance(x.target.body[0], Match))
+
+    def args(self, args, labels, indent):
+        inner = indent + 2 if len(args) > 1 and args[0].line != args[-1].line else indent  # one big argument sits at the call's own level
+        parts = [f"{l}: {self.expr(a, inner)}" if l else self.expr(a, inner) for a, l in zip(args, labels or [None] * len(args))]
+        if len(args) > 1 and args[0].line != args[-1].line:  # the source spread them out
+            return "\n" + ",\n".join(" " * (indent + 2) + p for p in parts) + ",\n" + " " * indent
+        return ", ".join(parts)
+
+    def expr(self, x, indent=0):
+        if isinstance(x, Num):
+            return (getattr(x, "text", None) or repr(x.val)) if x.ty == "float" else str(x.val)
+        if isinstance(x, Str):
+            return quote(x.val)
+        if isinstance(x, Interp):
+            out = '"'
+            for part in x.parts:
+                out += quote(part.val)[1:-1] if isinstance(part, Str) else f"\\({self.expr(part, indent)})"
+            return out + '"'
+        if isinstance(x, Bool):
+            return "true" if x.val else "false"
+        if isinstance(x, Nil):
+            return "nil"
+        if isinstance(x, Name):
+            return x.name
+        if isinstance(x, Unary):
+            inner = self.wrap(x.expr, indent, self.UNARY if x.op == "-" else 100)  # not (a in b) keeps its parens
+            return ("-" + inner) if x.op == "-" else ("not " + inner)
+        if isinstance(x, Binary):
+            p = PREC[x.op]
+            def side(child, limit):
+                keep = isinstance(child, Binary) and (child.op == "??" or (x.op == "or" and child.op == "and") or (x.op == "in" and child is x.left))
+                return self.wrap(child, indent, 100 if keep else limit)
+            return f"{side(x.left, p)} {x.op} {side(x.right, p + 0.5)}"
+        if isinstance(x, Call):
+            return f"{x.name}({self.args(x.args, x.labels, indent)})"
+        if isinstance(x, CallValue):
+            if self.is_match_value(x):
+                m = x.target.body[0]
+                if span_end(m) == m.line:  # written on one line, printed on one line
+                    arms = [(", ".join(self.pattern(p, indent) for p in pats), body[0].expr) for pats, body in m.arms]
+                    if m.other is not None:
+                        arms.append(("else", m.other[0].expr))
+                    inner = " ".join(f"{head} {{ {self.expr(e, indent)} }}" for head, e in arms)
+                    return f"match {self.expr(m.subject, indent)} {{ {inner} }}"
+                keep, self.lines = self.lines, []
+                self.match(m, indent, as_value=True)
+                text, self.lines = "\n".join(self.lines).strip(), keep
+                return text
+            return f"{self.atom(x.target, indent)}({self.args(x.args, None, indent)})"
+        if isinstance(x, Method):
+            return f"{self.atom(x.target, indent)}.{x.name}({self.args(x.args, x.labels, indent)})"
+        if isinstance(x, Field):
+            return f"{self.atom(x.target, indent)}.{x.name}"
+        if isinstance(x, Index):
+            return f"{self.atom(x.target, indent)}[{self.expr(x.index, indent)}]"
+        if isinstance(x, Slice):
+            a = self.expr(x.start, indent) if x.start is not None else ""
+            b = self.expr(x.stop, indent) if x.stop is not None else ""
+            return f"{self.atom(x.target, indent)}[{a}..{b}]"
+        if isinstance(x, Unwrap):
+            return f"{self.atom(x.expr, indent)}!"
+        if isinstance(x, List):
+            return f"[{self.args(x.items, None, indent)}]" if x.items else "[]"
+        if isinstance(x, Dict):
+            if not x.keys:
+                return "[:]"
+            pairs = [f"{self.expr(k, indent + 2)}: {self.expr(v, indent + 2)}" for k, v in zip(x.keys, x.vals)]
+            if len(pairs) > 1 and x.keys[0].line != x.keys[-1].line:
+                return "[\n" + ",\n".join(" " * (indent + 2) + p for p in pairs) + ",\n" + " " * indent + "]"
+            return "[" + ", ".join(pairs) + "]"
+        if isinstance(x, IfExpr):
+            return f"if {self.expr(x.cond, indent)} {{ {self.expr(x.then, indent)} }} else {{ {self.expr(x.other, indent)} }}".replace("else { if ", "else if ").replace(" } }", " }") if isinstance(x.other, (IfExpr, IfLetExpr)) else f"if {self.expr(x.cond, indent)} {{ {self.expr(x.then, indent)} }} else {{ {self.expr(x.other, indent)} }}"
+        if isinstance(x, IfLetExpr):
+            return f"if let {x.name} = {self.expr(x.expr, indent)} {{ {self.expr(x.then, indent)} }} else {{ {self.expr(x.other, indent)} }}"
+        if isinstance(x, Lambda):
+            head = f"fn({self.params(x, indent)})"
+            if x.ret is None and len(x.body) == 1 and isinstance(x.body[0], Return) and x.body[0].expr is not None and x.body[0].line == x.line:
+                return f"{head} => {self.expr(x.body[0].expr, indent)}"
+            ret = f" -> {x.ret}" if x.ret and x.ret != "void" else ""
+            keep, self.lines = self.lines, []
+            self.block(x.body, indent + 2, x.line)
+            inner, self.lines = "\n".join(self.lines), keep
+            return f"{head}{ret} {{\n{inner}\n{' ' * indent}}}"
+        raise PlankError(x.line, f"plank fmt does not know how to print {type(x).__name__}")
+
+
+def format_source(src):
+    comments = []
+    items = Parser(lex(src, comments=comments)).program()
+    return Fmt(comments).program(items)
+
+
+def fmt_files(args):
+    """plank fmt [--check] [files]: rewrite .pk files in the house layout, or with --check just say which would change."""
+    import glob
+    check = "--check" in args
+    paths = [a for a in args if a != "--check"] or sorted(glob.glob("**/*.pk", recursive=True))
+    changed = 0
+    for path in paths:
+        with open(path) as f:
+            src = f.read()
+        try:
+            text = format_source(src)
+            again = format_source(text)
+        except PlankError as err:
+            print(f"{path}:{err.line % STRIDE}: {err}", file=sys.stderr)
+            return 1
+        if again != text:
+            print(f"{path}: plank fmt is not stable on this file, this is a Plank bug", file=sys.stderr)
+            return 1
+        if text != src:
+            changed += 1
+            if check:
+                print(path)
+            else:
+                with open(path, "w") as f:
+                    f.write(text)
+                print("formatted", path)
+    if check and changed:
+        print(f"{changed} file{'s' * (changed != 1)} would change; run plank fmt", file=sys.stderr)
+        return 1
+    return 0
 
 
 # ---------------------------------------------------------------- runtime
@@ -3916,6 +4339,8 @@ def main(argv=sys.argv[1:]):
         return 0
     if argv[0] == "repl":
         return repl()
+    if argv[0] == "fmt":
+        return fmt_files(argv[1:])
     cmd, rest = (argv[0], argv[1:]) if argv[0] in ("run", "build", "emit", "test") else ("run", argv)
     if cmd == "test":
         return run_tests(rest[0] if rest else "tests")

@@ -49,4 +49,5 @@ Out of scope for now, on purpose: threads and async, a package manager, a REPL, 
 | `while let` | walrus | no | yes | yes (1.5) |
 | A REPL | yes | irb | yes | yes (1.6) |
 | One-line install | yes | yes | Xcode | `brew install` (1.6) |
+| A formatter | black | rubocop | swift-format | `plank fmt` (1.7) |
 | Tests in the language | unittest | minitest | XCTest | `assert` + `plank test` (1.3) |
