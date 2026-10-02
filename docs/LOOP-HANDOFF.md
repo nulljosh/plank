@@ -1,19 +1,23 @@
-# Plank loop handoff (2026-10-01, late evening)
+# Plank loop handoff (2026-10-01, night)
 
 ## What the loop is
 
-A `/loop` that keeps Plank growing one release at a time toward 5.0, comparing it row by row with Python, Ruby and Swift in `docs/COMPARE.md`. Each pass picks the next thing a script for Joshua Tree or Samantha would reach for, builds it with an example, a `tests/*.pk`, a SPEC paragraph and a scorecard row, and ships it with `tools/release.sh`.
+A `/loop` that keeps Plank growing one release at a time, comparing it row by row with Python, Ruby and Swift in `docs/COMPARE.md`. Each pass picks the next thing a script for Joshua Tree or Samantha would reach for, builds it with an example, a `tests/*.pk`, a SPEC paragraph and a scorecard row, and ships it with `tools/release.sh`.
 
 ## Where things stand
 
-2.2.0 is live and CI is green on macOS and Linux. The scorecard is 46 rows, every one a yes. The suite is 143 checks in about 20 seconds, and runs everything again with the collector firing every 4KB. The landing sits on the Jaybulb tokens, passes a phone-width QA with 44px tap targets, and `brew install nulljosh/plank/plank-lang` works. Hackers and Painters is summarized in `docs/HACKERS-AND-PAINTERS.md` and its rules shape every decision.
+3.0.0 is the milestone: modules with `import as`, `Set<T>`, dates, static builds, and everything from 2.x. The scorecard is 50 rows, every one a yes. The suite is 158 checks and also proves the docs name every built-in, keyword, method and command, that every file is formatted, that a static build runs, and that the REPL behaves. CI is green on macOS and Linux. Every tag has a GitHub release and the Homebrew formula `plank-lang` follows each one.
 
 ## Next, in order
 
-3. `plank doc`: the SPEC generated from the compiler, so it can never drift
+1. `plank doc`: the SPEC's built-in table generated from the compiler, so the two can never drift
+2. Threads: `spawn` and `join` on top of pthreads, with the collector stopping the world
+3. A `Result<T>` enum and `?` for errors you want in the type, beside `throw`
+4. A package story: `import "github.com/x/y/z.pk"` fetched once into a cache
+5. Joshua Tree: a freestanding target with no libc, for scripts that run on the kernel
 
 ## Restart prompt
 
 ```
-/loop Keep building Plank toward 5.0, one release per pass, following docs/LOOP-HANDOFF.md: pick the next item, build it with an example in examples/, a tests/*.pk, a docs/SPEC.md paragraph, a docs/ARCHITECTURE.md note and a docs/COMPARE.md row, run python3 test.py, then tools/release.sh "title" "notes". Keep comparing with Python, Ruby and Swift. Stop and rewrite this file when the session passes 70% usage.
+/loop Keep building Plank toward 4.0, one release per pass, following docs/LOOP-HANDOFF.md: pick the next item, build it with an example in examples/, a tests/*.pk, a docs/SPEC.md paragraph, a docs/ARCHITECTURE.md note and a docs/COMPARE.md row, run python3 test.py, then tools/release.sh "title" "notes". Keep comparing with Python, Ruby and Swift. Stop at 4.0, or when the session passes 85% usage, and rewrite docs/LOOP-HANDOFF.md either way.
 ```
