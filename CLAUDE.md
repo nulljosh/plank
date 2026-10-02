@@ -8,3 +8,7 @@ Small compiled language, one Python file on llvmlite. Public repo `nulljosh/plan
 - Release with `tools/release.sh "title" "notes"`: it runs the suite, tags, publishes the GitHub release, bumps the tap formula and deploys the landing, and refuses on a red suite. Never hand-roll that chain
 - Every `.pk` in the repo is formatted; run `./plank fmt` after editing one
 - No em dashes anywhere
+
+## The loop
+
+A `/loop` grows Plank toward 5.0. State and the restart prompt live in `docs/LOOP-HANDOFF.md`; rewrite it whenever the loop pauses.
