@@ -88,7 +88,6 @@
   .app pre { height: auto; max-height: 9.5rem; padding: 10px 0 0; font-size: .75rem; overflow: hidden; }
   .run pre { height: auto; border: 1px solid var(--border2, #ebe4d3); border-radius: var(--radius, 12px); background: var(--bg2, #ebe4d3); padding: 14px 16px; margin-top: 14px; }
   footer { margin: 96px 0 40px; }
-  footer .sheet-rule { padding-top: 0; }
 
   .reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
   .reveal.in { opacity: 1; transform: none; }
@@ -118,9 +117,25 @@
     .cursor::after { animation: none; }
     .reveal { opacity: 1; transform: none; transition: none; }
   }
+  /* Footer directory: four columns, two-by-two on phones. */
+  footer .foot-rule { display: flex; align-items: center; gap: 16px; max-width: 880px; margin: 0 auto; padding: 14px 20px 28px; font-size: 13px; letter-spacing: .06em; font-weight: 500; color: var(--text2, rgba(31,27,22,.6)); }
+  footer .foot-rule::before { content: ""; order: 1; flex: 1; height: 1px; background: var(--border, #dcd2bd); }
+  footer .foot-rule > :first-child { order: 0; }
+  footer .foot-rule > :last-child { order: 2; }
+  @media (max-width: 520px) { footer .foot-rule { flex-wrap: wrap; justify-content: center; gap: 10px 16px; } footer .foot-rule::before { order: -1; flex-basis: 100%; } }
+  .foot-dir { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px 24px; max-width: 880px; margin: 0 auto; padding: 0 20px 28px; text-align: left; }
+  .foot-col h3 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--text, #1f1b16); letter-spacing: 0.02em; }
+  .foot-col ul { list-style: none; margin: 0; padding: 0; }
+  .foot-col a { position: relative; display: inline-block; padding: 5px 0; margin: 0; color: var(--text2, rgba(31,27,22,.6)); text-decoration: none; font-size: 13px; line-height: 1.35; }
+  .foot-col a::after { content: ""; position: absolute; top: 50%; left: 0; transform: translateY(-50%); width: 100%; height: 44px; min-width: 44px; }
+  .foot-col a:hover { color: var(--text, #1f1b16); text-decoration: underline; }
+  .foot-bar { max-width: 880px; margin: 0 auto; padding: 18px 20px 0; border-top: 1px solid var(--border, #dcd2bd); }
+  .foot-bar .foot-meta { margin: 0; text-align: left; color: var(--text2, rgba(31,27,22,.6)); font-size: 12.5px; line-height: 1.9; }
+  .foot-bar .foot-meta a { color: var(--text2, rgba(31,27,22,.6)); }
+  @media (max-width: 700px) { .foot-dir { grid-template-columns: repeat(2, 1fr); } }
 </style>
 </head>
-<body>
+<body id="top">
 <canvas id="bg" aria-hidden="true"></canvas>
 
 <div class="sheet-rule" aria-hidden="true"><span>Plank</span><span><a href="https://github.com/nulljosh/plank" tabindex="-1">GitHub</a></span></div>
@@ -226,7 +241,49 @@ plank fmt</pre>
 
 </main>
 
-<footer><div class="sheet-rule"><span>MIT</span><span><a href="https://heyitsmejosh.com">Josh</a></span></div></footer>
+<footer>
+  <div class="foot-rule" aria-hidden="true"><span>Plank</span><span>Read it in an evening</span></div>
+  <nav class="foot-dir" aria-label="Footer">
+    <div class="foot-col">
+      <h3>Plank</h3>
+      <ul>
+        <li><a href="https://github.com/nulljosh/plank/releases">Releases</a></li>
+        <li><a href="https://github.com/nulljosh/plank/blob/main/roadmap.md">Roadmap</a></li>
+        <li><a href="https://github.com/nulljosh/plank/blob/main/docs/COMPARE.md">Compared with other languages</a></li>
+        <li><a href="https://github.com/nulljosh/plank/blob/main/docs/HACKERS-AND-PAINTERS.md">Hackers and Painters</a></li>
+      </ul>
+    </div>
+    <div class="foot-col">
+      <h3>Explore</h3>
+      <ul>
+        <li><a href="#demo">Try it live</a></li>
+        <li><a href="#build">What you can build</a></li>
+        <li><a href="#run">Run it</a></li>
+      </ul>
+    </div>
+    <div class="foot-col">
+      <h3>Developers</h3>
+      <ul>
+        <li><a href="https://github.com/nulljosh/plank">Source</a></li>
+        <li><a href="https://github.com/nulljosh/plank/blob/main/docs/SPEC.md">Language spec</a></li>
+        <li><a href="https://github.com/nulljosh/plank/blob/main/docs/ARCHITECTURE.md">Architecture</a></li>
+        <li><a href="https://github.com/nulljosh/plank/blob/main/CONTRIBUTING.md">Contributing</a></li>
+        <li><a href="https://github.com/nulljosh/plank/issues">Report a bug</a></li>
+      </ul>
+    </div>
+    <div class="foot-col">
+      <h3>Project</h3>
+      <ul>
+        <li><a href="https://github.com/nulljosh/plank/blob/main/LICENSE">License (MIT)</a></li>
+        <li><a href="https://heyitsmejosh.com">Portfolio</a></li>
+        <li><a href="#top">Back to top</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="foot-bar">
+    <p class="foot-meta">Plank <span id="footver"></span> &middot; MIT License &middot; &copy; 2026 Joshua Trommel &middot; Made with <span aria-hidden="true">&hearts;</span> in Vancouver, BC</p>
+  </div>
+</footer>
 
 <script src="demo.js"></script>
 <script>
@@ -234,6 +291,7 @@ plank fmt</pre>
   var still = matchMedia("(prefers-reduced-motion: reduce)").matches;
   var D = window.PLANK_DEMO || { version: "0.1", examples: [] };
   document.getElementById("ver").textContent = D.version;
+  document.getElementById("footver").textContent = "v" + D.version;
 
   // background: slow planks drifting, in the page's own ink at low alpha
   var c = document.getElementById("bg"), ctx = c.getContext("2d"), planks = [], W, H;
