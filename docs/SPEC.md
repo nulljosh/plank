@@ -315,6 +315,13 @@ Conditions must be `bool`. The `for` variable is an `int` and is a `let` inside 
 | `random(lo, hi)`, `random()` | An int from `lo` to `hi` inclusive, or a float from 0 up to 1. |
 | `time()` | Seconds since 1970 as a float, good for timing. |
 | `sleep(seconds)` | Waits that long, a float. |
+| `clock()`, `clock(fmt)` | The local time as text, `2026-10-01 18:30:00`, or in any `strftime` layout. |
+| `exists(path)`, `is_dir(path)` | Whether something is there, and whether it is a folder. |
+| `list_dir(path)` | The names inside a folder, sorted; empty when it cannot be read. |
+| `mkdir(path)`, `remove_file(path)` | Make a folder, or delete a file; `true` when it worked. |
+| `append_file(path, text)` | Adds to the end of a file, creating it if needed. |
+| `cwd()` | The current folder. |
+| `url_encode(s)` | `a b/c` as `a%20b%2Fc`, for building URLs. |
 | `exit(code)` | Stops the program with that exit code. |
 | `run(cmd)` | Runs a shell command, returns its output; `status()` has the exit code right after. |
 | `quote(s)` | Shell-quotes one argument, so `run("ls " + quote(name))` is safe with any name. |

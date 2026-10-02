@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -1293,6 +1293,8 @@ RUNTIME = r"""
 #include <unistd.h>
 #include <sys/wait.h>
 #include <regex.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 /* try blocks form a stack; a panic with a try open jumps to it instead of exiting */
 typedef struct PkTry { jmp_buf jb; struct PkTry *prev; } PkTry;
@@ -1870,6 +1872,59 @@ char *pk_replace_all(const char *s, const char *pat, const char *rep, const char
     memcpy(out + n, s, rest + 1);
     pk_hold--;
     return out;
+}
+
+/* ---- files and folders, the clock, urls */
+long long pk_exists(const char *path) { struct stat st; return stat(path, &st) == 0; }
+long long pk_is_dir(const char *path) { struct stat st; return stat(path, &st) == 0 && S_ISDIR(st.st_mode); }
+long long pk_mkdir(const char *path) { return mkdir(path, 0755) == 0 || pk_is_dir(path); }
+long long pk_remove_file(const char *path) { return remove(path) == 0; }
+char *pk_cwd(void) { char buf[4096]; return pk_strndup(getcwd(buf, sizeof buf) ? buf : "", strlen(getcwd(buf, sizeof buf) ? buf : "")); }
+
+static int pk_by_name(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
+
+/* the names inside a folder, sorted, without . and .. ; empty when the folder cannot be read */
+PkList *pk_list_dir(const char *path) {
+    pk_hold++;
+    PkList *l = pk_list_new(8, 8);
+    DIR *d = opendir(path);
+    if (d) {
+        struct dirent *e;
+        while ((e = readdir(d)))
+            if (strcmp(e->d_name, ".") && strcmp(e->d_name, ".."))
+                *(char **)pk_list_push(l, 8) = pk_strndup(e->d_name, strlen(e->d_name));
+        closedir(d);
+        qsort(l->data, l->len, 8, pk_by_name);
+    }
+    pk_hold--;
+    return l;
+}
+
+long long pk_append_file(const char *path, const char *text) {
+    FILE *f = fopen(path, "ab");
+    if (!f) return 0;
+    int ok = fputs(text, f) >= 0;
+    return fclose(f) == 0 && ok;
+}
+
+char *pk_clock(const char *fmt) {
+    time_t now = time(0);
+    char buf[256];
+    size_t n = strftime(buf, sizeof buf, *fmt ? fmt : "%Y-%m-%d %H:%M:%S", localtime(&now));
+    return pk_strndup(buf, n);
+}
+
+char *pk_url_encode(const char *s) {
+    pk_hold++;
+    char *r = pk_alloc_text(strlen(s) * 3 + 1), *q = r;
+    for (; *s; s++) {
+        unsigned char c = *s;
+        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') *q++ = c;
+        else q += sprintf(q, "%%%02X", c);
+    }
+    *q = 0;
+    pk_hold--;
+    return r;
 }
 
 /* ---- the outside world: arguments, files, the clock, randomness */
@@ -4493,6 +4548,42 @@ enum Json {
         b.branch(cond)
         b.position_at_end(done)
         return out, f"[{pair_ty}]"
+
+    # -- files and folders, the clock, urls
+    def flag(self, fn, e, args, *want):
+        return self.builder.trunc(self.call_c(fn, "int", *self.typed(e, args, *want)), LL["bool"]), "bool"
+
+    def b_exists(self, e, args):
+        return self.flag("pk_exists", e, args, "str")
+
+    def b_is_dir(self, e, args):
+        return self.flag("pk_is_dir", e, args, "str")
+
+    def b_mkdir(self, e, args):
+        return self.flag("pk_mkdir", e, args, "str")
+
+    def b_remove_file(self, e, args):
+        return self.flag("pk_remove_file", e, args, "str")
+
+    def b_append_file(self, e, args):
+        return self.flag("pk_append_file", e, args, "str", "str")
+
+    def b_list_dir(self, e, args):
+        return self.call_c("pk_list_dir", LIST, *self.typed(e, args, "str")), "[str]"
+
+    def b_cwd(self, e, args):
+        self.typed(e, args)
+        return self.call_c("pk_cwd", "str"), "str"
+
+    def b_clock(self, e, args):
+        """clock() -> "2026-10-01 18:30:00", clock("%H:%M") -> any strftime layout."""
+        self.arity(e, args, 0, 1)
+        if args and args[0][1] != "str":
+            raise PlankError(e.line, f"clock() takes a format string, got {args[0][1]}")
+        return self.call_c("pk_clock", "str", args[0][0] if args else self.cstr("")), "str"
+
+    def b_url_encode(self, e, args):
+        return self.call_c("pk_url_encode", "str", *self.typed(e, args, "str")), "str"
 
     def b_sleep(self, e, args):
         self.typed(e, args, "float")

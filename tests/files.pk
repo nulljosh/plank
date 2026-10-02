@@ -1,0 +1,17 @@
+# exists, is_dir, mkdir, list_dir, append_file, remove_file, cwd, clock, url_encode.
+fn main() {
+  let dir = "/tmp/plank-files-test"
+  mkdir(dir)
+  for name in list_dir(dir) {
+    remove_file(dir + "/" + name)
+  }
+  assert(is_dir(dir) and mkdir(dir) and len(list_dir(dir)) == 0, "mkdir twice is fine, folder starts empty")
+  assert(write_file(dir + "/b.txt", "1\n") and append_file(dir + "/b.txt", "2\n") and write_file(dir + "/a.txt", ""), "write and append")
+  assert(list_dir(dir).join(",") == "a.txt,b.txt", "list_dir is sorted")
+  assert(read_file(dir + "/b.txt") == "1\n2\n", "append adds to the end")
+  assert(exists(dir + "/a.txt") and remove_file(dir + "/a.txt") and not exists(dir + "/a.txt") and not remove_file(dir + "/a.txt"), "remove_file")
+  assert(len(list_dir("/no/such/folder")) == 0 and not is_dir("/no/such/folder"), "a missing folder is empty, not an error")
+  assert(cwd().starts_with("/") and len(clock()) == 19 and clock("%Y").matches("^[0-9]{4}$"), "cwd and clock")
+  assert(url_encode("a b/c?d=é") == "a%20b%2Fc%3Fd%3D%C3%A9" and url_encode("safe-_.~") == "safe-_.~", "url_encode")
+  print("ok")
+}

@@ -1,0 +1,14 @@
+# Files and folders, the clock, and URL encoding: the everyday script round.
+fn main() {
+  let dir = "/tmp/plank-files-example"
+  remove_file(dir + "/a.txt")
+  remove_file(dir + "/b.txt")
+  print(mkdir(dir), is_dir(dir), exists(dir + "/a.txt"))
+  write_file(dir + "/a.txt", "one\n")
+  append_file(dir + "/a.txt", "two\n")
+  write_file(dir + "/b.txt", "")
+  print(list_dir(dir), read_file(dir + "/a.txt") ?? "", exists(dir + "/a.txt"))
+  print(remove_file(dir + "/b.txt"), list_dir(dir), list_dir("/no/such/dir"))
+  print(len(clock()) == 19, len(clock("%Y")) == 4, cwd().starts_with("/"))
+  print(url_encode("a b&c=d/é"))
+}

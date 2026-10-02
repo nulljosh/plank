@@ -45,10 +45,13 @@ The goal: write the programs you would write in Python, Ruby or Swift, in Plank,
 | Call C directly | ctypes | fiddle | yes | `extern fn` (1.9) |
 | Optional chaining `?.` | no | `&.` | yes | yes (1.9) |
 | items, enumerate, zip | yes | yes | yes | yes (1.9) |
+| Files and folders: list, exists, mkdir | os | Dir, File | FileManager | yes (2.1) |
+| The clock as text | datetime | Time | Date | `clock(fmt)` (2.1) |
+| URL encoding | urllib | CGI | yes | yes (2.1) |
 | Tests in the language | unittest | minitest | XCTest | `assert` + `plank test` (1.3) |
 
 Out of scope, on purpose: threads and async, a package manager, a JIT. Each is a project the size of Plank itself.
 
 ## Score
 
-42 of 42. Every row is a yes. The next rows are on `roadmap.md`; when one lands it joins the table.
+45 of 45. Every row is a yes. The next rows are on `roadmap.md`; when one lands it joins the table.
