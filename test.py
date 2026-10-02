@@ -5,15 +5,21 @@ fails = 0
 # every example and app, diffed against its .out; every tests/*.pk must print ok.
 # Then all of it again with the collector running every 4KB, so a missed root shows up here and not in a user's program.
 programs = sorted(glob.glob("examples/*.pk")) + sorted(glob.glob("apps/*.pk")) + sorted(glob.glob("tests/*.pk"))
-for env_name, env in (("", {}), (" [gc every 4KB]", {"PLANK_GC": "4000"})):
-    for src in programs:
-        want = open(src[:-3] + ".out").read() if not src.startswith("tests/") else "ok\n"
-        got = subprocess.run(["./plank", "run", src], capture_output=True, text=True, env={**os.environ, **env})
-        ok = got.returncode == 0 and got.stdout == want
+jobs = [(src, env_name, env) for env_name, env in (("", {}), (" [gc every 4KB]", {"PLANK_GC": "4000"})) for src in programs]
+
+def run_one(job):
+    src, env_name, env = job
+    want = open(src[:-3] + ".out").read() if not src.startswith("tests/") else "ok\n"
+    got = subprocess.run(["./plank", "run", src], capture_output=True, text=True, env={**os.environ, **env})
+    ok = got.returncode == 0 and got.stdout == want
+    return ok, ("ok   " if ok else "FAIL ") + src + env_name + ("" if ok else "\n" + got.stdout + got.stderr)
+
+# every program compiles and links on its own, so they run side by side; the output keeps the list's order
+from concurrent.futures import ThreadPoolExecutor
+with ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as pool:
+    for ok, line in pool.map(run_one, jobs):
         fails += not ok
-        print(("ok   " if ok else "FAIL ") + src + env_name)
-        if not ok:
-            print(got.stdout + got.stderr)
+        print(line)
 
 # bad programs fail with a line number, not a traceback, at compile time and at run time
 BAD = [
