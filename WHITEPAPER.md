@@ -50,4 +50,4 @@ A generic function is kept as a tree, not compiled. Each call works out the type
 
 ## Where it stands
 
-3.0 does what Python, Ruby and Swift programs do every day: modules, sets, dates, files, regular expressions, generics, C by name, and errors you can catch, compiled to a native binary that can carry its libc with it. It frees its memory while running and ships with a REPL, a formatter and a test runner. `docs/COMPARE.md` is the scorecard, 50 of 50. Each feature still has to earn its lines, and the file still has to read in a sitting.
+4.0 does what Python, Ruby and Swift programs do every day: modules and packages from GitHub, Result and ?, sets, dates, files, regular expressions, generics over functions, structs and enums, C by name, and errors you can catch, compiled to a native binary that can carry its libc with it. It frees its memory while running and ships with a REPL, a formatter, a test runner and its own built-in help. `docs/COMPARE.md` is the scorecard, 54 of 54. Each feature still has to earn its lines, and the file still has to read in a sitting.
