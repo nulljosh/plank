@@ -40,6 +40,14 @@ A runtime error in Plank goes through one C function. Without a `try` open it pr
 
 A precise collector needs the compiler to tell it where every pointer lives, in every stack frame and every register, which means a whole extra layer of bookkeeping in the code generator. Plank does what Boehm's collector does instead: it treats any word that happens to point into a block as a pointer. Once in a while it keeps something alive by accident. It never frees something alive. That trade bought a collector in about 120 lines of C, and LLVM never had to know.
 
+## Generics by copying
+
+A generic function is kept as a tree, not compiled. Each call works out the type parameters from its arguments, copies the tree with the names filled in, and compiles that copy once. Swift does the same under the name specialization; Plank does only that, and skips the shared generic code path Swift also keeps. The cost is a copy per distinct type, which for a teaching compiler is nothing, and the reward is that generics are forty lines, and a generic function runs exactly as fast as one written by hand.
+
+## The formatter is the parser run backwards
+
+`plank fmt` does not pattern-match text. It parses the file, then prints the tree in the house layout. Comments would be lost, so the lexer hands them over with their line numbers and the printer puts each one back before the first statement past it. A blank line survives where the source had one, by the same arithmetic. The formatter refuses any file it cannot print twice to the same text, which is how it checks itself.
+
 ## Where it stands
 
-1.1 does what Python, Ruby and Swift programs do every day, and frees its memory while doing it. `docs/COMPARE.md` is the scorecard, 23 of 23, with the next rows already listed. Each feature still has to earn its lines, and the file still has to read in a sitting.
+2.0 does what Python, Ruby and Swift programs do every day, frees its memory while doing it, calls C by name, and ships with a REPL, a formatter and a test runner. `docs/COMPARE.md` is the scorecard, 42 of 42. Each feature still has to earn its lines, and the file still has to read in a sitting.

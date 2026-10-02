@@ -1,9 +1,10 @@
 # plank
 
-Small compiled language, one Python file on llvmlite. Public repo `nulljosh/plank`, landing at plank.heyitsmejosh.com.
+Small compiled language, one Python file on llvmlite. Public repo `nulljosh/plank`, landing at plank.heyitsmejosh.com, Homebrew tap `nulljosh/homebrew-plank` (formula `plank-lang`; core brew already has an unrelated `plank`).
 
 - `plank.py` is the whole compiler. Keep it one file; a reader should get through it in a sitting
-- Test before pushing: `python3 test.py`. CI runs the same on macOS and Ubuntu
-- New feature = example in `examples/` with a `.out`, a line in `docs/SPEC.md`, a row check in `docs/ARCHITECTURE.md`, all in the same commit
-- Landing lives in `site/`. `python3 tools/gen-demo.py` refreshes the demo data from the examples (test.py enforces it), then `npx wrangler deploy`. A push deploys nothing
+- New feature = example in `examples/` with a `.out`, a paragraph in `docs/SPEC.md`, a row in `docs/COMPARE.md`, a note in `docs/ARCHITECTURE.md`, usually a `tests/*.pk` with asserts, all in the same commit. Then `python3 tools/gen-demo.py` so the landing shows it
+- `python3 test.py` before pushing: every example, app and test, 30 error messages, the REPL, `plank fmt --check`, and all of it again with the collector firing every 4KB. CI runs the same on macOS and Ubuntu
+- Release with `tools/release.sh "title" "notes"`: it runs the suite, tags, publishes the GitHub release, bumps the tap formula and deploys the landing, and refuses on a red suite. Never hand-roll that chain
+- Every `.pk` in the repo is formatted; run `./plank fmt` after editing one
 - No em dashes anywhere

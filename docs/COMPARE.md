@@ -1,6 +1,6 @@
 # Plank next to Python, Ruby and Swift
 
-The goal: write the programs you would write in Python, Ruby or Swift, in Plank, and get a native binary. This page is the scorecard. Each row is something people reach for every day. A row turns to yes when it works, has an example in `examples/`, and is in `docs/SPEC.md`.
+The goal: write the programs you would write in Python, Ruby or Swift, in Plank, and get a native binary. This page is the scorecard. Each row is something people reach for every day. A row turns to yes when it works, has an example in `examples/`, and is in `docs/SPEC.md`. The version in brackets is when it landed.
 
 | Feature | Python 3.14 | Ruby 3.4 | Swift 6 | Plank |
 |---|---|---|---|---|
@@ -27,17 +27,6 @@ The goal: write the programs you would write in Python, Ruby or Swift, in Plank,
 | Multiple files, imports | yes | yes | yes | yes (0.10) |
 | Files and command-line args | yes | yes | yes | yes (0.10) |
 | Memory reclaimed | GC | GC | ARC | yes, GC (1.1) |
-
-Out of scope for now, on purpose: threads and async, a package manager, a REPL, a JIT. Each is a project the size of Plank itself.
-
-## Score
-
-23 of 23. Every row is a yes. The table grows from here: see the Next section.
-
-## Next rows
-
-| Feature | Python 3.14 | Ruby 3.4 | Swift 6 | Plank |
-|---|---|---|---|---|
 | Run a shell command | yes | yes | yes | yes (1.2) |
 | JSON in and out | yes | yes | yes | yes (1.2) |
 | HTTP requests | yes | yes | yes | yes (1.2) |
@@ -57,3 +46,9 @@ Out of scope for now, on purpose: threads and async, a package manager, a REPL, 
 | Optional chaining `?.` | no | `&.` | yes | yes (1.9) |
 | items, enumerate, zip | yes | yes | yes | yes (1.9) |
 | Tests in the language | unittest | minitest | XCTest | `assert` + `plank test` (1.3) |
+
+Out of scope, on purpose: threads and async, a package manager, a JIT. Each is a project the size of Plank itself.
+
+## Score
+
+42 of 42. Every row is a yes. The next rows are on `roadmap.md`; when one lands it joins the table.

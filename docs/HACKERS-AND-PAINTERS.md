@@ -42,4 +42,4 @@ The essays that bear on building a language:
 
 ## What it argues against in Plank
 
-Graham would push back on two things. He would want macros, or at least a way for programs to extend the syntax, and Plank has none; the answer for now is that closures and enums cover most of what people use macros for, and a macro system is a chapter the one-file rule cannot afford yet. He would also want a REPL, because sketching wants a conversation, not a compile step. `plank run` on a scratch file is the stand-in, and a REPL that compiles each line is on the long list.
+Graham would push back on two things. He would want macros, or at least a way for programs to extend the syntax, and Plank has none; the answer for now is that closures and enums cover most of what people use macros for, and a macro system is a chapter the one-file rule cannot afford yet. He would also want a REPL, because sketching wants a conversation, not a compile step. That one exists now: `plank repl` rebuilds the whole program after every line and shows only what is new, so the conversation is always with a real binary.
