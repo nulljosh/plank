@@ -53,4 +53,7 @@ Out of scope for now, on purpose: threads and async, a package manager, a REPL, 
 | Tuples and multiple return values | yes | yes | yes | yes (1.8) |
 | Regular expressions | re | built in | Regex | POSIX, on str (1.8) |
 | sleep | yes | yes | yes | yes (1.8) |
+| Call C directly | ctypes | fiddle | yes | `extern fn` (1.9) |
+| Optional chaining `?.` | no | `&.` | yes | yes (1.9) |
+| items, enumerate, zip | yes | yes | yes | yes (1.9) |
 | Tests in the language | unittest | minitest | XCTest | `assert` + `plank test` (1.3) |

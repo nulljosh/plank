@@ -1,0 +1,37 @@
+# C functions by name, optional chaining, and the tuple helpers: items, enumerate, zip.
+extern fn strlen(s: str) -> int
+
+extern fn toupper(c: int) -> int
+
+extern fn fabs(x: float) -> float
+
+extern fn getpid() -> int
+
+struct Node {
+  val: int
+  next: Node? = nil
+
+  fn double() -> int {
+    return self.val * 2
+  }
+}
+
+fn main() {
+  print(strlen("héllo"), toupper(97), fabs(-2.5), getpid() > 0)
+  let chain = Node(1, Node(2))
+  print(chain.next?.val, chain.next?.next?.val)
+  print(chain.next?.double(), chain.next?.next?.double())
+  var maybe: Node? = nil
+  print(maybe?.val, maybe?.next?.val)
+  let d = ["a": 1, "b": 2]
+  print(d.items(), d.items()[1].0)
+  for pair in d.items() {
+    print(pair.0, pair.1)
+  }
+  print(["x", "y"].enumerate(), zip([1, 2, 3], ["a", "b"]))
+  for e in ["p", "q"].enumerate() {
+    print(e.0, e.1)
+  }
+  let total = zip([1, 2], [10, 20]).map(fn(p) => p.0 * p.1).sum()
+  print(total)
+}

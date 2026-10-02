@@ -62,6 +62,9 @@ BAD = [
     ("fn main() {\n  let t = (1, 2)\n  print(t.5)\n}\n", ":3: this tuple has 2 parts, .0 to .1; there is no .5"),
     ("fn main() {\n  let (a, b) = 5\n}\n", ":2: let (a, b) needs a tuple on the right, got int"),
     ("fn main() {\n  let (a, b) = (1, 2, 3)\n}\n", ":2: this tuple has 3 parts, the let names 2"),
+    ("extern fn f(xs: [int]) -> int\nfn main() {\n}\n", ":1: extern fn f can only pass int, float, bool and str, not [int]"),
+    ("struct P {\n  x: int\n}\nfn main() {\n  print(P(1)?.x)\n}\n", ":5: ?. is for an optional, and P is never nil"),
+    ("extern fn nope_not_real(x: int) -> int\nfn main() {\n  print(nope_not_real(1))\n}\n", ":0: the C library has no function called nope_not_real"),
     # run time
     ("fn main() {\n  print(\"x\".matches(\"[\"))\n}\n", ":2: bad pattern"),
     ("fn main() {\n  let xs = [1]\n  xs.insert(5, 2)\n}\n", ":3: index 5 is out of range for a list of 1"),

@@ -1,0 +1,32 @@
+# extern fn, ?., items, enumerate, zip.
+extern fn strlen(s: str) -> int
+
+extern fn abs(x: int) -> int
+
+extern fn floor(x: float) -> float
+
+struct Box {
+  n: int
+  inner: Box? = nil
+
+  fn twice() -> int {
+    return self.n * 2
+  }
+}
+
+fn main() {
+  assert(strlen("plank") == 5 and abs(-4) == 4 and floor(2.9) == 2.0, "C functions by name")
+  let b = Box(1, Box(2))
+  assert(b.inner?.n == 2 and b.inner?.inner?.n == nil and b.inner?.twice() == 4, "optional chaining on fields and methods")
+  let none: Box? = nil
+  assert(none?.n == nil and (none?.n ?? -1) == -1, "a nil start gives nil")
+  let d = ["x": 1, "y": 2]
+  let items = d.items()
+  assert(len(items) == 2 and items[0].0 == "x" and items[1].1 == 2, "items in order")
+  let e = ["a", "b"].enumerate()
+  assert(e[1].0 == 1 and e[1].1 == "b", "enumerate")
+  let z = zip([1, 2, 3], ["a", "b"])
+  assert(len(z) == 2 and z[1].0 == 2 and z[1].1 == "b", "zip stops at the shorter")
+  assert(zip([1, 2], [10, 20]).map(fn(p) => p.0 * p.1).sum() == 50, "tuples through closures")
+  print("ok")
+}

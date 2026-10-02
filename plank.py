@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "1.8.0"
+VERSION = "1.9.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -40,13 +40,13 @@ def locate(line, files):
 
 
 # ---------------------------------------------------------------- lexer
-KEYWORDS = {"fn", "import", "try", "catch", "throw", "struct", "enum", "match", "nil", "let", "var", "if", "else", "while", "for", "in", "return",
+KEYWORDS = {"fn", "extern", "import", "try", "catch", "throw", "struct", "enum", "match", "nil", "let", "var", "if", "else", "while", "for", "in", "return",
             "break", "continue", "true", "false", "and", "or", "not"}
 TOKEN_RE = re.compile(r"""
     (?P<ws>[ \t\r]+) | (?P<comment>\#[^\n]*) | (?P<nl>\n) |
     (?P<float>\d+\.\d+(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+) | (?P<int>\d+) |
     (?P<name>[A-Za-z_]\w*) |
-    (?P<op>\+=|-=|\*=|/=|%=|->|=>|\.\.|==|!=|<=|>=|\?\?|[-+*/%<>=(){}\[\]:,.?!])
+    (?P<op>\+=|-=|\*=|/=|%=|->|=>|\.\.|==|!=|<=|>=|\?\?|\?\.|[-+*/%<>=(){}\[\]:,.?!])
 """, re.X)
 
 
@@ -229,7 +229,9 @@ class ExprStmt(Node): expr: Node
 @dataclass
 class Given(Node): val: object; ty: str   # an already-computed value, so match evaluates its subject once
 @dataclass
-class Fn(Node): name: str; params: list; ret: str; body: list; defaults: dict; tparams: list = None
+class Fn(Node): name: str; params: list; ret: str; body: list; defaults: dict; tparams: list = None; extern: bool = False
+@dataclass
+class OptChain(Node): target: Node; name: str; args: list; labels: list   # args None for a field
 @dataclass
 class Import(Node): path: str
 @dataclass
@@ -287,6 +289,10 @@ class Parser:
                 if not isinstance(path, str):
                     raise PlankError(line, "an import path is plain text, no \\( )")
                 items.append(Import(line, path))
+            elif self.at("extern"):
+                self.next()
+                f = self.fn(extern=True)
+                items.append(f)
             else:
                 items.append(self.struct() if self.at("struct") else self.enum() if self.at("enum") else self.fn())
             self.skip_nl()
@@ -417,7 +423,7 @@ class Parser:
         st.end = end
         return st
 
-    def fn(self):
+    def fn(self, extern=False):
         line = self.expect("fn").line
         name = self.expect("name").val
         tparams = self.type_params()
@@ -437,6 +443,10 @@ class Parser:
         if self.at("->"):
             self.next()
             ret = self.type()
+        if extern:  # a C function: a signature and no body
+            if tparams or defaults:
+                raise PlankError(line, "an extern fn takes no type parameters or defaults")
+            return Fn(line, name, params, ret, [], {}, [], True)
         return Fn(line, name, params, ret, self.block(), defaults, tparams)
 
     def type_params(self):
@@ -678,8 +688,16 @@ class Parser:
 
     def primary(self):
         e = self.atom()
-        while self.at("[", ".", "!", "("):
+        while self.at("[", ".", "!", "(", "?."):
             line = self.next().line
+            if self.toks[self.i - 1].kind == "?.":  # p?.next?.val: nil if any link is nil
+                name = self.expect("name").val
+                if self.at("("):
+                    self.next()
+                    e = OptChain(line, e, name, *self.call_args())
+                else:
+                    e = OptChain(line, e, name, None, None)
+                continue
             if self.toks[self.i - 1].kind == "(":
                 e = CallValue(line, e, self.args(")"))
                 continue
@@ -970,6 +988,8 @@ class Fmt:
 
     def fn(self, f, indent):
         ret = f" -> {f.ret}" if f.ret and f.ret != "void" else ""
+        if f.extern:
+            return self.emit(indent, f"extern fn {f.name}({self.params(f, indent)}){ret}", f.line)
         self.emit(indent, f"fn {f.name}{self.tparams(f.tparams)}({self.params(f, indent)}){ret} {{", f.line)
         self.block(f.body, indent + 2, f.line)
         self.lines.append(" " * indent + "}")
@@ -1183,6 +1203,9 @@ class Fmt:
             return f"{self.atom(x.target, indent)}({self.args(x.args, None, indent)})"
         if isinstance(x, Method):
             return f"{self.atom(x.target, indent)}.{x.name}({self.args(x.args, x.labels, indent)})"
+        if isinstance(x, OptChain):
+            call = f"({self.args(x.args, x.labels, indent)})" if x.args is not None else ""
+            return f"{self.atom(x.target, indent)}?.{x.name}{call}"
         if isinstance(x, Field):
             name = x.name[1:] if re.fullmatch(r"_\d+", x.name) else x.name
             return f"{self.atom(x.target, indent)}.{name}"
@@ -2284,6 +2307,7 @@ class Codegen:
         self.fns = {}       # name or Struct.method -> Sig
         self.generics = {}  # name -> Fn with type parameters, instantiated per call
         self.generic_structs = {}  # name -> Struct with type parameters, instantiated per use
+        self.externs = set()       # C functions declared with extern fn; bools cross as C ints
         self.structs = {}   # name -> StructInfo
         self.enums = {}     # name -> EnumInfo
         self.scopes = []
@@ -2489,7 +2513,18 @@ enum Json {
                     raise PlankError(st.line, f"type {st.name!r} defined twice")
                 self.generic_structs[st.name] = st
         enums = [x for x in items if isinstance(x, Enum)]
-        fns = [(f.name, f, []) for f in items if isinstance(f, Fn) and not f.tparams]
+        C_TYPES = {"int": LL["int"], "float": LL["float"], "bool": I32, "str": LL["str"], "void": ir.VoidType()}
+        for f in items:  # extern fn: a C function by its own name, int is long long, float is double, bool is int
+            if isinstance(f, Fn) and f.extern:
+                for _, t in f.params + [("", f.ret)]:
+                    if t not in C_TYPES:
+                        raise PlankError(f.line, f"extern fn {f.name} can only pass int, float, bool and str, not {t}")
+                if f.name in self.fns:
+                    raise PlankError(f.line, f"function {f.name!r} defined twice")
+                func = self.c(f.name, C_TYPES[f.ret], *[C_TYPES[t] for _, t in f.params])
+                self.fns[f.name] = Sig(func, f.params, f.ret, {})
+                self.externs.add(f.name)
+        fns = [(f.name, f, []) for f in items if isinstance(f, Fn) and not f.tparams and not f.extern]
         for f in items:
             if isinstance(f, Fn) and f.tparams:
                 if f.name in self.generics or any(x.name == f.name for x in items if isinstance(x, Fn) and not x.tparams):
@@ -3100,6 +3135,17 @@ enum Json {
         b = self.builder
         if e.name == "keys" and not args:
             return self.call_c("pk_dict_keys", LIST, d), f"[{kv[0]}]"
+        if e.name == "items" and not args:  # [(K, V)] in insertion order
+            keys = self.call_c("pk_dict_keys", LIST, d)
+            pair_ty = f"({kv[0]}, {kv[1]})"
+            self.tuple_struct(pair_ty, e.line)
+            out = b.call(self.c("pk_list_new", LIST, LL["int"], LL["int"]), [self.list_len(keys), ir.Constant(LL["int"], 8)])
+            def add(key):
+                value = b.load(self.dict_slot(d, kv, key, kv[0], e.line, "pk_dict_find"))
+                pair = self.construct(Call(e.line, pair_ty, [Given(e.line, key, kv[0]), Given(e.line, value, kv[1])], [None, None]))
+                self.push(out, pair, pair_ty)
+            self.each(keys, kv[0], add)
+            return out, f"[{pair_ty}]"
         if e.name == "values" and not args:
             lst = self.call_c("pk_dict_values", LIST, d, ir.Constant(LL["int"], size(kv[1])))
             return lst, f"[{kv[1]}]"
@@ -3300,6 +3346,19 @@ enum Json {
         b, n = self.builder, e.name
         sz = ir.Constant(LL["int"], size(elem))
         tys = [t for _, t in args]
+        if n == "enumerate" and not args:  # [(int, T)]
+            pair_ty = f"(int, {elem})"
+            self.tuple_struct(pair_ty, e.line)
+            out = b.call(self.c("pk_list_new", LIST, LL["int"], LL["int"]), [self.list_len(lst), ir.Constant(LL["int"], 8)])
+            with b.goto_entry_block():
+                i = b.alloca(LL["int"])
+            b.store(ir.Constant(LL["int"], 0), i)
+            def add(x):
+                pair = self.construct(Call(e.line, pair_ty, [Given(e.line, b.load(i), "int"), Given(e.line, x, elem)], [None, None]))
+                self.push(out, pair, pair_ty)
+                b.store(b.add(b.load(i), ir.Constant(LL["int"], 1)), i)
+            self.each(lst, elem, add)
+            return out, f"[{pair_ty}]"
         if n in ("first", "last") and not args:
             i = ir.Constant(LL["int"], 0 if n == "first" else -1)
             length = self.list_len(lst)
@@ -3592,6 +3651,31 @@ enum Json {
         self.builder = outer
         return fn
 
+    def e_OptChain(self, e):
+        """p?.x or p?.m(): the field or call on the value inside, or nil when the chain hits nil."""
+        val, ty = self.expr(e.target)
+        if not ty.endswith("?"):
+            raise PlankError(e.line, f"?. is for an optional, and {ty} is never nil; use a plain .")
+        b = self.builder
+        inner = Given(e.line, None, ty[:-1])
+        with b.if_else(b.icmp_unsigned("!=", val, ir.Constant(val.type, None))) as (some, none):
+            with some:
+                inner.val = b.load(val)
+                if e.args is None:
+                    got, gt = self.e_Field(Field(e.line, inner, e.name))
+                else:
+                    got, gt = self.e_Method(Method(e.line, inner, e.name, e.args, e.labels))
+                if gt == "void":
+                    raise PlankError(e.line, f"{e.name}() returns nothing, so p?.{e.name}() has no value; use if let")
+                want = gt if gt.endswith("?") else gt + "?"
+                got, some_bb = self.coerce(got, gt, want), b.block
+            with none:
+                none_bb = b.block
+        phi = b.phi(self.ll(want))
+        phi.add_incoming(got, some_bb)
+        phi.add_incoming(ir.Constant(self.ll(want), None), none_bb)
+        return phi, want
+
     def e_Nil(self, e):
         return ir.Constant(LL["str"], None), "nil"
 
@@ -3866,7 +3950,12 @@ enum Json {
             return self.call_value(b.load(var.ptr), var.ty, e.args, e.line, e.name)
         if e.name in self.fns:
             sig = self.fns[e.name]
-            return b.call(sig.func, self.arrange(e, f"{e.name}()", sig.params, sig.defaults)), sig.ret
+            vals = self.arrange(e, f"{e.name}()", sig.params, sig.defaults)
+            if e.name in self.externs:
+                vals = [b.zext(v, I32) if t == "bool" else v for v, (_, t) in zip(vals, sig.params)]
+                res = b.call(sig.func, vals)
+                return (b.trunc(res, LL["bool"]) if sig.ret == "bool" else res), sig.ret
+            return b.call(sig.func, vals), sig.ret
         if e.name in self.generics:
             return self.call_generic(e)
         if e.name in self.generic_structs:  # Stack(items: [1, 2]): T from the fields given
@@ -4376,6 +4465,35 @@ enum Json {
         self.builder.call(self.c("pk_exit", ir.VoidType(), LL["int"]), self.typed(e, args, "int"))
         return None, "void"
 
+    def b_zip(self, e, args):
+        """zip(xs, ys) -> [(X, Y)], as long as the shorter one."""
+        self.arity(e, args, 2)
+        (xs, xt), (ys, yt) = args
+        if not is_list(xt) or not is_list(yt) or "[]" in (xt, yt):
+            raise PlankError(e.line, f"zip() takes two lists, got {xt} and {yt}")
+        xe, ye = xt[1:-1], yt[1:-1]
+        pair_ty = f"({xe}, {ye})"
+        self.tuple_struct(pair_ty, e.line)
+        b = self.builder
+        n = b.select(b.icmp_signed("<", self.list_len(xs), self.list_len(ys)), self.list_len(xs), self.list_len(ys))
+        out = b.call(self.c("pk_list_new", LIST, LL["int"], LL["int"]), [n, ir.Constant(LL["int"], 8)])
+        with b.goto_entry_block():
+            i = b.alloca(LL["int"])
+        b.store(ir.Constant(LL["int"], 0), i)
+        cond, body, done = (b.append_basic_block(k) for k in ("zip", "pair", "zipped"))
+        b.branch(cond)
+        b.position_at_end(cond)
+        b.cbranch(b.icmp_signed("<", b.load(i), n), body, done)
+        b.position_at_end(body)
+        x = b.load(self.slot(xs, b.load(i), xe))
+        y = b.load(self.slot(ys, b.load(i), ye))
+        pair = self.construct(Call(e.line, pair_ty, [Given(e.line, x, xe), Given(e.line, y, ye)], [None, None]))
+        self.push(out, pair, pair_ty)
+        b.store(b.add(b.load(i), ir.Constant(LL["int"], 1)), i)
+        b.branch(cond)
+        b.position_at_end(done)
+        return out, f"[{pair_ty}]"
+
     def b_sleep(self, e, args):
         self.typed(e, args, "float")
         self.builder.call(self.c("pk_sleep", ir.VoidType(), LL["float"]), [args[0][0]])
@@ -4456,8 +4574,12 @@ def build(path, out=None):
     with open(rt, "w") as f:
         f.write(RUNTIME)
     try:
-        link = subprocess.run(["cc", "-O2", "-w", obj, rt, "-o", out, "-lm"], capture_output=True, text=True)
+        libs = os.environ.get("PLANK_LIBS", "").split()  # extra -l flags for extern fn from other libraries
+        link = subprocess.run(["cc", "-O2", "-w", obj, rt, "-o", out, "-lm"] + libs, capture_output=True, text=True)
         if link.returncode:
+            missing = [a or b for a, b in re.findall(r'"_?(\w+)", referenced from|undefined reference to [`\x27]_?(\w+)', link.stderr)]
+            if missing:
+                raise PlankError(0, f"the C library has no function called {missing[0]}; check the extern fn name, or set PLANK_LIBS=\"-lsomething\" for another library")
             raise PlankError(0, "linking failed, this is a Plank bug, please report it:\n" + link.stderr.strip())
     finally:
         os.unlink(obj); os.unlink(rt); os.rmdir(tmp)

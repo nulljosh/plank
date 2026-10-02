@@ -91,7 +91,7 @@ let pair = ("ada", 36)
 print(pair.0, pair, ((1, 2), 3).0.1)   # ada ("ada", 36) 2
 ```
 
-Tuples print the way you write them and work in lists, dicts, closures and generics.
+Tuples print the way you write them and work in lists, dicts, closures and generics. `d.items()` is a dict as `[(K, V)]` in order, `xs.enumerate()` is `[(int, T)]`, and `zip(xs, ys)` pairs two lists as far as the shorter one goes.
 
 ## String tools
 
@@ -233,7 +233,7 @@ let j = find(names, "ada")!       # the value, or stop the program with the line
 print(find(names, "x") == nil)    # true
 ```
 
-You cannot do math on an `int?` until you take the value out, and the error says how. The fallback after `??` only runs when it is needed. `d.get(k)` with one argument gives a `V?`. Optionals print as their value or `nil`. A struct field like `next: Node? = nil` is how you build a linked list.
+`p?.next?.val` reads through optionals: the result is `nil` as soon as any link is, and otherwise the value as an optional. It works on methods too, `p?.describe()`. You cannot do math on an `int?` until you take the value out, and the error says how. The fallback after `??` only runs when it is needed. `d.get(k)` with one argument gives a `V?`. Optionals print as their value or `nil`. A struct field like `next: Node? = nil` is how you build a linked list.
 
 ## Functions as values
 
@@ -324,6 +324,18 @@ Conditions must be `bool`. The `for` variable is an `int` and is a `let` inside 
 | `assert(cond, message)` | Stops the program, or lands in the nearest `catch`, when `cond` is false. The message is optional. |
 
 Floats print with 15 significant digits, so `0.1 + 0.2` shows `0.3` and `1.0 / 3.0` shows `0.333333333333333`. `print`, `str`, `int`, `float`, `len` and `input` are reserved. The math names are not: define your own `sqrt` and yours wins.
+
+## C functions
+
+`extern fn` names a C function and its types; Plank calls it directly. `int` is a C `long long`, `float` a `double`, `bool` an `int`, `str` a `char *`. Anything in libc or libm is there already; for another library set `PLANK_LIBS="-lfoo"` when you build.
+
+```
+extern fn strlen(s: str) -> int
+extern fn getpid() -> int
+print(strlen("héllo"), getpid() > 0)   # 6 true
+```
+
+A name the linker cannot find is an error that says so.
 
 ## Catching errors
 

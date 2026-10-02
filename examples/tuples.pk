@@ -39,6 +39,6 @@ fn main() {
   try {
     text.matches("(")
   } catch err {
-    print(err)
+    print(err.starts_with("bad pattern"))  # the rest of the message is the C library's own wording
   }
 }

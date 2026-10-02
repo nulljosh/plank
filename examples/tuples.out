@@ -10,4 +10,4 @@ true true false
 ada 37
 ada #, linus #, grace # -
 true
-bad pattern "(": parentheses not balanced
+true
