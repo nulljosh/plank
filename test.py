@@ -161,6 +161,13 @@ print(("ok   " if ok else "FAIL ") + f"landing shows the {score[0]}/{score[1]} s
 if not ok:
     sys.exit(1)
 
+# phone layout: a section.copy rule must not zero the .wrap side padding (text sat flush left on iPhone)
+page = open("site/index.html").read()
+ok = not re.search(r"section\.copy\s*\{[^}]*padding:\s*\d+px\s+0", page) and "repeat(2, minmax(0, 1fr))" in page
+print(("ok   " if ok else "FAIL ") + "landing keeps side padding and clip-proof grid on phones")
+if not ok:
+    sys.exit(1)
+
 # the landing demo must match the compiler's real output
 fresh = subprocess.run([sys.executable, "tools/gen-demo.py", "--check"], capture_output=True, text=True)
 print(("ok   " if fresh.returncode == 0 else "FAIL ") + "site/demo.js is current")

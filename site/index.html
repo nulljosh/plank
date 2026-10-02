@@ -72,7 +72,7 @@
   .fact { border: 1px solid var(--border, #dcd2bd); border-radius: var(--radius, 12px); padding: 16px 14px; background: var(--bg2, #ebe4d3); text-align: center; }
   .fact b { display: block; font-size: 1.6rem; letter-spacing: -.03em; line-height: 1.1; }
   .fact span { font-size: .8rem; color: var(--text2, rgba(31,27,22,.6)); }
-  section.copy { padding: 72px 0 0; }
+  section.copy { padding-top: 72px; }
   section.copy h2 { font-size: 1.7rem; letter-spacing: -.025em; margin-bottom: 14px; }
   section.copy p + p { margin-top: 14px; }
   .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 22px; }
@@ -110,7 +110,7 @@
     .panes { grid-template-columns: minmax(0, 1fr); }  /* minmax keeps long IR lines from widening the page */
     .pane + .pane { border-left: 0; border-top: 1px solid var(--border, #dcd2bd); }
     pre { height: 15rem; }
-    .facts, .steps { grid-template-columns: 1fr 1fr; }
+    .facts, .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .apps { grid-template-columns: minmax(0, 1fr); }
     .mode { display: none; }
   }
