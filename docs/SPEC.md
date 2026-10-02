@@ -156,6 +156,8 @@ a.deposit(50)
 print(a.balance, a)  # 50 Account(owner: "josh", balance: 50)
 ```
 
+A struct can take type parameters too: `struct Stack<T> { items: [T] = [] ... }`. Use it as `Stack<int>()`, or let the fields say what `T` is: `Stack(items: [1, 2])`. Methods see `T` like any type, and a method can return another instance, `fn flipped() -> Pair<B, A>`. Each distinct `Stack<...>` is its own type and prints with its parameters.
+
 Build one by calling its name with the fields in order or by label; fields with a default can be left out. Methods get `self` without asking for it and reach fields through `self.x`. Like lists, structs are shared: a function that changes `p.x` changes it for everyone holding `p`, and `let` only fixes which struct the name points at. `print` and `str` show a struct the way you would build it.
 
 ## Enums and match
@@ -263,7 +265,7 @@ for i in 0..10 {   # 0 through 9, the bounds are evaluated once
 }
 ```
 
-`for x in xs` walks a list from the front. `if` is also a value: `let size = if n > 100 { "big" } else if n > 5 { "medium" } else { "small" }`. Each branch holds one expression, both sides need the same type, and `nil` on one side makes the result an optional.
+`for x in xs` walks a list from the front. `if` is also a value: `let size = if n > 100 { "big" } else if n > 5 { "medium" } else { "small" }`. Each branch holds one expression, both sides need the same type, and `nil` on one side makes the result an optional. `if let` works there too: `let label = if let top = s.peek() { "top is \(top)" } else { "empty" }`.
 
 Conditions must be `bool`. The `for` variable is an `int` and is a `let` inside the body. `else` can sit on the same line as the closing brace or on the next one. A `while true` with no `break` counts as never finishing, so a function can end with one and still satisfy the return check.
 

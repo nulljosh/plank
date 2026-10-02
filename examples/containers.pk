@@ -1,0 +1,53 @@
+# Generic structs: one Stack for every type, inferred from the fields or spelled out.
+struct Stack<T> {
+  items: [T] = []
+
+  fn push(x: T) {
+    self.items.append(x)
+  }
+
+  fn pop() -> T? {
+    return if len(self.items) == 0 { nil } else { self.items.pop() }
+  }
+
+  fn peek() -> T? {
+    return if len(self.items) > 0 { self.items[-1] } else { nil }
+  }
+
+  fn size() -> int {
+    return len(self.items)
+  }
+}
+
+struct Pair<A, B> {
+  first: A
+  second: B
+
+  fn flipped() -> Pair<B, A> {
+    return Pair(self.second, self.first)
+  }
+}
+
+fn total(s: Stack<int>) -> int {
+  return s.items.reduce(0, fn(a, x) => a + x)
+}
+
+fn main() {
+  let s = Stack<int>()
+  s.push(1)
+  s.push(2)
+  s.push(3)
+  print(s, s.size(), total(s), s.pop(), s.peek(), s.size())
+  let words = Stack(items: ["a"])
+  words.push("b")
+  print(words, words.pop() ?? "", words.pop() ?? "", words.pop() ?? "empty")
+  let p = Pair(1, "one")
+  print(p, p.flipped(), p.flipped().first)
+  let seen = if let top = s.peek() { "top is \(top)" } else { "nothing" }
+  let empty: Stack<str> = Stack<str>()
+  let none = if let top = empty.peek() { "top is \(top)" } else { "nothing" }
+  print(seen, none)
+  let nested = Stack<Stack<int>>()
+  nested.push(s)
+  print(nested.peek()!.size())
+}

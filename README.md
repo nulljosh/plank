@@ -44,7 +44,7 @@ caught: int() got text that is not a whole number
 
 Most language tutorials stop at a tree-walking interpreter. Plank skips the interpreter and goes straight to machine code, so what you build on day one is what a real compiler builds, just smaller.
 
-1.0 has what you reach for in Python, Ruby or Swift: strings with interpolation, lists, dicts, structs with methods, enums with an exhaustive `match`, optionals, closures with `map` and `filter`, imports, files, `try` and `catch` for every runtime error, generic functions, and shell, JSON and HTTP built in. A garbage collector frees what you stop using. `docs/COMPARE.md` keeps score: 23 of 23, with the next rows listed.
+1.0 has what you reach for in Python, Ruby or Swift: strings with interpolation, lists, dicts, structs with methods, enums with an exhaustive `match`, optionals, closures with `map` and `filter`, imports, files, `try` and `catch` for every runtime error, generic functions and structs, and shell, JSON and HTTP built in. A garbage collector frees what you stop using. `docs/COMPARE.md` keeps score: 23 of 23, with the next rows listed.
 
 ## What you can build
 

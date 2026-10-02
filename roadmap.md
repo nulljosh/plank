@@ -1,8 +1,6 @@
 # Roadmap
 
 ## Next
-- [ ] `if let` as an expression
-- [ ] Generic structs, `Stack<T>`
 - [ ] `plank fmt`
 - [ ] A Homebrew formula so `brew install plank` works
 

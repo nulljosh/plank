@@ -1,0 +1,5 @@
+Stack<int>(items: [1, 2, 3]) 3 6 3 2 2
+Stack<str>(items: ["a", "b"]) b a empty
+Pair<int, str>(first: 1, second: "one") Pair<str, int>(first: "one", second: 1) one
+top is 2 nothing
+2

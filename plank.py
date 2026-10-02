@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -171,6 +171,8 @@ class IfLet(Node): name: str; expr: Node; then: list; other: list
 @dataclass
 class IfExpr(Node): cond: Node; then: Node; other: Node
 @dataclass
+class IfLetExpr(Node): name: str; expr: Node; then: Node; other: Node
+@dataclass
 class Binary(Node): op: str; left: Node; right: Node
 @dataclass
 class Call(Node): name: str; args: list; labels: list
@@ -217,7 +219,7 @@ class Fn(Node): name: str; params: list; ret: str; body: list; defaults: dict; t
 @dataclass
 class Import(Node): path: str
 @dataclass
-class Struct(Node): name: str; fields: list; defaults: dict; methods: list
+class Struct(Node): name: str; fields: list; defaults: dict; methods: list; tparams: list = None
 @dataclass
 class Enum(Node): name: str; cases: list; methods: list
 @dataclass
@@ -344,6 +346,7 @@ class Parser:
     def struct(self):
         line = self.expect("struct").line
         name = self.type_name()
+        tparams = self.type_params()
         self.expect("{")
         fields, defaults, methods = [], {}, []
         self.skip_nl()
@@ -361,19 +364,12 @@ class Parser:
                     self.next()
             self.skip_nl()
         self.expect("}")
-        return Struct(line, name, fields, defaults, methods)
+        return Struct(line, name, fields, defaults, methods, tparams)
 
     def fn(self):
         line = self.expect("fn").line
         name = self.expect("name").val
-        tparams = []
-        if self.at("<"):
-            self.next()
-            while not self.at(">"):
-                tparams.append(self.type_name())
-                if not self.at(">"):
-                    self.expect(",")
-            self.expect(">")
+        tparams = self.type_params()
         self.expect("(")
         params, defaults = [], {}
         while not self.at(")"):
@@ -391,6 +387,29 @@ class Parser:
             self.next()
             ret = self.type()
         return Fn(line, name, params, ret, self.block(), defaults, tparams)
+
+    def type_params(self):
+        """<T, U> after a name, or nothing."""
+        out = []
+        if self.at("<"):
+            self.next()
+            while not self.at(">"):
+                out.append(self.type_name())
+                if not self.at(">"):
+                    self.expect(",")
+            self.expect(">")
+        return out
+
+    def type_args(self):
+        """<int, [str]> after a type name: the full name, like Stack<int>."""
+        self.expect("<")
+        args = []
+        while not self.at(">"):
+            args.append(self.type())
+            if not self.at(">"):
+                self.expect(",")
+        self.expect(">")
+        return ", ".join(args)
 
     def type(self):
         if self.at("fn"):
@@ -418,7 +437,10 @@ class Parser:
         t = self.expect("name")
         if t.val not in TYPES and not t.val[0].isupper():  # capitalized names are structs, checked in codegen
             raise PlankError(t.line, f"unknown type {t.val!r}")
-        return self.optional(t.val)
+        name = t.val
+        if name[0].isupper() and self.at("<"):
+            name = f"{name}<{self.type_args()}>"
+        return self.optional(name)
 
     def optional(self, ty):
         while self.at("?", "??"):
@@ -509,7 +531,19 @@ class Parser:
         return If(line, cond, then, self.else_())
 
     def if_expr(self, line):
-        """if c { a } else { b } used as a value: each branch is one expression."""
+        """if c { a } else { b } used as a value: each branch is one expression. if let works here too."""
+        if self.at("let"):
+            self.next()
+            name = self.expect("name").val
+            self.expect("=")
+            opt = self.expr()
+            then = self.braced_expr()
+            self.skip_nl()
+            if not self.at("else"):
+                raise PlankError(line, "an if used as a value needs an else, so it always has one")
+            self.next()
+            other = self.if_expr(self.next().line) if self.at("if") else self.braced_expr()
+            return IfLetExpr(line, name, opt, then, other)
         cond = self.expr()
         then = self.braced_expr()
         self.skip_nl()
@@ -691,9 +725,19 @@ class Parser:
             self.expect("]")
             return Dict(t.line, keys, vals)
         if t.kind == "name":
+            name = t.val
+            if name[0].isupper() and self.at("<"):  # Stack<int>(...), as long as a ( follows the >
+                mark = self.i
+                try:
+                    args = self.type_args()
+                    if not self.at("("):
+                        raise PlankError(t.line, "")
+                    name = f"{name}<{args}>"
+                except PlankError:
+                    self.i = mark
             if self.at("("):
                 self.next()
-                return Call(t.line, t.val, *self.call_args())
+                return Call(t.line, name, *self.call_args())
             return Name(t.line, t.val)
         if t.kind in ("nl", "eof"):
             raise PlankError(t.line, "this line ends in the middle of an expression")
@@ -1470,6 +1514,11 @@ CLOSURE = ir.LiteralStructType([LL["str"], LL["str"]]).as_pointer()  # code, cap
 I32 = ir.IntType(32)
 
 
+def with_self(m, ty):
+    """A method as a plain function: the same Fn with self as its first parameter."""
+    return Fn(m.line, m.name, [("self", ty)] + m.params, m.ret, m.body, m.defaults, m.tparams)
+
+
 def captures(body):
     """Names any closure inside body refers to. Conservative: a name is enough."""
     out = set()
@@ -1540,6 +1589,23 @@ def walk(node):
             yield from walk(getattr(node, f))
 
 
+def generic_name(ty):
+    """("Stack", ["int"]) for "Stack<int>", None for anything else."""
+    if not ty or not ty[0].isupper() or "<" not in ty or not ty.endswith(">"):
+        return None
+    base, rest = ty.split("<", 1)
+    args, depth, cur = [], 0, ""
+    for c in rest[:-1]:
+        if c == "," and depth == 0:
+            args.append(cur.strip())
+            cur = ""
+            continue
+        depth += (c in "<[(") - (c in ">])")
+        cur += c
+    args.append(cur.strip())
+    return base, args
+
+
 def dict_kv(ty):
     """("str", "int") for "[str: int]", None for anything that is not a dict."""
     if ty == "[:]" or not ty.startswith("[") or ty.endswith("?"):
@@ -1582,6 +1648,7 @@ class Codegen:
         self.module.triple = TRIPLE
         self.fns = {}       # name or Struct.method -> Sig
         self.generics = {}  # name -> Fn with type parameters, instantiated per call
+        self.generic_structs = {}  # name -> Struct with type parameters, instantiated per use
         self.structs = {}   # name -> StructInfo
         self.enums = {}     # name -> EnumInfo
         self.scopes = []
@@ -1605,6 +1672,8 @@ class Codegen:
         if ty in LL:
             return LL[ty]
         if ty in self.structs:
+            return self.structs[ty].type.as_pointer()
+        if generic_name(ty) and self.instantiate_struct(ty, line):
             return self.structs[ty].type.as_pointer()
         if ty in self.enums:
             return self.enums[ty].type.as_pointer()
@@ -1774,7 +1843,12 @@ enum Json {
     def program(self, items):
         if self.uses_json:
             items = Parser(lex(self.JSON_SRC, 900 * STRIDE + 1)).program() + items
-        structs = [x for x in items if isinstance(x, Struct)]
+        structs = [x for x in items if isinstance(x, Struct) and not x.tparams]
+        for st in items:
+            if isinstance(st, Struct) and st.tparams:
+                if st.name in self.generic_structs:
+                    raise PlankError(st.line, f"type {st.name!r} defined twice")
+                self.generic_structs[st.name] = st
         enums = [x for x in items if isinstance(x, Enum)]
         fns = [(f.name, f, []) for f in items if isinstance(f, Fn) and not f.tparams]
         for f in items:
@@ -1803,7 +1877,11 @@ enum Json {
             slots = max([len(f) for _, f in en.cases] + [0])
             self.enums[en.name].type.set_body(LL["int"], *[LL["int"]] * slots)  # tag, then 8-byte payload slots
         for t in structs + enums:
-            fns += [(f"{t.name}.{m.name}", m, [("self", t.name)]) for m in t.methods]
+            for m in t.methods:
+                if m.tparams:  # a generic method: instantiated per call like a generic function, with self in front
+                    self.generics[f"{t.name}.{m.name}"] = with_self(m, t.name)
+                else:
+                    fns.append((f"{t.name}.{m.name}", m, [("self", t.name)]))
         for key, f, recv in fns:
             if key in self.fns:
                 raise PlankError(f.line, f"function {key!r} defined twice")
@@ -2523,6 +2601,8 @@ enum Json {
         if self.is_enum_name(e.target):
             return self.make_case(e, e.target.name, e.name, e)
         target, ty = self.expr(e.target)
+        if f"{ty}.{e.name}" in self.generics:
+            return self.call_generic(Call(e.line, f"{ty}.{e.name}", [Given(e.line, target, ty)] + e.args, [None] + e.labels))
         if ty in self.structs or ty in self.enums:
             sig = self.fns.get(f"{ty}.{e.name}")
             if sig is None:
@@ -2648,6 +2728,28 @@ enum Json {
             with no:
                 c, ct = self.expr(e.other)
                 c_bb = b.block
+        return self.join(e, a, at, a_bb, c, ct, c_bb)
+
+    def e_IfLetExpr(self, e):
+        val, ty = self.expr(e.expr)
+        if not ty.endswith("?"):
+            raise PlankError(e.line, f"if let unwraps an optional, {ty} is never nil; use a plain if")
+        b = self.builder
+        with b.if_else(b.icmp_unsigned("!=", val, ir.Constant(val.type, None))) as (yes, no):
+            with yes:
+                self.scopes.append({})
+                b.store(b.load(val), self.declare(e.name, ty[:-1], False, e.line))
+                a, at = self.expr(e.then)
+                self.scopes.pop()
+                a_bb = b.block
+            with no:
+                c, ct = self.expr(e.other)
+                c_bb = b.block
+        return self.join(e, a, at, a_bb, c, ct, c_bb)
+
+    def join(self, e, a, at, a_bb, c, ct, c_bb):
+        """Two branch values into one: agree on a type, coerce each in its own block, phi at the merge."""
+        b = self.builder
         if at == ct:
             ty = at
         elif "nil" in (at, ct):
@@ -2946,7 +3048,13 @@ enum Json {
             return b.call(sig.func, self.arrange(e, f"{e.name}()", sig.params, sig.defaults)), sig.ret
         if e.name in self.generics:
             return self.call_generic(e)
-        if e.name in self.structs:
+        if e.name in self.generic_structs:  # Stack(items: [1, 2]): T from the fields given
+            g = self.generic_structs[e.name]
+            binds, args, labels = self.bind_args(e, g.fields, g.tparams, e.name)
+            ty = f"{e.name}<{', '.join(binds[t] for t in g.tparams)}>"
+            self.instantiate_struct(ty, e.line)
+            return self.construct(Call(e.line, ty, args, labels)), ty
+        if e.name in self.structs or (generic_name(e.name) and self.instantiate_struct(e.name, e.line)):
             return self.construct(e), e.name
         if any(e.labels):
             raise PlankError(e.line, f"{e.name}() does not take labels")
@@ -2961,10 +3069,44 @@ enum Json {
             args.append((val, ty))
         return builtin(e, args)
 
-    def call_generic(self, e):
-        """Work out the type parameters from the arguments, compile that version once, call it."""
-        g = self.generics[e.name]
-        names = [n for n, _ in g.params]
+    def instantiate_struct(self, ty, line=0):
+        """Stack<int> from struct Stack<T>: register the struct and compile its methods, once. True if ty is such a type."""
+        if ty in self.structs:
+            return True
+        base, args = generic_name(ty)
+        g = self.generic_structs.get(base)
+        if g is None:
+            if base in self.structs or base in self.enums:
+                raise PlankError(line, f"{base} is not generic, it takes no <>")
+            return False
+        if len(args) != len(g.tparams):
+            raise PlankError(line, f"{base} takes {len(g.tparams)} type parameter{'s' * (len(g.tparams) != 1)}, got {len(args)}")
+        binds = dict(zip(g.tparams, args))
+        st = self.specialize(g, binds)
+        ll_type = self.module.context.get_identified_type(ty)
+        self.structs[ty] = StructInfo(ll_type, st.fields, st.defaults)
+        ll_type.set_body(*[self.ll(t, line) for _, t in st.fields])
+        keys = []
+        for m in st.methods:
+            key = f"{ty}.{m.name}"
+            if m.tparams:
+                self.generics[key] = with_self(m, ty)
+                continue
+            params = [("self", ty)] + m.params
+            fty = ir.FunctionType(self.ll(m.ret, m.line), [self.ll(t, m.line) for _, t in params])
+            self.fns[key] = Sig(ir.Function(self.module, fty, "pk." + key), params, m.ret, m.defaults)
+            keys.append((key, m))
+        saved = self.builder, self.scopes, self.fn_ret, self.loops, self.captured, self.has_try, self.tries
+        try:
+            for key, m in keys:
+                self.function(key, m)
+        finally:
+            self.builder, self.scopes, self.fn_ret, self.loops, self.captured, self.has_try, self.tries = saved
+        return True
+
+    def bind_args(self, e, params, tparams, what):
+        """Evaluate the non-closure arguments and bind type parameters from them. Returns binds, args, labels."""
+        names = [n for n, _ in params]
         binds, args, labels = {}, [], []
         for i, (arg, label) in enumerate(zip(e.args, e.labels)):
             if isinstance(arg, Lambda):  # a lambda learns its types from the parameter, so it waits
@@ -2973,11 +3115,17 @@ enum Json {
             val, ty = self.expr(arg)
             name = label or (names[i] if i < len(names) else None)
             if name in names:
-                self.unify(dict(g.params)[name], ty, g.tparams, binds, e.line, e.name)
+                self.unify(dict(params)[name], ty, tparams, binds, e.line, what)
             args.append(Given(arg.line, val, ty)); labels.append(label)
-        missing = [t for t in g.tparams if t not in binds]
+        missing = [t for t in tparams if t not in binds]
         if missing:
-            raise PlankError(e.line, f"cannot tell what {', '.join(missing)} is from the arguments to {e.name}()")
+            raise PlankError(e.line, f"cannot tell what {', '.join(missing)} is from the arguments to {what}; say it: {what.rstrip('()')}<int>(...)")
+        return binds, args, labels
+
+    def call_generic(self, e):
+        """Work out the type parameters from the arguments, compile that version once, call it."""
+        g = self.generics[e.name]
+        binds, args, labels = self.bind_args(e, g.params, g.tparams, f"{e.name}()")
         key = f"{e.name}<{', '.join(binds[t] for t in g.tparams)}>"
         if key not in self.fns:
             f = self.specialize(g, binds)
@@ -2999,13 +3147,18 @@ enum Json {
             if actual in ("nil", "[]", "[:]"):
                 return
             if pattern in binds and not (fits(actual, binds[pattern]) or fits(binds[pattern], actual)):
-                raise PlankError(line, f"{what}() got {pattern} as {binds[pattern]} and then as {actual}")
+                raise PlankError(line, f"{what} got {pattern} as {binds[pattern]} and then as {actual}")
             binds.setdefault(pattern, actual)
             return
         if pattern.endswith("?") and actual.endswith("?"):
             return self.unify(pattern[:-1], actual[:-1], tparams, binds, line, what)
         if pattern.endswith("?"):
             return self.unify(pattern[:-1], actual, tparams, binds, line, what)
+        pg, ag = generic_name(pattern), generic_name(actual)
+        if pg and ag and pg[0] == ag[0] and len(pg[1]) == len(ag[1]):
+            for x, y in zip(pg[1], ag[1]):
+                self.unify(x, y, tparams, binds, line, what)
+            return
         pk, ak = dict_kv(pattern), dict_kv(actual)
         if pk and ak:
             self.unify(pk[0], ak[0], tparams, binds, line, what)
@@ -3018,7 +3171,7 @@ enum Json {
                 self.unify(x, y, tparams, binds, line, what)
             return
         if not fits(actual, pattern) and any(re.search(rf"\b{t}\b", pattern) for t in tparams):
-            raise PlankError(line, f"{what}() wants {pattern}, got {actual}")
+            raise PlankError(line, f"{what} wants {pattern}, got {actual}")
 
     def specialize(self, g, binds):
         """A copy of a generic function with every type parameter replaced."""
@@ -3033,8 +3186,10 @@ enum Json {
                 v = getattr(node, field)
                 if field in ("ty", "ret") and isinstance(v, str):
                     setattr(node, field, sub(v))
-                elif field == "params" and isinstance(v, list):
+                elif field in ("params", "fields") and isinstance(v, list):
                     setattr(node, field, [(n, sub(t) if t else t) for n, t in v])
+                elif field == "name" and isinstance(node, Call) and generic_name(v):
+                    setattr(node, field, sub(v))
         f.tparams = []
         return f
 

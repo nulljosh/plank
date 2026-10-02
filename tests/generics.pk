@@ -15,7 +15,23 @@ fn or_else<T>(x: T?, fallback: T) -> T {
   return x ?? fallback
 }
 
+struct Box<T> {
+  value: T
+
+  fn map<U>(f: fn(T) -> U) -> Box<U> {
+    return Box(f(self.value))
+  }
+}
+
 fn main() {
+  let b = Box(21)
+  assert(b.value == 21 and Box<str>("s").value == "s", "generic struct, inferred and spelled out")
+  let doubled = b.map(fn(x) => x * 2)
+  assert(doubled.value == 42, "generic method on a generic struct")
+  let named = b.map(fn(x) => "n\(x)")
+  assert(named.value == "n21" and str(named) == "Box<str>(value: \"n21\")", "method changes the type parameter")
+  let opt: int? = 5
+  assert((if let v = opt { v + 1 } else { 0 }) == 6, "if let as a value")
   assert(identity(5) == 5 and identity("s") == "s" and identity(true), "identity on three types")
   assert(last([1, 2, 3]) == 3 and last(["a", "b"]) == "b", "last")
   assert(last([[1], [2, 9]])[1] == 9, "nested lists")
