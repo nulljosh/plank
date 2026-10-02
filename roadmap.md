@@ -1,8 +1,8 @@
 # Roadmap
 
 ## Next
-- [ ] `if` as an expression, so `let x = if a { 1 } else { 2 }` works
-- [ ] Generic functions over lists, so one `fn` works for `[int]` and `[str]`
+- [ ] `if let` as an expression
+- [ ] Generic structs, `Stack<T>`
 - [ ] `plank fmt`
 - [ ] A Homebrew formula so `brew install plank` works
 

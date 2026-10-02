@@ -1,0 +1,50 @@
+# Generic functions: one fn for every type, and if as an expression.
+fn first<T>(xs: [T]) -> T {
+  if len(xs) == 0 {
+    throw "first() of an empty list"
+  }
+  return xs[0]
+}
+
+fn count_where<T>(xs: [T], keep: fn(T) -> bool) -> int {
+  return len(xs.filter(keep))
+}
+
+fn largest<T>(xs: [T], before: fn(T, T) -> bool) -> T {
+  var best = first(xs)
+  for x in xs {
+    if before(best, x) {
+      best = x
+    }
+  }
+  return best
+}
+
+fn pair<A, B>(a: A, b: B) -> str {
+  return "(\(a), \(b))"
+}
+
+fn describe<T>(x: T?) -> str {
+  return if x == nil { "none" } else { "some" }
+}
+
+fn main() {
+  print(first([7, 8, 9]), first(["x", "y"]), first([[1.5]]))
+  print(count_where([1, 2, 3, 4, 5], fn(n) => n % 2 == 1), count_where(["a", "bb", "ccc"], fn(s) => len(s) > 1))
+  print(largest([3, 9, 2], fn(a, b) => a < b), largest(["pear", "fig"], fn(a, b) => len(a) < len(b)))
+  print(pair(1, "one"), pair(true, 2.5))
+
+  let n = 7
+  let size = if n > 100 { "big" } else if n > 5 { "medium" } else { "small" }
+  let maybe = if n > 5 { n } else { nil }
+  print(size, maybe, if n % 2 == 0 { "even" } else { "odd" })
+  let some: int? = 3
+  let none: int? = nil
+  print(describe(some), describe(none))
+  try {
+    let none: [int] = []
+    first(none)
+  } catch err {
+    print(err)
+  }
+}

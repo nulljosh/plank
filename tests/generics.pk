@@ -1,0 +1,38 @@
+# Generic functions and if as an expression.
+fn identity<T>(x: T) -> T {
+  return x
+}
+
+fn last<T>(xs: [T]) -> T {
+  return xs[-1]
+}
+
+fn map_pairs<K, V>(d: [K: V], f: fn(K, V) -> str) -> [str] {
+  return d.keys().map(fn(k) => f(k, d[k]))
+}
+
+fn or_else<T>(x: T?, fallback: T) -> T {
+  return x ?? fallback
+}
+
+fn main() {
+  assert(identity(5) == 5 and identity("s") == "s" and identity(true), "identity on three types")
+  assert(last([1, 2, 3]) == 3 and last(["a", "b"]) == "b", "last")
+  assert(last([[1], [2, 9]])[1] == 9, "nested lists")
+  let rows = map_pairs(["a": 1, "b": 2], fn(k, v) => "\(k)=\(v)")
+  assert(rows.join(",") == "a=1,b=2", "two type parameters, dict and closure")
+  let missing: int? = nil
+  let present: str? = "here"
+  assert(or_else(missing, 7) == 7 and or_else(present, "no") == "here", "optionals bind T from the parameter")
+  let n = 3
+  let word = if n == 1 { "one" } else if n == 2 { "two" } else { "many" }
+  assert(word == "many", "else if chain as a value")
+  let o = if n > 2 { n } else { nil }
+  assert(o == 3, "nil on one side makes an optional")
+  let p = if n > 9 { n } else { nil }
+  assert(p == nil, "the nil side")
+  assert((if true { 1.5 } else { 2.5 }) == 1.5, "inline in an expression")
+  let nested = if n > 1 { if n > 2 { "deep" } else { "mid" } } else { "shallow" }
+  assert(nested == "deep", "nested if expressions")
+  print("ok")
+}

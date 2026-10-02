@@ -29,6 +29,21 @@ greet("swift", times: 2, greeting: "hi")
 
 A default is worked out fresh at every call, so `xs: [int] = []` gives each call its own list. It cannot use the caller's variables.
 
+A function can take type parameters in angle brackets and use them anywhere a type goes. Plank works out what they are from the arguments at each call and compiles that version once.
+
+```
+fn first<T>(xs: [T]) -> T {
+  return xs[0]
+}
+fn largest<T>(xs: [T], before: fn(T, T) -> bool) -> T { ... }
+
+first([7, 8])            # T is int
+first(["x"])             # T is str
+largest(xs, fn(a, b) => a < b)   # the closure's types come from T
+```
+
+A type parameter has to appear in some parameter, so the call can pin it down; `fn make<T>() -> T` is an error at the call.
+
 Functions and structs can be declared in any order. A function with a return type must return on every path; the compiler refuses one that can fall off the end.
 
 ## Types
@@ -248,7 +263,9 @@ for i in 0..10 {   # 0 through 9, the bounds are evaluated once
 }
 ```
 
-`for x in xs` walks a list from the front. Conditions must be `bool`. The `for` variable is an `int` and is a `let` inside the body. `else` can sit on the same line as the closing brace or on the next one. A `while true` with no `break` counts as never finishing, so a function can end with one and still satisfy the return check.
+`for x in xs` walks a list from the front. `if` is also a value: `let size = if n > 100 { "big" } else if n > 5 { "medium" } else { "small" }`. Each branch holds one expression, both sides need the same type, and `nil` on one side makes the result an optional.
+
+Conditions must be `bool`. The `for` variable is an `int` and is a `let` inside the body. `else` can sit on the same line as the closing brace or on the next one. A `while true` with no `break` counts as never finishing, so a function can end with one and still satisfy the return check.
 
 ## Built-ins
 

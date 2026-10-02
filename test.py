@@ -42,6 +42,10 @@ BAD = [
     ("fn main() {\n  assert(1)\n}\n", ":2: assert(cond) or assert(cond, message)"),
     ("fn main() {\n  let x: int? = 1\n  print(x == \"a\")\n}\n", ":3: int? == str: these can never be equal"),
     ("fn main() {\n  http(\"GET\")\n}\n", ":2: http(method, url, body?, headers?)"),
+    ("fn f<T>(a: T, b: T) -> T {\n  return a\n}\nfn main() {\n  f(1, \"a\")\n}\n", ":5: f() got T as int and then as str"),
+    ("fn f<T>() -> T {\n  throw \"x\"\n}\nfn main() {\n  f()\n}\n", ":5: cannot tell what T is from the arguments to f()"),
+    ("fn main() {\n  let x = if true { 1 } else { \"a\" }\n}\n", ":2: the two sides of this if are int and str"),
+    ("fn main() {\n  let x = if true { 1 }\n}\n", ":2: an if used as a value needs an else"),
     # run time
     ("fn main() {\n  json_parse(\"[1,\")\n}\n", ":2: bad JSON: the text ends in the middle of a value"),
     ("fn main() {\n  json_parse(\"{}\").get(\"x\")\n}\n", "no key \"x\" in this JSON object"),

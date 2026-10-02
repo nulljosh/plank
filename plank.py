@@ -8,13 +8,14 @@
     plank run hello.pk a b  compile and run, passing a and b to args()
     plank build hello.pk    native binary next to the source
     plank emit hello.pk     print the LLVM IR
+    plank test [dir]        run every .pk in dir (default tests/); each must print ok
 """
 import os, platform, re, subprocess, sys, tempfile
 from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -168,6 +169,8 @@ class CallValue(Node): target: Node; args: list
 @dataclass
 class IfLet(Node): name: str; expr: Node; then: list; other: list
 @dataclass
+class IfExpr(Node): cond: Node; then: Node; other: Node
+@dataclass
 class Binary(Node): op: str; left: Node; right: Node
 @dataclass
 class Call(Node): name: str; args: list; labels: list
@@ -210,7 +213,7 @@ class ExprStmt(Node): expr: Node
 @dataclass
 class Given(Node): val: object; ty: str   # an already-computed value, so match evaluates its subject once
 @dataclass
-class Fn(Node): name: str; params: list; ret: str; body: list; defaults: dict
+class Fn(Node): name: str; params: list; ret: str; body: list; defaults: dict; tparams: list = None
 @dataclass
 class Import(Node): path: str
 @dataclass
@@ -363,6 +366,14 @@ class Parser:
     def fn(self):
         line = self.expect("fn").line
         name = self.expect("name").val
+        tparams = []
+        if self.at("<"):
+            self.next()
+            while not self.at(">"):
+                tparams.append(self.type_name())
+                if not self.at(">"):
+                    self.expect(",")
+            self.expect(">")
         self.expect("(")
         params, defaults = [], {}
         while not self.at(")"):
@@ -379,7 +390,7 @@ class Parser:
         if self.at("->"):
             self.next()
             ret = self.type()
-        return Fn(line, name, params, ret, self.block(), defaults)
+        return Fn(line, name, params, ret, self.block(), defaults, tparams)
 
     def type(self):
         if self.at("fn"):
@@ -496,6 +507,28 @@ class Parser:
         cond = self.expr()
         then = self.block()
         return If(line, cond, then, self.else_())
+
+    def if_expr(self, line):
+        """if c { a } else { b } used as a value: each branch is one expression."""
+        cond = self.expr()
+        then = self.braced_expr()
+        self.skip_nl()
+        if not self.at("else"):
+            raise PlankError(line, "an if used as a value needs an else, so it always has one")
+        self.next()
+        if self.at("if"):
+            other = self.if_expr(self.next().line)
+        else:
+            other = self.braced_expr()
+        return IfExpr(line, cond, then, other)
+
+    def braced_expr(self):
+        self.expect("{")
+        self.skip_nl()
+        e = self.expr()
+        self.skip_nl()
+        self.expect("}")
+        return e
 
     def else_(self):
         other = []
@@ -630,6 +663,8 @@ class Parser:
             e = self.expr()
             self.expect(")")
             return e
+        if t.kind == "if":
+            return self.if_expr(t.line)
         if t.kind == "[":
             if self.at(":"):
                 self.next()
@@ -1440,7 +1475,7 @@ def captures(body):
     out = set()
     for node in walk(body):
         if isinstance(node, Lambda):
-            out |= {n.name for n in walk(node.body) if isinstance(n, Name)} - {p for p, _ in node.params}
+            out |= {n.name for n in walk(node.body) if isinstance(n, (Name, Call))} - {p for p, _ in node.params}
     return out
 
 
@@ -1546,6 +1581,7 @@ class Codegen:
         self.module = ir.Module(name=name)
         self.module.triple = TRIPLE
         self.fns = {}       # name or Struct.method -> Sig
+        self.generics = {}  # name -> Fn with type parameters, instantiated per call
         self.structs = {}   # name -> StructInfo
         self.enums = {}     # name -> EnumInfo
         self.scopes = []
@@ -1740,7 +1776,12 @@ enum Json {
             items = Parser(lex(self.JSON_SRC, 900 * STRIDE + 1)).program() + items
         structs = [x for x in items if isinstance(x, Struct)]
         enums = [x for x in items if isinstance(x, Enum)]
-        fns = [(f.name, f, []) for f in items if isinstance(f, Fn)]
+        fns = [(f.name, f, []) for f in items if isinstance(f, Fn) and not f.tparams]
+        for f in items:
+            if isinstance(f, Fn) and f.tparams:
+                if f.name in self.generics or any(x.name == f.name for x in items if isinstance(x, Fn) and not x.tparams):
+                    raise PlankError(f.line, f"function {f.name!r} defined twice")
+                self.generics[f.name] = f
         for t in structs + enums:  # name every type first so fields can point at each other
             if t.name in self.structs or t.name in self.enums:
                 raise PlankError(t.line, f"type {t.name!r} defined twice")
@@ -2597,6 +2638,38 @@ enum Json {
         self.builder = outer
         return fn
 
+    def e_IfExpr(self, e):
+        cond = self.cond(e.cond)
+        b = self.builder
+        with b.if_else(cond) as (yes, no):
+            with yes:
+                a, at = self.expr(e.then)
+                a_bb = b.block
+            with no:
+                c, ct = self.expr(e.other)
+                c_bb = b.block
+        if at == ct:
+            ty = at
+        elif "nil" in (at, ct):
+            other = ct if at == "nil" else at
+            ty = other if other.endswith("?") else other + "?"
+        elif fits(at, ct):
+            ty = ct
+        elif fits(ct, at):
+            ty = at
+        else:
+            raise PlankError(e.line, f"the two sides of this if are {at} and {ct}; they need to be the same type")
+        if ty == "nil":
+            raise PlankError(e.line, "both sides of this if are nil, so it has no type")
+        with b.goto_block(a_bb):
+            a = self.coerce(a, at, ty)
+        with b.goto_block(c_bb):
+            c = self.coerce(c, ct, ty)
+        phi = b.phi(self.ll(ty))
+        phi.add_incoming(a, a_bb)
+        phi.add_incoming(c, c_bb)
+        return phi, ty
+
     def e_Nil(self, e):
         return ir.Constant(LL["str"], None), "nil"
 
@@ -2716,7 +2789,7 @@ enum Json {
             ret = self.probed
             del self.module.globals[probe.name]
         func = self.lambda_fn(e, params, ret)
-        free = [(n, v) for n in sorted({x.name for x in walk(e.body) if isinstance(x, Name)} - {p for p, _ in params})
+        free = [(n, v) for n in sorted({x.name for x in walk(e.body) if isinstance(x, (Name, Call))} - {p for p, _ in params})
                 for v in [self.find(n)] if v is not None]
         b = self.builder
         env = self.call_c("pk_alloc", "str", ir.Constant(LL["int"], 8 * max(len(free), 1)))
@@ -2736,7 +2809,7 @@ enum Json {
 
     def lambda_fn(self, e, params, ret):
         """Compile a lambda body into its own function: (env, params...) -> ret. ret None is a probe run."""
-        free = [(n, v) for n in sorted({x.name for x in walk(e.body) if isinstance(x, Name)} - {p for p, _ in params})
+        free = [(n, v) for n in sorted({x.name for x in walk(e.body) if isinstance(x, (Name, Call))} - {p for p, _ in params})
                 for v in [self.find(n)] if v is not None]
         self.lambdas += 1
         fty = ir.FunctionType(self.ll(ret or "void"), [LL["str"]] + [self.ll(t, e.line) for _, t in params])
@@ -2871,6 +2944,8 @@ enum Json {
         if e.name in self.fns:
             sig = self.fns[e.name]
             return b.call(sig.func, self.arrange(e, f"{e.name}()", sig.params, sig.defaults)), sig.ret
+        if e.name in self.generics:
+            return self.call_generic(e)
         if e.name in self.structs:
             return self.construct(e), e.name
         if any(e.labels):
@@ -2885,6 +2960,83 @@ enum Json {
                 val, ty = self.to_str(val, ty), "str"
             args.append((val, ty))
         return builtin(e, args)
+
+    def call_generic(self, e):
+        """Work out the type parameters from the arguments, compile that version once, call it."""
+        g = self.generics[e.name]
+        names = [n for n, _ in g.params]
+        binds, args, labels = {}, [], []
+        for i, (arg, label) in enumerate(zip(e.args, e.labels)):
+            if isinstance(arg, Lambda):  # a lambda learns its types from the parameter, so it waits
+                args.append(arg); labels.append(label)
+                continue
+            val, ty = self.expr(arg)
+            name = label or (names[i] if i < len(names) else None)
+            if name in names:
+                self.unify(dict(g.params)[name], ty, g.tparams, binds, e.line, e.name)
+            args.append(Given(arg.line, val, ty)); labels.append(label)
+        missing = [t for t in g.tparams if t not in binds]
+        if missing:
+            raise PlankError(e.line, f"cannot tell what {', '.join(missing)} is from the arguments to {e.name}()")
+        key = f"{e.name}<{', '.join(binds[t] for t in g.tparams)}>"
+        if key not in self.fns:
+            f = self.specialize(g, binds)
+            params = f.params
+            fty = ir.FunctionType(self.ll(f.ret, f.line), [self.ll(t, f.line) for _, t in params])
+            self.fns[key] = Sig(ir.Function(self.module, fty, "pk." + key), params, f.ret, f.defaults)
+            saved = self.builder, self.scopes, self.fn_ret, self.loops, self.captured, self.has_try, self.tries
+            try:
+                self.function(key, f)
+            finally:
+                self.builder, self.scopes, self.fn_ret, self.loops, self.captured, self.has_try, self.tries = saved
+        sig = self.fns[key]
+        call = Call(e.line, e.name, args, labels)
+        return self.builder.call(sig.func, self.arrange(call, f"{e.name}()", sig.params, sig.defaults)), sig.ret
+
+    def unify(self, pattern, actual, tparams, binds, line, what):
+        """Match a parameter type with type variables against a real type, filling binds."""
+        if pattern in tparams:
+            if actual in ("nil", "[]", "[:]"):
+                return
+            if pattern in binds and not (fits(actual, binds[pattern]) or fits(binds[pattern], actual)):
+                raise PlankError(line, f"{what}() got {pattern} as {binds[pattern]} and then as {actual}")
+            binds.setdefault(pattern, actual)
+            return
+        if pattern.endswith("?") and actual.endswith("?"):
+            return self.unify(pattern[:-1], actual[:-1], tparams, binds, line, what)
+        if pattern.endswith("?"):
+            return self.unify(pattern[:-1], actual, tparams, binds, line, what)
+        pk, ak = dict_kv(pattern), dict_kv(actual)
+        if pk and ak:
+            self.unify(pk[0], ak[0], tparams, binds, line, what)
+            return self.unify(pk[1], ak[1], tparams, binds, line, what)
+        if is_list(pattern) and is_list(actual) and actual != "[]":
+            return self.unify(pattern[1:-1], actual[1:-1], tparams, binds, line, what)
+        ps, as_ = fn_sig(pattern), fn_sig(actual)
+        if ps and as_ and len(ps[0]) == len(as_[0]):
+            for x, y in zip(ps[0] + [ps[1]], as_[0] + [as_[1]]):
+                self.unify(x, y, tparams, binds, line, what)
+            return
+        if not fits(actual, pattern) and any(re.search(rf"\b{t}\b", pattern) for t in tparams):
+            raise PlankError(line, f"{what}() wants {pattern}, got {actual}")
+
+    def specialize(self, g, binds):
+        """A copy of a generic function with every type parameter replaced."""
+        import copy
+        f = copy.deepcopy(g)
+        def sub(ty):
+            for t, real in binds.items():
+                ty = re.sub(rf"\b{t}\b", real, ty)
+            return ty
+        for node in walk(f):
+            for field in node.__dataclass_fields__:
+                v = getattr(node, field)
+                if field in ("ty", "ret") and isinstance(v, str):
+                    setattr(node, field, sub(v))
+                elif field == "params" and isinstance(v, list):
+                    setattr(node, field, [(n, sub(t) if t else t) for n, t in v])
+        f.tparams = []
+        return f
 
     def arrange(self, e, what, params, defaults, noun="parameter"):
         """Match positional and labeled arguments to params, in source order, and fill in defaults."""
@@ -3305,6 +3457,29 @@ def build(path, out=None):
     return out
 
 
+def run_tests(folder):
+    """Every .pk in the folder is a test; it passes when it exits 0 and prints exactly `ok`."""
+    import glob
+    files = sorted(glob.glob(os.path.join(folder, "*.pk")))
+    if not files:
+        print(f"plank test: no .pk files in {folder}", file=sys.stderr)
+        return 2
+    failed = 0
+    for path in files:
+        try:
+            exe = build(path, os.path.join(tempfile.mkdtemp(), "t.out"))
+            got = subprocess.run([exe], capture_output=True, text=True)
+            os.unlink(exe)
+            ok = got.returncode == 0 and got.stdout.strip() == "ok"
+            detail = "" if ok else (got.stderr.strip() or got.stdout.strip() or f"exit {got.returncode}")
+        except PlankError as err:
+            ok, detail = False, f"{err.file or path}:{err.line}: {err}"
+        failed += not ok
+        print(("ok   " if ok else "FAIL ") + path + ("" if ok else "\n     " + detail.replace("\n", "\n     ")))
+    print(f"{len(files) - failed} of {len(files)} passed")
+    return 1 if failed else 0
+
+
 def main(argv=sys.argv[1:]):
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__.strip())
@@ -3312,7 +3487,9 @@ def main(argv=sys.argv[1:]):
     if argv[0] == "--version":
         print(f"plank {VERSION}")
         return 0
-    cmd, rest = (argv[0], argv[1:]) if argv[0] in ("run", "build", "emit") else ("run", argv)
+    cmd, rest = (argv[0], argv[1:]) if argv[0] in ("run", "build", "emit", "test") else ("run", argv)
+    if cmd == "test":
+        return run_tests(rest[0] if rest else "tests")
     if not rest:
         print("plank: need a .pk file", file=sys.stderr)
         return 2
