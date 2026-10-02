@@ -1,0 +1,57 @@
+# for with index or key, while let, match as a value, inferred closure results, list helpers.
+enum Kind {
+  a, b(n: int)
+}
+
+fn main() {
+  var seen = ""
+  for i, x in ["p", "q"] {
+    seen += "\(i)\(x)"
+  }
+  assert(seen == "0p1q", "for i, x")
+  var pairs = ""
+  for k, v in ["x": 1, "y": 2] {
+    pairs += "\(k)=\(v);"
+  }
+  assert(pairs == "x=1;y=2;", "for k, v")
+  var chars = ""
+  for i, c in "ab" {
+    chars += "\(c)\(i)"
+  }
+  assert(chars == "a0b1", "for i, c over a string")
+  let stack = [1, 2, 3]
+  var drained = 0
+  while let top = stack.last() {
+    drained += top
+    stack.pop()
+  }
+  assert(drained == 6 and len(stack) == 0, "while let")
+  let label = match Kind.b(5) {
+    .a { "a" }
+    .b(n) { "b\(n)" }
+  }
+  assert(label == "b5", "match as a value with bindings")
+  assert((match 3 { 1 { "one" } else { "other" } }) == "other", "match on a constant with else")
+  var hits = 0
+  let bump = fn() {
+    hits += 1
+  }
+  bump()
+  let pick = fn(x: int) {
+    if x > 0 { return "pos" }
+    return "nonpos"
+  }
+  assert(hits == 1 and pick(1) == "pos" and pick(-1) == "nonpos", "block closures infer void and str")
+  let xs = [4, 8, 2]
+  assert(xs.first() == 4 and xs.last() == 2 and xs.index_of(8) == 1 and xs.index_of(9) == nil, "first, last, index_of")
+  assert(xs.sum() == 14 and xs.min() == 2 and xs.max() == 8 and [0.5, 1.0].sum() == 1.5, "sum, min, max")
+  assert(["pear", "fig"].min() == "fig", "min on strings")
+  xs.insert(1, 6)
+  assert(xs == xs and str(xs) == "[4, 6, 8, 2]", "insert")
+  assert(xs.remove_at(0) == 4 and str(xs) == "[6, 8, 2]", "remove_at")
+  xs.reverse()
+  assert(str(xs) == "[2, 8, 6]" and str(xs.reversed()) == "[6, 8, 2]" and str(xs) == "[2, 8, 6]", "reverse and reversed")
+  let empty: [int] = []
+  assert(empty.first() == nil and empty.sum() == 0 and empty.min() == nil, "helpers on an empty list")
+  print("ok")
+}

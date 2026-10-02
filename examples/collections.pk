@@ -1,0 +1,49 @@
+# Loops with an index or a key, while let, match as a value, closures that infer their result, list helpers.
+enum Light {
+  red, green, yellow
+}
+
+fn main() {
+  let xs = [10, 20, 30]
+  for i, x in xs {
+    print(i, x)
+  }
+  for k, v in ["a": 1, "b": 2] {
+    print(k, v)
+  }
+  for i, c in "hé" {
+    print(i, c)
+  }
+  let stack = [1, 2, 3]
+  while let top = stack.last() {
+    print("top", top)
+    stack.pop()
+  }
+  let l = Light.green
+  let word = match l {
+    .red { "stop" }
+    .green, .yellow { "go" }
+  }
+  let n = match 7 {
+    1, 2 { "few" }
+    else { "many" }
+  }
+  print(word, n)
+  let describe = fn(x: int) {
+    if x > 5 { return "big" }
+    return "small"
+  }
+  let noisy = fn(x: int) {
+    print("noise", x)
+  }
+  noisy(1)
+  print(describe(9), describe(1))
+  let ys = [5, 3, 9, 1]
+  print(ys.first(), ys.last(), ys.index_of(9), ys.index_of(42), ys.sum(), ys.min(), ys.max())
+  ys.insert(0, 100)
+  ys.insert(-1, 7)
+  print(ys, ys.remove_at(1), ys, ys.reversed(), [2.5, 1.5].sum(), ["b", "a"].min())
+  ys.reverse()
+  let empty: [int] = []
+  print(ys, empty.first(), empty.sum())
+}

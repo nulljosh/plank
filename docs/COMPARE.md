@@ -44,4 +44,7 @@ Out of scope for now, on purpose: threads and async, a package manager, a REPL, 
 | Generic functions | duck typing | duck typing | yes | yes (1.3) |
 | `if` as an expression | yes | yes | yes | yes (1.3) |
 | Generic types, `Stack<T>` | duck typing | duck typing | yes | yes (1.4) |
+| `match` as an expression | yes | yes | yes | yes (1.5) |
+| Index or key in a `for` | enumerate, items | each_with_index | enumerated | yes (1.5) |
+| `while let` | walrus | no | yes | yes (1.5) |
 | Tests in the language | unittest | minitest | XCTest | `assert` + `plank test` (1.3) |

@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "1.4.1"
+VERSION = "1.5.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -187,7 +187,9 @@ class While(Node): cond: Node; body: list
 @dataclass
 class For(Node): name: str; start: Node; stop: Node; body: list
 @dataclass
-class ForIn(Node): name: str; items: Node; body: list
+class ForIn(Node): name: str; items: Node; body: list; second: str = None
+@dataclass
+class WhileLet(Node): name: str; expr: Node; body: list
 @dataclass
 class List(Node): items: list
 @dataclass
@@ -326,6 +328,26 @@ class Parser:
             self.skip_nl()
         self.expect("}")
         return Match(line, subject, arms, other)
+
+    def match_expr(self, line):
+        """match as a value: each arm is one expression. Built as a closure that returns from a match statement."""
+        subject = self.expr()
+        self.expect("{")
+        arms, other = [], None
+        self.skip_nl()
+        while not self.at("}"):
+            if self.at("else"):
+                self.next()
+                other = [Return(line, self.braced_expr())]
+            else:
+                pats = [self.pattern()]
+                while self.at(","):
+                    self.next()
+                    pats.append(self.pattern())
+                arms.append((pats, [Return(line, self.braced_expr())]))
+            self.skip_nl()
+        self.expect("}")
+        return CallValue(line, Lambda(line, [], None, [Match(line, subject, arms, other)]), [])
 
     def pattern(self):
         """.case, .case(a, b) or a constant like 3 or "hi"."""
@@ -476,15 +498,27 @@ class Parser:
             return self.match()
         if self.at("while"):
             self.next()
+            if self.at("let"):
+                self.next()
+                name = self.expect("name").val
+                self.expect("=")
+                opt = self.expr()
+                return WhileLet(t.line, name, opt, self.block())
             cond = self.expr()
             return While(t.line, cond, self.block())
         if self.at("for"):
             self.next()
             name = self.expect("name").val
+            second = None
+            if self.at(","):  # for i, x in xs / for k, v in d
+                self.next()
+                second = self.expect("name").val
             self.expect("in")
             start = self.expr()
             if not self.at(".."):
-                return ForIn(t.line, name, start, self.block())
+                return ForIn(t.line, name, start, self.block(), second)
+            if second:
+                raise PlankError(t.line, "a range gives one number at a time: for i in 0..n")
             self.next()
             stop = self.expr()
             return For(t.line, name, start, stop, self.block())
@@ -637,7 +671,7 @@ class Parser:
         if self.at("=>"):
             arrow = self.next()
             return Lambda(line, params, None, [Return(arrow.line, self.expr())])
-        ret = "void"
+        ret = None  # with no ->, the body says what it returns
         if self.at("->"):
             self.next()
             ret = self.type()
@@ -699,6 +733,8 @@ class Parser:
             return e
         if t.kind == "if":
             return self.if_expr(t.line)
+        if t.kind == "match":
+            return self.match_expr(t.line)
         if t.kind == "[":
             if self.at(":"):
                 self.next()
@@ -1484,6 +1520,38 @@ long long pk_random_int(long long lo, long long hi) {
 
 double pk_random_float(void) { return (pk_next() >> 11) * (1.0 / 9007199254740992.0); }
 
+void pk_index_panic(const char *file, long long line, long long i, long long len);
+static void pk_list_check(PkList *l, long long i, long long upto, const char *file, long long line) {
+    if (i < 0 || i >= upto) pk_index_panic(file, line, i, l->len);
+}
+
+void *pk_list_insert(PkList *l, long long size, long long i, const char *file, long long line) {
+    if (i < 0) i += l->len;
+    pk_list_check(l, i, l->len + 1, file, line);
+    pk_list_push(l, size);
+    memmove(l->data + size * (i + 1), l->data + size * i, size * (l->len - 1 - i));
+    return l->data + size * i;
+}
+
+static long long pk_removed;
+void *pk_list_remove_at(PkList *l, long long size, long long i, const char *file, long long line) {
+    if (i < 0) i += l->len;
+    pk_list_check(l, i, l->len, file, line);
+    memcpy(&pk_removed, l->data + size * i, size);
+    memmove(l->data + size * i, l->data + size * (i + 1), size * (l->len - 1 - i));
+    l->len--;
+    return &pk_removed;
+}
+
+void pk_list_reverse(PkList *l, long long size) {
+    char tmp[8];
+    for (long long a = 0, b = l->len - 1; a < b; a++, b--) {
+        memcpy(tmp, l->data + size * a, size);
+        memcpy(l->data + size * a, l->data + size * b, size);
+        memcpy(l->data + size * b, tmp, size);
+    }
+}
+
 void pk_index_panic(const char *file, long long line, long long i, long long len) {
     static char msg[96];
     snprintf(msg, sizeof msg, "index %lld is out of range for a list of %lld", i, len);
@@ -1966,7 +2034,23 @@ enum Json {
         self.expr(s.expr, allow_void=True)
 
     def s_Return(self, s):
+        if s.expr is not None and self.fn_ret in ("_", "void"):
+            val, ty = self.expr(s.expr, allow_void=True, hint=None if self.fn_ret == "_" else self.fn_ret)
+            if self.fn_ret == "_":
+                self.fn_ret = self.probed = ty  # the first return in a probe sets the type; the rest must agree
+            if ty == "void":
+                self.leave(self.tries)
+                self.builder.ret_void()
+                return
+            if self.fn_ret == "void":
+                raise PlankError(s.line, f"this function returns nothing, so return cannot carry a {ty}")
+            val = self.coerce(val, ty, self.fn_ret)
+            self.leave(self.tries)
+            self.builder.ret(val)
+            return
         if s.expr is None:
+            if self.fn_ret == "_":
+                self.fn_ret = self.probed = "void"
             if self.fn_ret != "void":
                 raise PlankError(s.line, f"return needs a {self.fn_ret} value")
             self.leave(self.tries)
@@ -2183,8 +2267,29 @@ enum Json {
         self.builder.position_at_end(end_bb)
         self.scopes.pop()
 
+    def s_WhileLet(self, s):
+        b = self.builder
+        cond_bb, body_bb, end_bb = (b.append_basic_block(n) for n in ("whilelet", "body", "endwhile"))
+        b.branch(cond_bb)
+        b.position_at_end(cond_bb)
+        val, ty = self.expr(s.expr)
+        if not ty.endswith("?"):
+            raise PlankError(s.line, f"while let unwraps an optional each time round, {ty} is never nil")
+        b.cbranch(b.icmp_unsigned("!=", val, ir.Constant(val.type, None)), body_bb, end_bb)
+        b.position_at_end(body_bb)
+        self.scopes.append({})
+        b.store(b.load(val), self.declare(s.name, ty[:-1], False, s.line))
+        self.loops.append([cond_bb, end_bb, False, self.tries])
+        self.stmts(s.body)
+        self.loops.pop()
+        self.scopes.pop()
+        if not b.block.is_terminated:
+            b.branch(cond_bb)
+        b.position_at_end(end_bb)
+
     def s_ForIn(self, s):
-        items, ty = self.expr(s.items)
+        source, source_ty = self.expr(s.items)
+        items, ty = source, source_ty
         if dict_kv(ty):
             items, ty = self.call_c("pk_dict_keys", LIST, items), f"[{dict_kv(ty)[0]}]"
         if ty == "str":
@@ -2196,14 +2301,28 @@ enum Json {
         with b.goto_entry_block():
             i = b.alloca(LL["int"], name="i")
         b.store(ir.Constant(LL["int"], 0), i)
-        x = self.declare(s.name, ty[1:-1], False, s.line)
+        elem = ty[1:-1]
+        kv = dict_kv(source_ty)
+        if s.second is None:
+            x = self.declare(s.name, elem, False, s.line)
+        elif kv:  # for k, v in d
+            x = self.declare(s.name, elem, False, s.line)
+            v = self.declare(s.second, kv[1], False, s.line)
+        else:     # for i, x in xs
+            idx = self.declare(s.name, "int", False, s.line)
+            x = self.declare(s.second, elem, False, s.line)
         cond_bb, body_bb = b.append_basic_block("forin"), b.append_basic_block("body")
         step_bb, end_bb = b.append_basic_block("step"), b.append_basic_block("endfor")
         b.branch(cond_bb)
         b.position_at_end(cond_bb)
         b.cbranch(b.icmp_signed("<", b.load(i), self.list_len(items)), body_bb, end_bb)
         b.position_at_end(body_bb)
-        b.store(b.load(self.slot(items, b.load(i), ty[1:-1])), x)
+        item = b.load(self.slot(items, b.load(i), elem))
+        b.store(item, x)
+        if s.second is not None and kv:
+            b.store(b.load(self.dict_slot(source, kv, item, kv[0], s.line, "pk_dict_find")), v)
+        elif s.second is not None:
+            b.store(b.load(i), idx)
         self.loops.append([step_bb, end_bb, False, self.tries])
         self.stmts(s.body)
         self.loops.pop()
@@ -2592,6 +2711,75 @@ enum Json {
         self.builder = outer
         return fn
 
+    def list_helper(self, e, lst, elem, args):
+        """first, last, index_of, insert, remove_at, reverse, reversed, sum, min, max. None if e.name is not one."""
+        b, n = self.builder, e.name
+        sz = ir.Constant(LL["int"], size(elem))
+        tys = [t for _, t in args]
+        if n in ("first", "last") and not args:
+            i = ir.Constant(LL["int"], 0 if n == "first" else -1)
+            length = self.list_len(lst)
+            with b.if_else(b.icmp_signed("==", length, ir.Constant(LL["int"], 0))) as (empty, some):
+                with empty:
+                    none, none_bb = ir.Constant(self.ll(elem + "?"), None), b.block
+                with some:
+                    at = b.select(b.icmp_signed("<", i, ir.Constant(LL["int"], 0)), b.add(i, length), i)
+                    val, val_bb = self.coerce(b.load(self.slot(lst, at, elem)), elem, elem + "?"), b.block
+            phi = b.phi(self.ll(elem + "?"))
+            phi.add_incoming(none, none_bb)
+            phi.add_incoming(val, val_bb)
+            return phi, elem + "?"
+        if n == "index_of" and len(args) == 1:
+            if not fits(tys[0], elem):
+                raise PlankError(e.line, f"index_of() on a list of {elem} wants a {elem}, got {tys[0]}")
+            at = self.call_c("pk_list_find", "int", lst, sz, self.bits(args[0][0], elem), ir.Constant(LL["int"], int(elem == "str")))
+            return self.maybe_int(at)
+        if n == "insert" and len(args) == 2:
+            if tys[0] != "int" or not fits(tys[1], elem):
+                raise PlankError(e.line, f"insert(i, x) takes an int and {'an' if elem[0] in 'aeiou' else 'a'} {elem}, got {tys[0]} and {tys[1]}")
+            fn = self.c("pk_list_insert", LL["str"], LIST, LL["int"], LL["int"], LL["str"], LL["int"])
+            slot = b.call(fn, [lst, sz, args[0][0]] + self.where(e.line))
+            b.store(self.coerce(args[1][0], tys[1], elem), b.bitcast(slot, self.ll(elem).as_pointer()))
+            return None, "void"
+        if n == "remove_at" and len(args) == 1 and tys[0] == "int":
+            fn = self.c("pk_list_remove_at", LL["str"], LIST, LL["int"], LL["int"], LL["str"], LL["int"])
+            slot = b.call(fn, [lst, sz, args[0][0]] + self.where(e.line))
+            return b.load(b.bitcast(slot, self.ll(elem).as_pointer())), elem
+        if n in ("reverse", "reversed") and not args:
+            if n == "reversed":
+                lst = self.call_c("pk_list_copy", LIST, lst, sz)
+            b.call(self.c("pk_list_reverse", ir.VoidType(), LIST, LL["int"]), [lst, sz])
+            return (lst, f"[{elem}]") if n == "reversed" else (None, "void")
+        if n == "sum" and not args:
+            if elem not in ("int", "float"):
+                raise PlankError(e.line, f"sum() needs a list of int or float, got [{elem}]")
+            with b.goto_entry_block():
+                acc = b.alloca(self.ll(elem))
+            b.store(ir.Constant(self.ll(elem), 0), acc)
+            add = (lambda x: b.store(b.fadd(b.load(acc), x), acc)) if elem == "float" else (lambda x: b.store(b.add(b.load(acc), x), acc))
+            self.each(lst, elem, add)
+            return b.load(acc), elem
+        if n in ("min", "max") and not args:
+            if elem not in ("int", "float", "str"):
+                raise PlankError(e.line, f"{n}() needs a list of int, float or str, got [{elem}]")
+            ordered = self.list_fn(Method(e.line, Given(e.line, lst, f"[{elem}]"), "sorted", [], []), lst, elem)[0]
+            return self.list_helper(Method(e.line, e.target, "first" if n == "min" else "last", [], []), ordered, elem, [])
+        return None
+
+    def maybe_int(self, at):
+        """An int that is -1 for missing, as an int?."""
+        b = self.builder
+        found = b.icmp_signed(">=", at, ir.Constant(LL["int"], 0))
+        with b.if_else(found) as (yes, no):
+            with yes:
+                some, some_bb = self.coerce(at, "int", "int?"), b.block
+            with no:
+                no_bb = b.block
+        phi = b.phi(self.ll("int?"))
+        phi.add_incoming(some, some_bb)
+        phi.add_incoming(ir.Constant(self.ll("int?"), None), no_bb)
+        return phi, "int?"
+
     def push(self, lst, val, elem):
         grow = self.c("pk_list_push", LL["str"], LIST, LL["int"])
         at = self.builder.call(grow, [lst, ir.Constant(LL["int"], size(elem))])
@@ -2631,6 +2819,9 @@ enum Json {
                 return None, "void"
             if e.name in ("map", "filter", "reduce", "sort", "sorted"):
                 return self.list_fn(e, target, elem)
+            helper = self.list_helper(e, target, elem, args)
+            if helper is not None:
+                return helper
             if e.name == "pop" and not args:
                 pop = self.c("pk_list_pop", LL["str"], LIST, LL["int"], LL["str"], LL["int"])
                 at = self.builder.call(pop, [target, ir.Constant(LL["int"], size(elem))] + self.where(e.line))
@@ -2931,10 +3122,11 @@ enum Json {
         for (name, ty), arg in zip(params, func.args[1:]):
             b.store(arg, self.declare(name, ty, False, e.line))
         try:
-            if ret is None:
-                _, ty = self.expr(e.body[0].expr, allow_void=True)
-                self.probed = ty
-                b.unreachable()
+            if ret is None:  # a probe: compile the body once to learn what it returns, then throw it away
+                self.fn_ret, self.probed = "_", "void"
+                self.stmts(e.body)
+                if not self.builder.block.is_terminated:
+                    self.builder.unreachable()
             else:
                 self.stmts(e.body)
                 if not self.builder.block.is_terminated:

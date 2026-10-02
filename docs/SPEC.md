@@ -226,7 +226,7 @@ print(twice(fn(x) => x + 3, 1))   # 7; x is an int because twice says so
 print(twice(double, 5))            # a named function works too
 ```
 
-Parameter types can be left off whenever the place the function goes already says them: arguments, `let` with a type, `return`, and the list methods below. A closure keeps the variables it uses, shared, not copied: change the variable later and the closure sees it, and a closure returned from a function keeps its variables alive.
+A block body needs no `->`: Plank reads the return type from the first `return`, and a body with no `return` is void. Parameter types can be left off whenever the place the function goes already says them: arguments, `let` with a type, `return`, and the list methods below. A closure keeps the variables it uses, shared, not copied: change the variable later and the closure sees it, and a closure returned from a function keeps its variables alive.
 
 ```
 fn make_counter() -> fn() -> int {
@@ -237,6 +237,8 @@ fn make_counter() -> fn() -> int {
   }
 }
 ```
+
+Lists also have `first()` and `last()` (a `T?`, `nil` when empty), `index_of(x)` (an `int?`), `insert(i, x)`, `remove_at(i)`, `reverse()` in place and `reversed()` as a copy, `sum()` for numbers, and `min()` and `max()` for numbers and strings, a `T?`.
 
 Lists take functions: `xs.map(fn(x) => x * 2)`, `xs.filter(fn(x) => x > 0)`, `xs.reduce(0, fn(acc, x) => acc + x)`. `xs.sort()` sorts ints, floats and strings in place and `xs.sorted()` returns a sorted copy; both take `by: fn(a, b) => a.age < b.age` for anything else, where the function says whether `a` goes first. Sorting is stable.
 
@@ -265,7 +267,7 @@ for i in 0..10 {   # 0 through 9, the bounds are evaluated once
 }
 ```
 
-`for x in xs` walks a list from the front. `if` is also a value: `let size = if n > 100 { "big" } else if n > 5 { "medium" } else { "small" }`. Each branch holds one expression, both sides need the same type, and `nil` on one side makes the result an optional. `if let` works there too: `let label = if let top = s.peek() { "top is \(top)" } else { "empty" }`.
+`for x in xs` walks a list from the front; `for i, x in xs` gives the index too, `for k, v in d` the key and value of a dict, `for i, c in s` the characters of a string with their positions. `while let top = stack.last() { ... }` keeps going while the optional has a value, with the value bound inside. `if` is also a value: `let size = if n > 100 { "big" } else if n > 5 { "medium" } else { "small" }`. Each branch holds one expression, both sides need the same type, and `nil` on one side makes the result an optional. `if let` works there too: `let label = if let top = s.peek() { "top is \(top)" } else { "empty" }`. So does `match`, with one expression per arm: `let word = match light { .red { "stop" } .green, .yellow { "go" } }`, and the same rule that every case is covered.
 
 Conditions must be `bool`. The `for` variable is an `int` and is a `let` inside the body. `else` can sit on the same line as the closing brace or on the next one. A `while true` with no `break` counts as never finishing, so a function can end with one and still satisfy the return check.
 

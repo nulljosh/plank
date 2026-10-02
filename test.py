@@ -55,7 +55,12 @@ BAD = [
     ("fn f<T>() -> T {\n  throw \"x\"\n}\nfn main() {\n  f()\n}\n", ":5: cannot tell what T is from the arguments to f()"),
     ("fn main() {\n  let x = if true { 1 } else { \"a\" }\n}\n", ":2: the two sides of this if are int and str"),
     ("fn main() {\n  let x = if true { 1 }\n}\n", ":2: an if used as a value needs an else"),
+    ("fn main() {\n  while let x = 5 {\n  }\n}\n", ":2: while let unwraps an optional each time round, int is never nil"),
+    ("fn main() {\n  for i, x in 0..3 {\n  }\n}\n", ":2: a range gives one number at a time"),
+    ("fn main() {\n  print([\"a\"].sum())\n}\n", ":2: sum() needs a list of int or float, got [str]"),
+    ("fn main() {\n  let f = fn(x: int) {\n    if x > 0 { return 1 }\n    return \"s\"\n  }\n}\n", ":4: returning str from a function that returns int"),
     # run time
+    ("fn main() {\n  let xs = [1]\n  xs.insert(5, 2)\n}\n", ":3: index 5 is out of range for a list of 1"),
     ("fn main() {\n  json_parse(\"[1,\")\n}\n", ":2: bad JSON: the text ends in the middle of a value"),
     ("fn main() {\n  json_parse(\"{}\").get(\"x\")\n}\n", "no key \"x\" in this JSON object"),
     ("fn main() {\n  assert(1 > 2, \"math broke\")\n}\n", ":2: assertion failed: math broke"),
