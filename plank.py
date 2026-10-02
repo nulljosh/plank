@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "3.1.0"
+VERSION = "3.2.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -5036,11 +5036,13 @@ def load(src, path):
             if not isinstance(it, Import):
                 items.append(it)
                 continue
-            target = os.path.normpath(os.path.join(os.path.dirname(at), it.path))
+            target = package_path(it.path, at, it.line) or os.path.normpath(os.path.join(os.path.dirname(at), it.path))
             if os.path.realpath(target) in seen:
                 if it.alias and it.alias not in modules:
                     raise PlankError(it.line, f"{it.path} is already imported; use the name it has")
                 continue
+            if not os.path.exists(target) and target.startswith(PKG_CACHE):
+                fetch_package(target, it.line)  # a package file, or a file one of them imports relatively
             try:
                 with open(target) as f:
                     todo.append((f.read(), target, it.alias))
@@ -5049,6 +5051,35 @@ def load(src, path):
             seen.add(os.path.realpath(target))
             files.append(target)
     return items, files, uses_json, modules, uses_set, uses_result
+
+
+PKG_CACHE = os.path.join(os.path.expanduser("~"), ".plank", "pkg")
+
+
+def package_path(path, importer, line):
+    """import "github.com/user/repo@v1/dir/file.pk": the place in the cache that file lives, or None for a plain path."""
+    m = re.match(r"^github\.com/([\w.-]+)/([\w.-]+?)(?:@([\w.-]+))?/(.+\.pk)$", path)
+    if not m:
+        if path.startswith("github.com/"):
+            raise PlankError(line, f'a package import looks like "github.com/user/repo@tag/path/file.pk", not {path!r}')
+        return None
+    user, repo, ref, rest = m.groups()
+    return os.path.join(PKG_CACHE, "github.com", user, f"{repo}@{ref or 'main'}", *rest.split("/"))
+
+
+def fetch_package(target, line):
+    """Download one file of a package into the cache from GitHub, by the path it will live at."""
+    rel = os.path.relpath(target, PKG_CACHE).split(os.sep)
+    if len(rel) < 4 or rel[0] != "github.com" or "@" not in rel[2]:
+        raise PlankError(line, f"cannot work out where to fetch {target} from")
+    user, (repo, ref), rest = rel[1], rel[2].rsplit("@", 1), "/".join(rel[3:])
+    url = f"https://raw.githubusercontent.com/{user}/{repo}/{ref}/{rest}"
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    got = subprocess.run(["curl", "-sfL", url, "-o", target + ".part"], capture_output=True, text=True)
+    if got.returncode:
+        raise PlankError(line, f"cannot fetch {url}: not found, or no network; check the user, repo, tag and path")
+    os.replace(target + ".part", target)
+    print(f"plank: fetched {url}", file=sys.stderr)
 
 
 def qualify(items, alias):

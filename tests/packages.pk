@@ -1,0 +1,11 @@
+# A package import, pinned to a tag, used like any module.
+import "github.com/nulljosh/plank@v3.1.0/examples/lib/money.pk" as money
+
+fn main() {
+  let book = money.Ledger("t")
+  book.add(1.0)
+  book.add(2.0)
+  assert(book.balance() == 3.0 and money.dollars(3.0) == "$3.00", "a module fetched from GitHub")
+  assert(exists(env("HOME")! + "/.plank/pkg/github.com/nulljosh/plank@v3.1.0/examples/lib/money.pk"), "it lives in the cache")
+  print("ok")
+}

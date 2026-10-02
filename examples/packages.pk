@@ -1,0 +1,9 @@
+# Packages: import a file straight from GitHub, fetched once into ~/.plank/pkg, pinned to a tag.
+import "github.com/nulljosh/plank@v3.1.0/examples/lib/money.pk" as money
+
+fn main() {
+  let book = money.Ledger("pkg")
+  book.add(12.5)
+  book.add(0.25)
+  print(money.dollars(book.balance()), book)
+}

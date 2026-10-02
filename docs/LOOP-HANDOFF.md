@@ -12,7 +12,6 @@ A `/loop` that keeps Plank growing one release at a time, comparing it row by ro
 
 1. `plank doc`: the SPEC's built-in table generated from the compiler, so the two can never drift
 2. Threads: `spawn` and `join` on top of pthreads, with the collector stopping the world
-4. A package story: `import "github.com/x/y/z.pk"` fetched once into a cache
 5. Joshua Tree: a freestanding target with no libc, for scripts that run on the kernel
 
 ## Restart prompt
