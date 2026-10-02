@@ -93,8 +93,20 @@
   .reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
   .reveal.in { opacity: 1; transform: none; }
 
+  .sheet-rule a, .eyebrow a, .app h3 a { display: inline-block; padding: 12px 6px; margin: -12px -6px; }  /* a comfortable thumb target without moving the type */
   @media (max-width: 720px) {
-    .hero { padding: 64px 16px 40px; }
+    .hero { padding: 48px 16px 32px; }
+    .hero h1 { font-size: clamp(2.4rem, 12vw, 3.2rem); }
+    .lede { font-size: 1.05rem; }
+    .mark { width: 72px; height: 72px; }
+    .btn { padding: 13px 20px; min-height: 44px; }
+    .tabs button, .mode button { padding: 11px 12px; min-height: 44px; font-size: .9rem; }
+    .tabs { gap: 0; }
+    .bar { padding: 4px 8px; }
+    .stage { padding: 0 12px; }
+    .wrap { padding: 0 16px; }
+    .app pre { font-size: .8rem; }
+    .jb-signup input[type=email], .jb-signup button { min-height: 44px; }
     .panes { grid-template-columns: minmax(0, 1fr); }  /* minmax keeps long IR lines from widening the page */
     .pane + .pane { border-left: 0; border-top: 1px solid var(--border, #dcd2bd); }
     pre { height: 15rem; }
