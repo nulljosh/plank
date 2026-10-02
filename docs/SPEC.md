@@ -400,6 +400,27 @@ Numbers are floats, as in JSON itself. Object keys keep the order they came in. 
 
 You never free anything. A collector runs now and then, finds every list, dict, string, struct, enum and closure the program can still reach, and frees the rest. It never moves anything. Set `PLANK_GC=4000` in the environment to collect every 4,000 bytes instead, which is how the test suite shakes out bugs.
 
+## Results
+
+When an error is part of the answer rather than a surprise, return a `Result<T>`: `ok(value)` or `err(message)`. `?` after a `Result` takes the value out, or returns that error from the function you are in, which must return a `Result` too. `attempt(fn() => ...)` runs a closure and turns a throw into an `err`.
+
+```
+fn half(n: int) -> Result<int> {
+  if n % 2 != 0 { return Result.err("\(n) is odd") }
+  return Result.ok(n / 2)
+}
+fn quarter(n: int) -> Result<int> {
+  return Result.ok(half(half(n)?)?)   # the first err comes straight back
+}
+quarter(8).value()      # 2; value() throws the message on an err
+quarter(6).error()      # "3 is odd", a str?
+quarter(6).or_else(0)   # 0
+quarter(8).is_ok()      # true
+match quarter(6) { .ok(v) { ... } .err(m) { ... } }
+```
+
+`Result` is an enum written in Plank with a type parameter, and you can write your own: `enum Maybe<T> { some(v: T) none }`, used as `Maybe<int>.none` or `Maybe.some(5)`, with methods like any enum.
+
 ## Errors
 
 Every error names the file and line:

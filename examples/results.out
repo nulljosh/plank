@@ -1,0 +1,6 @@
+ok(value: 36) err(message: "int() got text that is not a whole number") err(message: "-5 is not an age")
+ok(value: 3) err(message: "int() got text that is not a whole number") err(message: "-1 is not an age")
+sum 30
+-1 int() got text that is not a whole number nil true
+fine false err(message: "index 5 is out of range for a list of 1")
+caught int() got text that is not a whole number

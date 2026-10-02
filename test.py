@@ -67,6 +67,8 @@ BAD = [
     ("extern fn nope_not_real(x: int) -> int\nfn main() {\n  print(nope_not_real(1))\n}\n", ":0: the C library has no function called nope_not_real"),
     (f"import \"{os.path.abspath('examples/lib/money.pk')}\" as money\nfn main() {{\n  print(money.nope())\n}}\n", ":3: module money has nothing called nope"),
     ("fn main() {\n  print(clock(1, 2))\n}\n", ":2: clock() takes a format string and maybe a time as a float"),
+    ("fn main() {\n  let x = 5?\n}\n", ":2: ? takes the value out of a Result, and int is not one"),
+    ("fn f() -> int {\n  return Result.ok(1)?\n}\nfn main() {\n}\n", ":2: ? needs the function to return a Result"),
     # run time
     ("fn main() {\n  print(\"x\".matches(\"[\"))\n}\n", ":2: bad pattern"),
     ("fn main() {\n  let xs = [1]\n  xs.insert(5, 2)\n}\n", ":3: index 5 is out of range for a list of 1"),

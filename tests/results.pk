@@ -1,0 +1,41 @@
+# Result<T>, ?, attempt, and generic enums under them.
+enum Maybe<T> {
+  some(v: T)
+  none
+
+  fn get(fallback: T) -> T {
+    match self {
+      .some(v) { return v }
+      .none { return fallback }
+    }
+  }
+}
+
+fn half(n: int) -> Result<int> {
+  if n % 2 != 0 {
+    return Result.err("\(n) is odd")
+  }
+  return Result.ok(n / 2)
+}
+
+fn quarter(n: int) -> Result<int> {
+  return Result.ok(half(half(n)?)?)
+}
+
+fn main() {
+  assert(half(8).value() == 4 and half(3).error() == "3 is odd" and half(3).or_else(0) == 0, "ok, err, or_else")
+  assert(quarter(8).value() == 2 and quarter(6).error() == "3 is odd" and quarter(5).error() == "5 is odd", "? returns the first err")
+  assert(attempt(fn() => int("4")).value() == 4 and attempt(fn() => int("x")).error() != nil, "attempt wraps a throw")
+  assert(half(8) == Result.ok(4) and half(3) != half(5), "results compare by value")
+  let m = Maybe.some("x")
+  let n = Maybe<str>.none
+  assert(m.get("d") == "x" and n.get("d") == "d", "a generic enum of my own")
+  var caught = ""
+  try {
+    half(1).value()
+  } catch e {
+    caught = e
+  }
+  assert(caught == "1 is odd", "value() on an err throws its message")
+  print("ok")
+}

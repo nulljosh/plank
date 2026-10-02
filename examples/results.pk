@@ -1,0 +1,31 @@
+# Result<T> and ?: errors in the type, beside throw. attempt turns a throw into a Result.
+fn parse_age(text: str) -> Result<int> {
+  let n = attempt(fn() => int(text.trim()))
+  if n.is_ok() and n.value() < 0 {
+    return Result.err("\(n.value()) is not an age")
+  }
+  return n
+}
+
+fn both(a: str, b: str) -> Result<int> {
+  let x = parse_age(a)?
+  let y = parse_age(b)?
+  return Result.ok(x + y)
+}
+
+fn main() {
+  print(parse_age("36"), parse_age("x"), parse_age("-5"))
+  print(both("1", "2"), both("1", "z"), both("-1", "2"))
+  match both("10", "20") {
+    .ok(v) { print("sum", v) }
+    .err(m) { print("no:", m) }
+  }
+  print(both("q", "1").or_else(-1), both("q", "1").error(), both("3", "4").error(), both("3", "4").is_ok())
+  let r: Result<str> = Result.ok("fine")
+  print(r.value(), Result<float>.err("cold").is_ok(), attempt(fn() => [1][5]))
+  try {
+    print(both("q", "1").value())
+  } catch e {
+    print("caught", e)
+  }
+}

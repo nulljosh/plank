@@ -53,10 +53,12 @@ The goal: write the programs you would write in Python, Ruby or Swift, in Plank,
 | Sets | set | Set | Set | `Set<T>` (2.4) |
 | Dates: parse, format, add days | datetime | Time | Date | `parse_time`, `clock(fmt, at)` (2.5) |
 | A binary to copy anywhere | PyInstaller | no | yes | `build --static` on Linux (2.6) |
+| Errors in the type, `Result` and `?` | no | no | `throws`, `try?` | `Result<T>`, `?` (3.1) |
+| Generic enums | no | no | yes | yes (3.1) |
 | Tests in the language | unittest | minitest | XCTest | `assert` + `plank test` (1.3) |
 
 Out of scope, on purpose: threads and async, a package manager, a JIT. Each is a project the size of Plank itself.
 
 ## Score
 
-50 of 50. Every row is a yes. The next rows are on `roadmap.md`; when one lands it joins the table.
+52 of 52. Every row is a yes. The next rows are on `roadmap.md`; when one lands it joins the table.

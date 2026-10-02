@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "3.0.0"
+VERSION = "3.1.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -35,7 +35,7 @@ STRIDE = 1_000_000  # lines in the k-th source file are numbered from k * STRIDE
 
 def locate(line, files):
     if line // STRIDE >= 900:
-        return "<built-in " + ("Json" if line // STRIDE == 900 else "Set") + ">", line % STRIDE
+        return "<built-in " + {900: "Json", 901: "Set"}.get(line // STRIDE, "Result") + ">", line % STRIDE
     return files[min(line // STRIDE, len(files) - 1)], line % STRIDE
 
 
@@ -237,7 +237,9 @@ class Import(Node): path: str; alias: str = None
 @dataclass
 class Struct(Node): name: str; fields: list; defaults: dict; methods: list; tparams: list = None
 @dataclass
-class Enum(Node): name: str; cases: list; methods: list
+class Enum(Node): name: str; cases: list; methods: list; tparams: list = None
+@dataclass
+class ResultTry(Node): expr: Node   # r?: the value inside a Result, or return its error
 @dataclass
 class Match(Node): subject: Node; arms: list; other: list
 
@@ -313,6 +315,7 @@ class Parser:
     def enum(self):
         line = self.expect("enum").line
         name = self.type_name()
+        tparams = self.type_params()
         self.expect("{")
         cases, methods, case_lines = [], [], []
         self.skip_nl()
@@ -338,7 +341,7 @@ class Parser:
                     self.next()
             self.skip_nl()
         end = self.expect("}").line
-        en = Enum(line, name, cases, methods)
+        en = Enum(line, name, cases, methods, tparams)
         en.end, en.case_lines = end, case_lines
         return en
 
@@ -700,8 +703,11 @@ class Parser:
 
     def primary(self):
         e = self.atom()
-        while self.at("[", ".", "!", "(", "?."):
+        while self.at("[", ".", "!", "(", "?.", "?"):
             line = self.next().line
+            if self.toks[self.i - 1].kind == "?":
+                e = ResultTry(line, e)
+                continue
             if self.toks[self.i - 1].kind == "?.":  # p?.next?.val: nil if any link is nil
                 name = self.expect("name").val
                 if self.at("("):
@@ -866,9 +872,11 @@ class Parser:
                 mark = self.i
                 try:
                     args = self.type_args()
-                    if not self.at("("):
+                    if not self.at("(", "."):
                         raise PlankError(t.line, "")
                     name = f"{name}<{args}>"
+                    if self.at("."):  # Result<int>.ok(5): a name the postfix loop will take .ok on
+                        return Name(t.line, name)
                 except PlankError:
                     self.i = mark
             if self.at("("):
@@ -959,7 +967,7 @@ class Fmt:
             return self.emit(indent, f'import {quote(it.path)}' + (f" as {it.alias}" if it.alias else ""), it.line)
         if isinstance(it, Fn):
             return self.fn(it, indent)
-        head = f"{'struct' if isinstance(it, Struct) else 'enum'} {it.name}{self.tparams(it.tparams if isinstance(it, Struct) else None)} {{"
+        head = f"{'struct' if isinstance(it, Struct) else 'enum'} {it.name}{self.tparams(it.tparams)} {{"
         self.emit(indent, head, it.line)
         prev = it.line
         if isinstance(it, Struct):
@@ -1229,6 +1237,8 @@ class Fmt:
             return f"{self.atom(x.target, indent)}[{a}..{b}]"
         if isinstance(x, Unwrap):
             return f"{self.atom(x.expr, indent)}!"
+        if isinstance(x, ResultTry):
+            return f"{self.atom(x.expr, indent)}?"
         if isinstance(x, List):
             return f"[{self.args(x.items, None, indent)}]" if x.items else "[]"
         if isinstance(x, Dict):
@@ -2378,9 +2388,10 @@ class Var:
 
 
 class Codegen:
-    def __init__(self, name, file=None, files=None, uses_json=True, modules=(), uses_set=True):
+    def __init__(self, name, file=None, files=None, uses_json=True, modules=(), uses_set=True, uses_result=True):
         self.uses_json = uses_json  # the Json enum is only compiled in when the program mentions it
         self.uses_set = uses_set    # same for Set<T>
+        self.uses_result = uses_result  # and Result<T>
         self.modules = set(modules)  # import aliases: x.parse(), x.Point
         self.files = files or [file or name]  # what runtime errors call each source file: the path you typed
         self.module = ir.Module(name=name)
@@ -2388,6 +2399,7 @@ class Codegen:
         self.fns = {}       # name or Struct.method -> Sig
         self.generics = {}  # name -> Fn with type parameters, instantiated per call
         self.generic_structs = {}  # name -> Struct with type parameters, instantiated per use
+        self.generic_enums = {}    # the same for enums, like Result<T>
         self.externs = set()       # C functions declared with extern fn; bools cross as C ints
         self.structs = {}   # name -> StructInfo
         self.enums = {}     # name -> EnumInfo
@@ -2417,6 +2429,8 @@ class Codegen:
             return self.structs[ty].type.as_pointer()
         if generic_name(ty) and self.instantiate_struct(ty, line):
             return self.structs[ty].type.as_pointer()
+        if generic_name(ty) and self.instantiate_enum(ty, line):
+            return self.enums[ty].type.as_pointer()
         if ty in self.enums:
             return self.enums[ty].type.as_pointer()
         raise PlankError(line, f"unknown type {ty!r}")
@@ -2501,6 +2515,49 @@ class Codegen:
         return ptr
 
     # -- program
+    RESULT_SRC = """
+enum Result<T> {
+  ok(value: T)
+  err(message: str)
+
+  fn is_ok() -> bool {
+    match self {
+      .ok(v) { return true }
+      .err(m) { return false }
+    }
+  }
+
+  fn value() -> T {
+    match self {
+      .ok(v) { return v }
+      .err(m) { throw m }
+    }
+  }
+
+  fn or_else(fallback: T) -> T {
+    match self {
+      .ok(v) { return v }
+      .err(m) { return fallback }
+    }
+  }
+
+  fn error() -> str? {
+    match self {
+      .ok(v) { return nil }
+      .err(m) { return m }
+    }
+  }
+}
+
+fn attempt<T>(f: fn() -> T) -> Result<T> {
+  try {
+    return Result.ok(f())
+  } catch e {
+    return Result.err(e)
+  }
+}
+"""
+
     SET_SRC = """
 struct Set<T> {
   members: [T: bool] = [:]
@@ -2660,13 +2717,20 @@ enum Json {
             items = Parser(lex(self.JSON_SRC, 900 * STRIDE + 1)).program() + items
         if self.uses_set:
             items = Parser(lex(self.SET_SRC, 901 * STRIDE + 1)).program() + items
+        if self.uses_result:
+            items = Parser(lex(self.RESULT_SRC, 902 * STRIDE + 1)).program() + items
         structs = [x for x in items if isinstance(x, Struct) and not x.tparams]
         for st in items:
             if isinstance(st, Struct) and st.tparams:
                 if st.name in self.generic_structs:
                     raise PlankError(st.line, f"type {st.name!r} defined twice")
                 self.generic_structs[st.name] = st
-        enums = [x for x in items if isinstance(x, Enum)]
+        enums = [x for x in items if isinstance(x, Enum) and not x.tparams]
+        for en in items:
+            if isinstance(en, Enum) and en.tparams:
+                if en.name in self.generic_enums:
+                    raise PlankError(en.line, f"type {en.name!r} defined twice")
+                self.generic_enums[en.name] = en
         C_TYPES = {"int": LL["int"], "float": LL["float"], "bool": I32, "str": LL["str"], "void": ir.VoidType()}
         for f in items:  # extern fn: a C function by its own name, int is long long, float is double, bool is int
             if isinstance(f, Fn) and f.extern:
@@ -3607,6 +3671,8 @@ enum Json {
     def e_Method(self, e):
         if isinstance(e.target, Name) and e.target.name in self.modules and self.find(e.target.name) is None:
             return self.e_Call(Call(e.line, f"{e.target.name}.{e.name}", e.args, e.labels))  # x.parse(...), x.Point(...)
+        if isinstance(e.target, Name) and e.target.name in self.generic_enums and self.find(e.target.name) is None:
+            return self.generic_case(e, e.target.name, e.name, e)
         if self.is_enum_name(e.target):
             return self.make_case(e, self.qualified(e.target), e.name, e)
         target, ty = self.expr(e.target)
@@ -3709,7 +3775,10 @@ enum Json {
         return None
 
     def is_enum_name(self, node):
-        return self.qualified(node) in self.enums
+        name = self.qualified(node)
+        if name and name not in self.enums and generic_name(name):
+            self.instantiate_enum(name)
+        return name in self.enums
 
     def show_enum(self, ty):
         """circle(r: 2), or just empty, the way Swift prints a case."""
@@ -3955,6 +4024,27 @@ enum Json {
 
     def e_Nil(self, e):
         return ir.Constant(LL["str"], None), "nil"
+
+    def e_ResultTry(self, e):
+        """r?: the value inside an ok, or return the err from this function, which must return a Result too."""
+        val, ty = self.expr(e.expr)
+        g = generic_name(ty)
+        if not g or g[0] != "Result":
+            raise PlankError(e.line, f"? takes the value out of a Result, and {ty} is not one")
+        ret = self.fn_ret if self.fn_ret not in (None, "_") else ""
+        rg = generic_name(ret)
+        if not rg or rg[0] != "Result":
+            raise PlankError(e.line, f"? needs the function to return a Result so the error has somewhere to go; this one returns {ret or 'nothing'}")
+        self.instantiate_enum(ret, e.line)
+        b = self.builder
+        tag = b.load(b.gep(val, [ir.Constant(I32, 0), ir.Constant(I32, 0)]))
+        slot = b.gep(val, [ir.Constant(I32, 0), ir.Constant(I32, 1)])
+        with b.if_then(b.icmp_signed("==", tag, ir.Constant(LL["int"], 1)), likely=False):
+            msg = b.load(b.bitcast(slot, LL["str"].as_pointer()))
+            err, _ = self.make_case(e, ret, "err", Call(e.line, ret, [Given(e.line, msg, "str")], [None]))
+            self.leave(self.tries)
+            b.ret(err)
+        return b.load(b.bitcast(slot, self.ll(g[1][0]).as_pointer())), g[1][0]
 
     def e_Unwrap(self, e):
         val, ty = self.expr(e.expr)
@@ -4298,6 +4388,69 @@ enum Json {
             self.builder, self.scopes, self.fn_ret, self.loops, self.captured, self.has_try, self.tries = saved
         return True
 
+    def instantiate_enum(self, ty, line=0):
+        """Result<int> from enum Result<T>: register the cases and compile the methods, once. True if ty is such a type."""
+        if ty in self.enums:
+            return True
+        base, args = generic_name(ty)
+        g = self.generic_enums.get(base)
+        if g is None:
+            return False
+        if len(args) != len(g.tparams):
+            raise PlankError(line, f"{base} takes {len(g.tparams)} type parameter{'s' * (len(g.tparams) != 1)}, got {len(args)}")
+        en = self.specialize(g, dict(zip(g.tparams, args)))
+        ll_type = self.module.context.get_identified_type(ty)
+        self.enums[ty] = EnumInfo(ll_type, en.cases)
+        slots = max([len(f) for _, f in en.cases] + [0])
+        ll_type.set_body(LL["int"], *[LL["int"]] * slots)
+        for _, fields in en.cases:
+            for _, fty in fields:
+                self.ll(fty, line)
+        keys = []
+        for m in en.methods:
+            key = f"{ty}.{m.name}"
+            if m.tparams:
+                self.generics[key] = with_self(m, ty)
+                continue
+            params = [("self", ty)] + m.params
+            fty = ir.FunctionType(self.ll(m.ret, m.line), [self.ll(t, m.line) for _, t in params])
+            self.fns[key] = Sig(ir.Function(self.module, fty, "pk." + key), params, m.ret, m.defaults)
+            keys.append((key, m))
+        saved = self.builder, self.scopes, self.fn_ret, self.loops, self.captured, self.has_try, self.tries
+        try:
+            for key, m in keys:
+                self.function(key, m)
+        finally:
+            self.builder, self.scopes, self.fn_ret, self.loops, self.captured, self.has_try, self.tries = saved
+        return True
+
+    def generic_case(self, e, base, case, args_node):
+        """Result.ok(5) or Result.err("x"): work out T from the case's values, else from the function's return type."""
+        g = self.generic_enums[base]
+        fields = dict(g.cases).get(case)
+        if fields is None:
+            raise PlankError(e.line, f"{base} has no case {case}; it has {', '.join(c for c, _ in g.cases)}")
+        binds, args, labels = {}, [], []
+        if args_node is not None:
+            try:
+                binds, args, labels = self.bind_args(args_node, fields, g.tparams, f"{base}.{case}")
+            except PlankError as err:
+                if "cannot tell what" not in str(err):
+                    raise
+                args, labels = args_node.args, args_node.labels
+        missing = [t for t in g.tparams if t not in binds]
+        if missing:
+            ret = self.fn_ret or ""
+            rg = generic_name(ret)
+            if rg and rg[0] == base:
+                binds.update(dict(zip(g.tparams, rg[1])))
+            else:
+                raise PlankError(e.line, f"cannot tell what {', '.join(missing)} is for {base}.{case}; say it: {base}<int>.{case}(...)")
+        ty = f"{base}<{', '.join(binds[t] for t in g.tparams)}>"
+        self.instantiate_enum(ty, e.line)
+        node = Call(e.line, ty, args, labels) if args_node is not None else None
+        return self.make_case(e, ty, case, node)
+
     def bind_args(self, e, params, tparams, what):
         """Evaluate the non-closure arguments and bind type parameters from them. Returns binds, args, labels."""
         names = [n for n, _ in params]
@@ -4406,7 +4559,9 @@ enum Json {
                     setattr(node, field, sub(v))
                 elif field in ("params", "fields") and isinstance(v, list):
                     setattr(node, field, [(n, sub(t) if t else t) for n, t in v])
-                elif field == "name" and isinstance(node, Call) and generic_name(v):
+                elif field == "cases" and isinstance(v, list):
+                    setattr(node, field, [(c, [(n, sub(t)) for n, t in fs]) for c, fs in v])
+                elif field == "name" and isinstance(node, (Call, Name)) and generic_name(v):
                     setattr(node, field, sub(v))
         f.tparams = []
         return f
@@ -4468,6 +4623,8 @@ enum Json {
             if full in self.fns or full in self.generics:
                 return self.fn_value(full) if full in self.fns else self.fn_value_error(e, full)
             raise PlankError(e.line, f"module {e.target.name} has no function called {e.name}")
+        if isinstance(e.target, Name) and e.target.name in self.generic_enums and self.find(e.target.name) is None:
+            return self.generic_case(e, e.target.name, e.name, None)
         if self.is_enum_name(e.target):
             return self.make_case(e, self.qualified(e.target), e.name, None)
         ptr, ty = self.field_ptr(e)
@@ -4863,13 +5020,14 @@ enum Json {
 # ---------------------------------------------------------------- driver
 def load(src, path):
     """Parse a program and every file it imports, each once. Returns the items and the file list."""
-    files, items, todo, uses_json, uses_set, modules = [path], [], [(src, path, None)], False, False, set()
+    files, items, todo, uses_json, uses_set, uses_result, modules = [path], [], [(src, path, None)], False, False, False, set()
     seen = {os.path.realpath(path)} if os.path.exists(path) else set()
     while todo:
         text, at, alias = todo.pop(0)
         toks = lex(text, files.index(at) * STRIDE + 1)
         uses_json |= any(t.kind == "name" and t.val in ("Json", "json_parse") for t in toks)
         uses_set |= any(t.kind == "name" and t.val in ("Set", "set_of") for t in toks)
+        uses_result |= any(t.kind == "name" and t.val in ("Result", "attempt") for t in toks)
         parsed = Parser(toks).program()
         if alias:
             parsed = qualify(parsed, alias)
@@ -4890,7 +5048,7 @@ def load(src, path):
                 raise PlankError(it.line, f"cannot import {it.path!r}: no file at {target}")
             seen.add(os.path.realpath(target))
             files.append(target)
-    return items, files, uses_json, modules, uses_set
+    return items, files, uses_json, modules, uses_set, uses_result
 
 
 def qualify(items, alias):
@@ -4924,8 +5082,8 @@ def qualify(items, alias):
 def compile_source(src, name="plank", file=None):
     files = [file or name]
     try:
-        items, files, uses_json, modules, uses_set = load(src, file or name)
-        return Codegen(name, file, files, uses_json, modules, uses_set).program(items)
+        items, files, uses_json, modules, uses_set, uses_result = load(src, file or name)
+        return Codegen(name, file, files, uses_json, modules, uses_set, uses_result).program(items)
     except PlankError as err:
         err.file, err.line = locate(err.line, files)
         raise
