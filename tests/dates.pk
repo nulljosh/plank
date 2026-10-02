@@ -1,0 +1,11 @@
+# parse_time and clock at a moment.
+fn main() {
+  let day = 86400.0
+  let t = parse_time("2026-10-01")!
+  assert(clock("%Y-%m-%d", t) == "2026-10-01" and clock("%d", t + day) == "02", "round trip and a day later")
+  assert(clock("%A", t) == "Thursday" and clock("%j", t) == "274", "weekday and day of the year")
+  assert(parse_time("2026-13-40") == nil and parse_time("soon") == nil, "bad dates are nil")
+  assert(parse_time("31/12/2026", "%d/%m/%Y") != nil and int((parse_time("2026-10-08")! - t) / day) == 7, "other layouts, arithmetic")
+  assert(len(clock()) == 19 and clock("%Y", time()) == clock("%Y"), "now is now")
+  print("ok")
+}

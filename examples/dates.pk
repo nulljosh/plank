@@ -1,0 +1,11 @@
+# Dates: parse a date, format any moment, add days.
+fn main() {
+  let day = 24.0 * 60.0 * 60.0
+  if let t = parse_time("2026-10-01") {
+    print(clock("%Y-%m-%d", t), clock("%A", t), clock("%Y-%m-%d", t + 30.0 * day))
+    let later = parse_time("2026-12-25")!
+    print(int((later - t) / day), "days to the holidays")
+  }
+  print(parse_time("not a date"), parse_time("01/10/2026", "%d/%m/%Y") != nil, parse_time("2026-10-01 14:05", "%Y-%m-%d %H:%M") != nil)
+  print(len(clock()) == 19, clock("%Y") == clock("%Y", time()))
+}

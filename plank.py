@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "2.4.0"
+VERSION = "2.5.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -1296,6 +1296,7 @@ def fmt_files(args):
 # The handful of things LLVM does not hand you: joining strings, reading a
 # line, turning numbers into text. Compiled by cc next to your program.
 RUNTIME = r"""
+#define _GNU_SOURCE 1
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1919,11 +1920,20 @@ long long pk_append_file(const char *path, const char *text) {
     return fclose(f) == 0 && ok;
 }
 
-char *pk_clock(const char *fmt) {
-    time_t now = time(0);
+char *pk_clock(const char *fmt, double at, long long given) {
+    time_t when = given ? (time_t)at : time(0);
     char buf[256];
-    size_t n = strftime(buf, sizeof buf, *fmt ? fmt : "%Y-%m-%d %H:%M:%S", localtime(&now));
+    size_t n = strftime(buf, sizeof buf, *fmt ? fmt : "%Y-%m-%d %H:%M:%S", localtime(&when));
     return pk_strndup(buf, n);
+}
+
+/* text to seconds since 1970, by a strftime layout; -1 when the text does not fit it */
+double pk_parse_time(const char *text, const char *fmt) {
+    struct tm tm = {0};
+    tm.tm_isdst = -1;
+    const char *end = strptime(text, *fmt ? fmt : "%Y-%m-%d", &tm);
+    if (!end || *end) return -1;
+    return (double)mktime(&tm);
 }
 
 char *pk_url_encode(const char *s) {
@@ -4802,11 +4812,32 @@ enum Json {
         return self.call_c("pk_cwd", "str"), "str"
 
     def b_clock(self, e, args):
-        """clock() -> "2026-10-01 18:30:00", clock("%H:%M") -> any strftime layout."""
-        self.arity(e, args, 0, 1)
-        if args and args[0][1] != "str":
-            raise PlankError(e.line, f"clock() takes a format string, got {args[0][1]}")
-        return self.call_c("pk_clock", "str", args[0][0] if args else self.cstr("")), "str"
+        """clock() -> "2026-10-01 18:30:00", clock("%H:%M") -> any strftime layout, clock(fmt, at) for another moment."""
+        self.arity(e, args, 0, 1, 2)
+        tys = [t for _, t in args]
+        if tys[:1] not in ([], ["str"]) or tys[1:] not in ([], ["float"]):
+            raise PlankError(e.line, f"clock() takes a format string and maybe a time as a float, got ({', '.join(tys)})")
+        fmt = args[0][0] if args else self.cstr("")
+        at = args[1][0] if len(args) > 1 else ir.Constant(LL["float"], 0)
+        return self.call_c("pk_clock", "str", fmt, at, ir.Constant(LL["int"], int(len(args) > 1))), "str"
+
+    def b_parse_time(self, e, args):
+        """parse_time("2026-10-01") -> float?, seconds since 1970; parse_time(text, "%d/%m/%Y") for another layout."""
+        self.arity(e, args, 1, 2)
+        if any(t != "str" for _, t in args):
+            raise PlankError(e.line, "parse_time(text, layout?) takes strings")
+        secs = self.call_c("pk_parse_time", "float", args[0][0], args[1][0] if len(args) > 1 else self.cstr(""))
+        b = self.builder
+        ok = b.fcmp_ordered(">=", secs, ir.Constant(LL["float"], 0))
+        with b.if_else(ok) as (yes, no):
+            with yes:
+                some, yes_bb = self.coerce(secs, "float", "float?"), b.block
+            with no:
+                no_bb = b.block
+        phi = b.phi(self.ll("float?"))
+        phi.add_incoming(some, yes_bb)
+        phi.add_incoming(ir.Constant(self.ll("float?"), None), no_bb)
+        return phi, "float?"
 
     def b_url_encode(self, e, args):
         return self.call_c("pk_url_encode", "str", *self.typed(e, args, "str")), "str"

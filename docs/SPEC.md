@@ -332,7 +332,8 @@ Conditions must be `bool`. The `for` variable is an `int` and is a `let` inside 
 | `random(lo, hi)`, `random()` | An int from `lo` to `hi` inclusive, or a float from 0 up to 1. |
 | `time()` | Seconds since 1970 as a float, good for timing. |
 | `sleep(seconds)` | Waits that long, a float. |
-| `clock()`, `clock(fmt)` | The local time as text, `2026-10-01 18:30:00`, or in any `strftime` layout. |
+| `clock()`, `clock(fmt)`, `clock(fmt, at)` | The local time as text, `2026-10-01 18:30:00`, in any `strftime` layout, or for another moment `at` in seconds since 1970. |
+| `parse_time(text)`, `parse_time(text, layout)` | Text to seconds since 1970 as a `float?`, by `%Y-%m-%d` or any `strptime` layout; `nil` when it does not fit. A day is `86400.0`, so dates add and subtract. |
 | `exists(path)`, `is_dir(path)` | Whether something is there, and whether it is a folder. |
 | `list_dir(path)` | The names inside a folder, sorted; empty when it cannot be read. |
 | `mkdir(path)`, `remove_file(path)` | Make a folder, or delete a file; `true` when it worked. |
