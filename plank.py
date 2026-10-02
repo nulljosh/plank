@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "1.4.0"
+VERSION = "1.4.1"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -3117,6 +3117,25 @@ enum Json {
             if name in names:
                 self.unify(dict(params)[name], ty, tparams, binds, e.line, what)
             args.append(Given(arg.line, val, ty)); labels.append(label)
+        def sub(ty):
+            for t, real in binds.items():
+                ty = re.sub(rf"\b{t}\b", real, ty)
+            return ty
+        def open_(ty):
+            return any(re.search(rf"\b{t}\b", ty) for t in tparams if t not in binds)
+        # a closure can pin down a parameter that only shows up in its result, like map<U>: compile it with
+        # what is known so far and let its body say the rest
+        for i, (arg, label) in enumerate(zip(args, labels)):
+            name = label or (names[i] if i < len(names) else None)
+            if not isinstance(arg, Lambda) or name not in names or not open_(dict(params)[name]):
+                continue
+            sig = fn_sig(dict(params)[name])
+            if sig is None or any(open_(x) for x in sig[0]):
+                continue
+            hint = f"fn({', '.join(sub(x) for x in sig[0])}) -> {'_' if open_(sig[1]) else sub(sig[1])}"
+            val, ty = self.expr(arg, hint=hint)
+            self.unify(dict(params)[name], ty, tparams, binds, e.line, what)
+            args[i] = Given(arg.line, val, ty)
         missing = [t for t in tparams if t not in binds]
         if missing:
             raise PlankError(e.line, f"cannot tell what {', '.join(missing)} is from the arguments to {what}; say it: {what.rstrip('()')}<int>(...)")
