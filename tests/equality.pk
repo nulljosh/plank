@@ -1,0 +1,26 @@
+# Deep equality everywhere == goes.
+struct P {
+  x: int
+  tags: [str] = []
+}
+
+enum S {
+  a(n: int)
+  b
+}
+
+fn main() {
+  assert([1, 2] == [1, 2] and [1, 2] != [2, 1] and [[1], []] == [[1], []], "lists")
+  assert(["a": [1]] == ["a": [1]] and ["a": 1, "b": 2] == ["b": 2, "a": 1] and ["a": 1] != ["a": 2], "dicts, any order")
+  assert((1, "x") == (1, "x") and (1, "x") != (1, "y"), "tuples")
+  assert(P(1, ["t"]) == P(1, ["t"]) and P(1) != P(2) and P(1, ["a"]) != P(1, ["b"]), "structs, fields and lists inside")
+  assert(S.a(3) == S.a(3) and S.a(3) != S.a(4) and S.b == S.b and S.a(1) != S.b, "enums with and without values")
+  let o: int? = 3
+  let n: int? = nil
+  assert(o == o and o != n and n == n and [o, n] == [o, n], "optionals")
+  let empty: [int] = []
+  assert(empty == [] and [1] != [] and ["k": 1] != [:], "against the empty literals")
+  let pairs = [("a", [1]), ("b", [2])]
+  assert(pairs.index_of(("b", [2])) == 1 and ("a", [1]) in pairs and not (("a", [9]) in pairs), "index_of and in look inside too")
+  print("ok")
+}

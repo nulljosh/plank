@@ -269,6 +269,8 @@ Lists take functions: `xs.map(fn(x) => x * 2)`, `xs.filter(fn(x) => x > 0)`, `xs
 
 ## Operators
 
+`==` and `!=` look inside: two lists are equal when their items are, dicts when they hold the same keys and values in any order, tuples and structs part by part, enums when the case and its values match, optionals when both are `nil` or both hold equal values. `xs == []` asks whether a list is empty. `in` and `index_of` use the same rule. Closures compare by identity.
+
 From loosest to tightest: `or`, `and`, `not`, comparisons (`== != < > <= >=` and `in`), `??`, `+ -`, `* / %`, unary `-`. `and` and `or` short-circuit. Integer `/` truncates toward zero and `%` follows the sign of the left operand. Floats support all of these too. Strings join with `+` and compare with all six comparisons, alphabetically by byte. Bools compare with `==` and `!=` only.
 
 ## Control flow

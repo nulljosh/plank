@@ -48,10 +48,11 @@ The goal: write the programs you would write in Python, Ruby or Swift, in Plank,
 | Files and folders: list, exists, mkdir | os | Dir, File | FileManager | yes (2.1) |
 | The clock as text | datetime | Time | Date | `clock(fmt)` (2.1) |
 | URL encoding | urllib | CGI | yes | yes (2.1) |
+| `==` that looks inside collections | yes | yes | Equatable | yes (2.2) |
 | Tests in the language | unittest | minitest | XCTest | `assert` + `plank test` (1.3) |
 
 Out of scope, on purpose: threads and async, a package manager, a JIT. Each is a project the size of Plank itself.
 
 ## Score
 
-45 of 45. Every row is a yes. The next rows are on `roadmap.md`; when one lands it joins the table.
+46 of 46. Every row is a yes. The next rows are on `roadmap.md`; when one lands it joins the table.

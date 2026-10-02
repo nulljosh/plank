@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "2.1.0"
+VERSION = "2.2.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -3112,13 +3112,13 @@ enum Json {
         new = self.c("pk_list_new", LIST, LL["int"], LL["int"])
         if not items:
             return self.builder.call(new, [ir.Constant(LL["int"], 0), ir.Constant(LL["int"], 8)]), "[]"
-        ty = items[0][1]
+        ty = next((t for _, t in items if t not in ("[]", "[:]", "nil")), items[0][1])  # an empty [] takes the type of its neighbours
         for _, t in items:
-            if t != ty:
+            if not fits(t, ty):
                 raise PlankError(e.line, f"a list holds one type, this one mixes {ty} and {t}")
         lst = self.builder.call(new, [ir.Constant(LL["int"], len(items)), ir.Constant(LL["int"], size(ty))])
-        for v, _ in items:
-            self.push(lst, v, ty)
+        for v, t in items:
+            self.push(lst, self.coerce(v, t, ty), ty)
         return lst, f"[{ty}]"
 
     def e_Dict(self, e):
@@ -3295,8 +3295,7 @@ enum Json {
         if is_list(ct):
             if not fits(it, ct[1:-1]):
                 raise PlankError(e.line, f"this list holds {ct[1:-1]}, got {it}")
-            at = self.call_c("pk_list_find", "int", coll, ir.Constant(LL["int"], size(it)), self.bits(item, it),
-                             ir.Constant(LL["int"], int(it == "str")))
+            at = self.find_index(coll, ct[1:-1], self.coerce(item, it, ct[1:-1]))
             return b.icmp_signed(">=", at, ir.Constant(LL["int"], 0)), "bool"
         raise PlankError(e.line, f"in needs a list, a dict or a str on the right, got {ct}")
 
@@ -3430,8 +3429,7 @@ enum Json {
         if n == "index_of" and len(args) == 1:
             if not fits(tys[0], elem):
                 raise PlankError(e.line, f"index_of() on a list of {elem} wants a {elem}, got {tys[0]}")
-            at = self.call_c("pk_list_find", "int", lst, sz, self.bits(args[0][0], elem), ir.Constant(LL["int"], int(elem == "str")))
-            return self.maybe_int(at)
+            return self.maybe_int(self.find_index(lst, elem, self.coerce(args[0][0], tys[0], elem)))
         if n == "insert" and len(args) == 2:
             if tys[0] != "int" or not fits(tys[1], elem):
                 raise PlankError(e.line, f"insert(i, x) takes an int and {'an' if elem[0] in 'aeiou' else 'a'} {elem}, got {tys[0]} and {tys[1]}")
@@ -3463,6 +3461,26 @@ enum Json {
             ordered = self.list_fn(Method(e.line, Given(e.line, lst, f"[{elem}]"), "sorted", [], []), lst, elem)[0]
             return self.list_helper(Method(e.line, e.target, "first" if n == "min" else "last", [], []), ordered, elem, [])
         return None
+
+    def find_index(self, lst, elem, needle):
+        """The index of the first item equal to needle, part by part, or -1."""
+        b = self.builder
+        with b.goto_entry_block():
+            found, i = b.alloca(LL["int"]), b.alloca(LL["int"])
+        b.store(ir.Constant(LL["int"], -1), found)
+        b.store(ir.Constant(LL["int"], 0), i)
+        cond, body, done = (b.append_basic_block(k) for k in ("find", "item", "found"))
+        b.branch(cond)
+        b.position_at_end(cond)
+        going = b.and_(b.icmp_signed("<", b.load(i), self.list_len(lst)), b.icmp_signed("<", b.load(found), ir.Constant(LL["int"], 0)))
+        b.cbranch(going, body, done)
+        b.position_at_end(body)
+        with b.if_then(self.equal(b.load(self.slot(lst, b.load(i), elem)), needle, elem)):
+            b.store(b.load(i), found)
+        b.store(b.add(b.load(i), ir.Constant(LL["int"], 1)), i)
+        b.branch(cond)
+        b.position_at_end(done)
+        return b.load(found)
 
     def maybe_int(self, at):
         """An int that is -1 for missing, as an int?."""
@@ -3731,6 +3749,97 @@ enum Json {
         phi.add_incoming(ir.Constant(self.ll(want), None), none_bb)
         return phi, want
 
+    # -- equality that looks inside
+    def deep(self, ty):
+        return bool(is_list(ty) or dict_kv(ty) or tuple_parts(ty) or ty in self.structs or ty in self.enums or ty.endswith("?"))
+
+    def equal(self, a, c, ty):
+        """An i1: are these two values of type ty the same, part by part?"""
+        b = self.builder
+        if ty == "float":
+            return b.fcmp_ordered("==", a, c)
+        if ty == "str":
+            return b.icmp_signed("==", b.call(self.c("strcmp", I32, LL["str"], LL["str"]), [a, c]), ir.Constant(I32, 0))
+        if ty in ("int", "bool") or fn_sig(ty):
+            return b.icmp_signed("==", a, c) if ty in ("int", "bool") else b.icmp_unsigned("==", a, c)
+        return b.call(self.eq_fn(ty), [a, c])
+
+    def eq_fn(self, ty):
+        """A private function eq.<ty>(a, b) -> i1, made once; registered before its body so a type that holds itself can use it."""
+        name = "eq." + ty
+        if name in self.module.globals:
+            return self.module.globals[name]
+        fn = ir.Function(self.module, ir.FunctionType(LL["bool"], [self.ll(ty), self.ll(ty)]), name)
+        fn.linkage = "private"
+        outer, self.builder = self.builder, ir.IRBuilder(fn.append_basic_block("entry"))
+        b, (a, c) = self.builder, fn.args
+        no, yes = ir.Constant(LL["bool"], 0), ir.Constant(LL["bool"], 1)
+        def part(x, y, t):
+            with b.if_then(b.not_(self.equal(x, y, t))):
+                b.ret(no)
+        if ty.endswith("?"):
+            inner = ty[:-1]
+            a_nil, c_nil = (b.icmp_unsigned("==", v, ir.Constant(v.type, None)) for v in (a, c))
+            with b.if_then(b.and_(a_nil, c_nil)):
+                b.ret(yes)
+            with b.if_then(b.or_(a_nil, c_nil)):
+                b.ret(no)
+            part(b.load(a), b.load(c), inner)
+            b.ret(yes)
+        elif is_list(ty):
+            elem = ty[1:-1]
+            with b.if_then(b.icmp_signed("!=", self.list_len(a), self.list_len(c))):
+                b.ret(no)
+            with b.goto_entry_block():
+                i = b.alloca(LL["int"])
+            b.store(ir.Constant(LL["int"], 0), i)
+            cond, body, done = (fn.append_basic_block(k) for k in ("cond", "body", "done"))
+            b.branch(cond)
+            b.position_at_end(cond)
+            b.cbranch(b.icmp_signed("<", b.load(i), self.list_len(a)), body, done)
+            b.position_at_end(body)
+            part(b.load(self.slot(a, b.load(i), elem)), b.load(self.slot(c, b.load(i), elem)), elem)
+            b.store(b.add(b.load(i), ir.Constant(LL["int"], 1)), i)
+            b.branch(cond)
+            b.position_at_end(done)
+            b.ret(yes)
+        elif dict_kv(ty):
+            kv = dict_kv(ty)
+            with b.if_then(b.icmp_signed("!=", self.call_c("pk_dict_len", "int", a), self.call_c("pk_dict_len", "int", c))):
+                b.ret(no)
+            keys = self.call_c("pk_dict_keys", LIST, a)
+            def check(key):
+                slot = self.dict_slot(c, kv, key, kv[0], 0, "pk_dict_find")
+                with b.if_then(b.icmp_unsigned("==", slot, ir.Constant(slot.type, None))):
+                    b.ret(no)
+                part(b.load(self.dict_slot(a, kv, key, kv[0], 0, "pk_dict_find")), b.load(slot), kv[1])
+            self.each(keys, kv[0], check)
+            b.ret(yes)
+        elif ty in self.structs:
+            for i, (_, fty) in enumerate(self.structs[ty].fields):
+                x, y = (b.load(b.gep(v, [ir.Constant(I32, 0), ir.Constant(I32, i)])) for v in (a, c))
+                part(x, y, fty)
+            b.ret(yes)
+        else:  # an enum: same case, then the same values
+            info = self.enums[ty]
+            ta, tc = (b.load(b.gep(v, [ir.Constant(I32, 0), ir.Constant(I32, 0)])) for v in (a, c))
+            with b.if_then(b.icmp_signed("!=", ta, tc)):
+                b.ret(no)
+            bad = fn.append_basic_block("bad")
+            sw = b.switch(ta, bad)
+            for tag, (case, fields) in enumerate(info.cases):
+                bb = fn.append_basic_block(case)
+                sw.add_case(ir.Constant(LL["int"], tag), bb)
+                b.position_at_end(bb)
+                for i, (_, fty) in enumerate(fields):
+                    x, y = (b.load(b.bitcast(b.gep(v, [ir.Constant(I32, 0), ir.Constant(I32, 1 + i)]), self.ll(fty).as_pointer())) for v in (a, c))
+                    part(x, y, fty)
+                b.ret(yes)
+            b.position_at_end(bad)
+            b.unreachable()
+        self.builder = outer
+        return fn
+
     def e_Nil(self, e):
         return ir.Constant(LL["str"], None), "nil"
 
@@ -3948,22 +4057,23 @@ enum Json {
             if not ty.endswith("?"):
                 raise PlankError(e.line, f"{ty} is never nil; only optionals like {ty}? can be")
             return self.builder.icmp_unsigned(e.op, val, ir.Constant(val.type, None)), "bool"
+        if e.op in ("==", "!=") and rt in ("[]", "[:]") and (is_list(lt) or dict_kv(lt)):  # xs == []
+            n = self.list_len(lhs) if is_list(lt) else self.call_c("pk_dict_len", "int", lhs)
+            return self.builder.icmp_signed(e.op, n, ir.Constant(LL["int"], 0)), "bool"
         if lt != rt:
             fix = "str()" if "str" in (lt, rt) else "int() or float()"
             if lt.endswith("?") or rt.endswith("?"):
                 fix = "if let, ?? or ! to get the value out of the optional first"
             raise PlankError(e.line, f"{lt} {e.op} {rt}: types must match, use {fix}")
         b = self.builder
+        if e.op in ("==", "!=") and self.deep(lt):  # lists, dicts, tuples, structs, optionals and enums: part by part
+            same = self.equal(lhs, rhs, lt)
+            return (same if e.op == "==" else b.not_(same)), "bool"
         if lt == "str" and e.op == "+":
             return self.call_c("pk_concat", "str", lhs, rhs), "str"
         if lt == "str" and e.op in CMP:
             diff = b.call(self.c("strcmp", ir.IntType(32), LL["str"], LL["str"]), [lhs, rhs])  # C int, 32 bits
             return b.icmp_signed(e.op, diff, ir.Constant(diff.type, 0)), "bool"
-        if lt in self.enums and e.op in ("==", "!="):
-            if any(f for _, f in self.enums[lt].cases):
-                raise PlankError(e.line, f"{lt} cases carry values, so == is ambiguous; use match")
-            tags = [b.load(b.gep(v, [ir.Constant(I32, 0), ir.Constant(I32, 0)])) for v in (lhs, rhs)]
-            return b.icmp_signed(e.op, *tags), "bool"
         if e.op in CMP:
             if lt == "float":
                 return b.fcmp_ordered(e.op, lhs, rhs), "bool"
