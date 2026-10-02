@@ -1,5 +1,5 @@
 """Compile every example, diff its output. `python3 test.py`."""
-import glob, os, subprocess, sys
+import glob, os, re, subprocess, sys
 
 fails = 0
 # every example and app, diffed against its .out; every tests/*.pk must print ok.
@@ -104,6 +104,21 @@ fmt = subprocess.run(["./plank", "fmt", "--check"], capture_output=True, text=Tr
 print(("ok   " if fmt.returncode == 0 else "FAIL ") + "plank fmt --check")
 if fmt.returncode:
     print(fmt.stdout + fmt.stderr)
+    sys.exit(1)
+
+# every built-in, keyword and method the compiler knows is in docs/SPEC.md, and every CLI command in README.md
+src = open("plank.py").read()
+spec = open("docs/SPEC.md").read()
+names = sorted(set(re.findall(r"def b_(\w+)\(", src)) | set(re.findall(r'"(\w+)": \("pk_\w+"', src)))
+names += sorted(set(re.findall(r'KEYWORDS = \{([^}]*)\}', src)[0].replace('"', "").replace("\n", "").replace(" ", "").split(",")))
+names += ["append", "pop", "map", "filter", "reduce", "sort", "sorted", "first", "last", "index_of", "insert", "remove_at",
+          "reverse", "reversed", "sum", "min", "max", "enumerate", "join", "keys", "values", "get", "remove", "items"]
+undocumented = [n for n in names if n and not re.search(r"\b" + re.escape(n) + r"\b", spec)]
+readme = open("README.md").read()
+undocumented += ["plank " + c for c in ("run", "build", "emit", "test", "repl", "fmt") if "plank " + c not in readme]
+print(("ok   " if not undocumented else "FAIL ") + f"docs cover the language ({len(names)} names)")
+if undocumented:
+    print("not in the docs:", ", ".join(undocumented))
     sys.exit(1)
 
 # the score typed on the landing page must match the scorecard
