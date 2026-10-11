@@ -1,0 +1,70 @@
+# ai.pk: Plank scripts intelligence. A model, an ask, and a prompt you fill in.
+#   import "lib/ai.pk" as ai
+#   let m = ai.model("claude-haiku-5-5")        # Anthropic, key from ANTHROPIC_API_KEY
+#   let m = ai.local("qwen", "http://localhost:8000/v1")   # any OpenAI-compatible server: oMLX, Ollama, Turing
+#   let m = ai.mock()                           # no network; answers "echo: <prompt>", for tests
+#   print(m.ask("Why is the sky blue?"))
+struct Model {
+  name: str
+  url: str = ""
+  system: str = ""
+
+  # empty means Anthropic
+
+  # ask: one question in, one answer out. Throws with the server's words when it fails.
+  fn ask(question: str) -> str {
+    if self.name == "mock" {
+      return "echo: " + question
+    }
+    if self.url == "" {
+      return self.ask_anthropic(question)
+    }
+    return self.ask_openai(question)
+  }
+
+  fn ask_anthropic(question: str) -> str {
+    let key = env("ANTHROPIC_API_KEY") ?? ""
+    if key == "" {
+      throw "ANTHROPIC_API_KEY is not set"
+    }
+    var body = "{\"model\":" + json_quote(self.name) + ",\"max_tokens\":4096,\"system\":" + json_quote(self.system)
+    body += ",\"messages\":[{\"role\":\"user\",\"content\":" + json_quote(question) + "}]}"
+    let headers = ["x-api-key: " + key, "anthropic-version: 2023-06-01", "content-type: application/json"]
+    let reply = http("POST", "https://api.anthropic.com/v1/messages", body, headers)
+    if status() != 200 {
+      throw "ask failed (\(status())): " + reply
+    }
+    return json_parse(reply).get("content").at(0).get("text").str()
+  }
+
+  fn ask_openai(question: str) -> str {
+    var body = "{\"model\":" + json_quote(self.name) + ",\"messages\":[{\"role\":\"system\",\"content\":" + json_quote(self.system)
+    body += "},{\"role\":\"user\",\"content\":" + json_quote(question) + "}]}"
+    let reply = http("POST", self.url + "/chat/completions", body, ["content-type: application/json"])
+    if status() != 200 {
+      throw "ask failed (\(status())): " + reply
+    }
+    return json_parse(reply).get("choices").at(0).get("message").get("content").str()
+  }
+}
+
+fn model(name: str, system: str = "") -> Model {
+  return Model(name, "", system)
+}
+
+fn local(name: str, url: str, system: str = "") -> Model {
+  return Model(name, url, system)
+}
+
+fn mock() -> Model {
+  return Model("mock")
+}
+
+# prompt: fill {name} holes in a template from a dict, so a prompt is data you can keep and reuse.
+fn prompt(template: str, vars: [str: str]) -> str {
+  var out = template
+  for pair in vars.items() {
+    out = out.replace("{" + pair.0 + "}", pair.1)
+  }
+  return out
+}

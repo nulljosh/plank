@@ -44,7 +44,7 @@ caught: int() got text that is not a whole number
 
 Most language tutorials stop at a tree-walking interpreter. Plank skips the interpreter and goes straight to machine code, so what you build on day one is what a real compiler builds, just smaller.
 
-4.0 has what you reach for in Python, Ruby or Swift: strings with interpolation and regular expressions, lists, dicts, sets and tuples, structs and enums with methods and type parameters, an exhaustive `match`, optionals with `if let` and `?.`, `Result` with `?`, closures with `map` and `filter`, generics, modules and packages straight from GitHub, dates, files and folders, shell, JSON and HTTP, C functions by name, and `try` and `catch` for every runtime error. A garbage collector frees what you stop using. A REPL, a formatter, a test runner, `plank doc` and static builds come with it. `docs/COMPARE.md` keeps score: 54 of 54, every row a yes.
+4.0 has what you reach for in Python, Ruby or Swift: strings with interpolation and regular expressions, lists, dicts, sets and tuples, structs and enums with methods and type parameters, an exhaustive `match`, optionals with `if let` and `?.`, `Result` with `?`, closures with `map` and `filter`, generics, modules and packages straight from GitHub, dates, files and folders, shell, JSON and HTTP, C functions by name, and `try` and `catch` for every runtime error. A garbage collector frees what you stop using. A REPL, a formatter, a test runner, `plank doc` and static builds come with it. `docs/COMPARE.md` keeps score: 55 of 55, every row a yes.
 
 ## What you can build
 

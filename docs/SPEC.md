@@ -432,3 +432,7 @@ fib.pk:3: 'x' is a let, use var to reassign it
 ```
 
 Exit code 1 is a Plank error, at compile time or a runtime one like a bad `int("x")`, 2 is a missing file, anything else is what your program returned.
+
+## AI (lib/ai.pk)
+
+`import "lib/ai.pk" as ai` makes a model scriptable. `ai.model("claude-haiku-5-5")` talks to Anthropic with the key in `ANTHROPIC_API_KEY`; `ai.local("qwen", "http://localhost:8000/v1")` talks to any OpenAI-compatible server (oMLX, Ollama, Turing); `ai.mock()` answers `echo: <question>` with no network, so tests stay byte-stable. `m.ask("question")` returns the text or throws with the server's words. `ai.prompt("Summarize {topic}", ["topic": "plank"])` fills `{holes}` in a template. A system prompt is the optional last argument of `model` and `local`. It is a plain Plank module: no compiler support yet, so the `tool` and `agent` forms come next.

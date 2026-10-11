@@ -1,0 +1,11 @@
+# Plank scripts intelligence: a model, a prompt template, an ask. The mock model needs no network.
+import "../lib/ai.pk" as ai
+
+fn main() {
+  let m = ai.mock()
+  let p = ai.prompt("Summarize {topic} in {n} words.", ["topic": "plank", "n": "10"])
+  print(p)
+  print(m.ask(p))
+  let live = ai.model("claude-haiku-5-5")
+  print(attempt(fn() => live.ask("hi")).error() != nil or env("ANTHROPIC_API_KEY") != nil)
+}
