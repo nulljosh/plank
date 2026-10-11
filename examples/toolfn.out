@@ -1,0 +1,4 @@
+{"name":"add","description":"Adds two whole numbers","input_schema":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"]}}
+{"name":"greet","description":"Says hello to someone","input_schema":{"type":"object","properties":{"name":{"type":"string"},"loud":{"type":"boolean"}},"required":["name","loud"]}}
+done: 42
+done: HELLO ADA

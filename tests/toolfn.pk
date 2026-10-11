@@ -1,0 +1,23 @@
+# tool fn builds its schema from the signature and the comment above it.
+import "../lib/ai.pk" as ai
+
+# Adds two whole numbers
+tool fn add(a: int, b: int) -> int {
+  return a + b
+}
+
+tool fn half(x: float) -> float {
+  return x / 2.0
+}
+
+fn main() {
+  let t = add_tool()
+  assert(t.name == "add" and t.about == "Adds two whole numbers", "name and comment")
+  assert(len(t.schema().get("input_schema").get("required").items()) == 2, "both params required")
+  assert(half_tool().about == "half", "no comment: the name stands in")
+  assert(half_tool().schema().get("input_schema").get("properties").get("x").get("type").str() == "number", "float is number")
+  let bot = ai.agent(ai.mock(), [t, half_tool()])
+  assert(bot.run("use add {\"a\": 2, \"b\": 3}") == "done: 5", "agent runs a tool fn")
+  assert(bot.run("use half {\"x\": 5}") == "done: 2.5", "float arguments")
+  print("ok")
+}

@@ -70,6 +70,8 @@ BAD = [
     ("fn main() {\n  let x = 5?\n}\n", ":2: ? takes the value out of a Result, and int is not one"),
     ("fn f() -> int {\n  return Result.ok(1)?\n}\nfn main() {\n}\n", ":2: ? needs the function to return a Result"),
     ("import \"github.com/nulljosh\"\nfn main() {\n}\n", ':1: a package import looks like "github.com/user/repo@tag/path/file.pk"'),
+    ("tool fn f(a: int) -> int {\n  return a\n}\nfn main() {\n}\n", ':1: tool fn needs import "lib/ai.pk"'),
+    (f"import \"{os.path.abspath('lib/ai.pk')}\" as ai\ntool fn f(a: [int]) -> int {{\n  return 1\n}}\nfn main() {{\n}}\n", ":2: tool fn parameter a is [int]; the model can pass str, int, float or bool"),
     # run time
     ("fn main() {\n  print(\"x\".matches(\"[\"))\n}\n", ":2: bad pattern"),
     ("fn main() {\n  let xs = [1]\n  xs.insert(5, 2)\n}\n", ":3: index 5 is out of range for a list of 1"),

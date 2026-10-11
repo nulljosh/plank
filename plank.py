@@ -13,12 +13,12 @@
     plank doc [name]        every built-in in one line each, or one of them in full
     plank fmt [--check] [files]   lay out .pk files the house way; --check only reports
 """
-import os, platform, re, subprocess, sys, tempfile
+import json, os, platform, re, subprocess, sys, tempfile
 from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "4.1.1"
+VERSION = "4.2.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -112,8 +112,10 @@ def unescape(body, line):
 
 def lex(src, line=1, comments=None):
     toks, pos, depth = [], 0, 0
+    docs, bare = [], True  # the comment lines just above, and whether this line has had a token yet
     while pos < len(src):
         if src[pos] == '"':
+            docs, bare = [], False
             end = string_end(src, pos, line)
             toks.append(Tok("str", unescape(src[pos + 1:end - 1], line), line))
             line += src.count("\n", pos, end)
@@ -126,9 +128,15 @@ def lex(src, line=1, comments=None):
         pos = m.end()
         if kind == "comment" and comments is not None:
             comments.append((line, text))
+        if kind == "comment" and bare:
+            docs.append(text.lstrip("#").strip())
         if kind in ("ws", "comment"):
             continue
+        held = docs
+        if kind != "nl":
+            bare, docs = False, []
         if kind == "nl":
+            bare = True
             if depth == 0:
                 toks.append(Tok("nl", None, line))
             line += 1
@@ -142,6 +150,7 @@ def lex(src, line=1, comments=None):
             toks[-1].text = text  # so plank fmt can print 1.5e3 the way it was written
         elif kind == "name":
             toks.append(Tok(text if text in KEYWORDS else "name", text, line))
+            toks[-1].doc = " ".join(d for d in held if d)  # only read for `tool fn`
         else:
             depth += (text in "([") - (text in ")]")
             toks.append(Tok(text, text, line))
@@ -230,7 +239,7 @@ class ExprStmt(Node): expr: Node
 @dataclass
 class Given(Node): val: object; ty: str   # an already-computed value, so match evaluates its subject once
 @dataclass
-class Fn(Node): name: str; params: list; ret: str; body: list; defaults: dict; tparams: list = None; extern: bool = False
+class Fn(Node): name: str; params: list; ret: str; body: list; defaults: dict; tparams: list = None; extern: bool = False; tool: bool = False; doc: str = ""
 @dataclass
 class OptChain(Node): target: Node; name: str; args: list; labels: list   # args None for a field
 @dataclass
@@ -301,6 +310,11 @@ class Parser:
             elif self.at("extern"):
                 self.next()
                 f = self.fn(extern=True)
+                items.append(f)
+            elif self.at("name") and self.tok.val == "tool" and self.toks[self.i + 1].kind == "fn":
+                doc = getattr(self.next(), "doc", "")  # the comment lines above become the model's description
+                f = self.fn()
+                f.tool, f.doc = True, doc
                 items.append(f)
             else:
                 items.append(self.struct() if self.at("struct") else self.enum() if self.at("enum") else self.fn())
@@ -1011,7 +1025,7 @@ class Fmt:
         ret = f" -> {f.ret}" if f.ret and f.ret != "void" else ""
         if f.extern:
             return self.emit(indent, f"extern fn {f.name}({self.params(f, indent)}){ret}", f.line)
-        self.emit(indent, f"fn {f.name}{self.tparams(f.tparams)}({self.params(f, indent)}){ret} {{", f.line)
+        self.emit(indent, f"{'tool ' if f.tool else ''}fn {f.name}{self.tparams(f.tparams)}({self.params(f, indent)}){ret} {{", f.line)
         self.block(f.body, indent + 2, f.line)
         self.lines.append(" " * indent + "}")
 
@@ -5035,7 +5049,7 @@ def load(src, path):
         uses_json |= any(t.kind == "name" and t.val in ("Json", "json_parse") for t in toks)
         uses_set |= any(t.kind == "name" and t.val in ("Set", "set_of") for t in toks)
         uses_result |= any(t.kind == "name" and t.val in ("Result", "attempt") for t in toks)
-        parsed = Parser(toks).program()
+        parsed = expand_tools(Parser(toks).program())
         if alias:
             parsed = qualify(parsed, alias)
             modules.add(alias)
@@ -5087,6 +5101,39 @@ def fetch_package(target, line):
         raise PlankError(line, f"cannot fetch {url}: not found, or no network; check the user, repo, tag and path")
     os.replace(target + ".part", target)
     print(f"plank: fetched {url}", file=sys.stderr)
+
+
+TOOL_ARG = {"str": ".str()", "int": ".int()", "float": ".num()", "bool": ".truth()"}
+
+
+def expand_tools(items):
+    """`tool fn f(a: int) -> str`: besides f, a function f_tool() that wraps it as an ai.Tool, with the schema read off the signature."""
+    ai = [it for it in items if isinstance(it, Import) and os.path.basename(it.path) == "ai.pk"]
+    out = []
+    for f in items:
+        out.append(f)
+        if not (isinstance(f, Fn) and f.tool):
+            continue
+        if not ai:
+            raise PlankError(f.line, 'tool fn needs import "lib/ai.pk" (it builds an ai.Tool)')
+        if f.defaults or f.tparams:
+            raise PlankError(f.line, "a tool fn takes no defaults or type parameters")
+        if f.ret not in ("str", "int", "float", "bool"):
+            raise PlankError(f.line, f"a tool fn returns str, int, float or bool, not {f.ret}")
+        for n, t in f.params:
+            if t not in TOOL_ARG:
+                raise PlankError(f.line, f"tool fn parameter {n} is {t}; the model can pass str, int, float or bool")
+        p = f"{ai[0].alias}." if ai[0].alias else ""
+        q = lambda x: json.dumps(x, ensure_ascii=False)
+        schema = ", ".join(f"{q(n)}: {q(t)}" for n, t in f.params) or ":"
+        call = f"{f.name}(" + ", ".join(f'args.get({q(n)}){TOOL_ARG[t]}' for n, t in f.params) + ")"
+        if f.ret != "str":
+            call = f"str({call})"
+        src = f"fn {f.name}_tool() -> {p}Tool {{ return {p}tool({q(f.name)}, {q(f.doc or f.name)}, [{schema}], fn(args: Json) -> str {{ return {call} }}) }}"
+        parser = Parser(lex(src, f.line))
+        parser.aliases = {ai[0].alias} if ai[0].alias else set()
+        out += parser.program()
+    return out
 
 
 def qualify(items, alias):

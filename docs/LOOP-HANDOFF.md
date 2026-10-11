@@ -6,11 +6,11 @@ A `/loop` that keeps Plank growing one release at a time, comparing it row by ro
 
 ## Where things stand
 
-4.1.1 made integer `/` and `%` by zero stop with a line number (catchable). 4.1.0 added `lib/ai.pk` (model, prompt, ask, tool, agent with file memory; mock model for tests). 4.0.0 was the milestone: `Result<T>` and `?` on generic enums, packages fetched from GitHub, `plank doc`, on top of 3.0's modules, sets, dates and static builds. The scorecard is 56 rows, every one a yes. The suite is 170 checks and proves the docs name every built-in, keyword, method and command, that `plank doc` matches the built-ins exactly, that every file is formatted, that a static build runs, and that the REPL behaves. CI is green on macOS and Linux. Every tag has a GitHub release and the Homebrew formula `plank-lang` follows each one.
+4.2.0 added `tool fn` (schema from the signature, description from the comment above). 4.1.1 made integer `/` and `%` by zero stop with a line number (catchable). 4.1.0 added `lib/ai.pk` (model, prompt, ask, tool, agent with file memory; mock model for tests). 4.0.0 was the milestone: `Result<T>` and `?` on generic enums, packages fetched from GitHub, `plank doc`, on top of 3.0's modules, sets, dates and static builds. The scorecard is 57 rows, every one a yes. The suite is 170 checks and proves the docs name every built-in, keyword, method and command, that `plank doc` matches the built-ins exactly, that every file is formatted, that a static build runs, and that the REPL behaves. CI is green on macOS and Linux. Every tag has a GitHub release and the Homebrew formula `plank-lang` follows each one.
 
 ## Next, in order
 
-0. AI: a `tool fn` form that builds the schema from the signature, `ask` as a built-in, tool calling for local models (OpenAI format), then Turing as the default local backend.
+0. AI: `ask` as a built-in, tool calling for local models (OpenAI format), then Turing as the default local backend.
 1. Threads: `spawn` and `join` on pthreads, with the collector stopping the world; the biggest piece left, do it first with a fresh session
 2. Joshua Tree: a freestanding target with no libc, for scripts that run on the kernel
 3. `plank fmt` for comments inside expressions, the one place it still moves them

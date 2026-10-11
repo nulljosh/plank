@@ -1,0 +1,23 @@
+# tool fn: the compiler reads the signature, so the model's schema never drifts from the code.
+import "../lib/ai.pk" as ai
+
+# Adds two whole numbers
+tool fn add(a: int, b: int) -> int {
+  return a + b
+}
+
+# Says hello to someone
+tool fn greet(name: str, loud: bool) -> str {
+  if loud {
+    return "HELLO " + name.upper()
+  }
+  return "hello " + name
+}
+
+fn main() {
+  print(add_tool().schema().text())
+  print(greet_tool().schema().text())
+  let bot = ai.agent(ai.mock(), [add_tool(), greet_tool()])
+  print(bot.run("use add {\"a\": 20, \"b\": 22}"))
+  print(bot.run("use greet {\"name\": \"ada\", \"loud\": true}"))
+}

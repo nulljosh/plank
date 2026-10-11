@@ -445,4 +445,16 @@ print(m.ask(q))                                               # the text, or a t
 
 Models: `ai.model(name, system = "")` is Anthropic, `ai.local(name, url, system = "")` is any OpenAI-compatible server (oMLX, Ollama, Turing), and `ai.mock()` needs no network: it answers `echo: <question>`, and `use NAME {json}` makes it call that tool, so tests stay byte-stable.
 
+`tool fn` writes the tool for you. Put `tool` before a top-level `fn` whose parameters and result are `str`, `int`, `float` or `bool`, and the comment lines right above it become the model's description:
+
+```
+# Adds two whole numbers
+tool fn add(a: int, b: int) -> int {
+  return a + b
+}
+let bot = ai.agent(m, [add_tool()])
+```
+
+Besides `add`, the compiler defines `add_tool()`, which returns the `ai.Tool` with its schema read off the signature, so the schema cannot drift from the code. It needs `import "lib/ai.pk"` in the same file (with or without `as`), and a tool fn takes no defaults or type parameters. Without a comment the name is the description.
+
 Tools and agents: `ai.tool(name, about, params, run)` is a function the model may call; `params` maps each argument name to `"str"`, `"int"`, `"float"` or `"bool"`, `run` takes the arguments as `Json` and returns text, and `t.schema()` is the JSON schema the model is shown. `ai.agent(m, [tools], memory = "")` returns an `Agent`; `a.run(task)` asks, runs the tools the model called, hands back the results, and repeats until the model answers in plain text, or throws after `max_steps` (10). A tool that throws, or a name the agent does not have, goes back to the model as an error result instead of stopping the run. `memory` is a file: the whole conversation is saved there after each run and loaded at the start of the next. Tools and agents need an Anthropic model or the mock; a local model only does `ask` for now.
