@@ -1,0 +1,8 @@
+# Integer division and remainder by zero stop the program, or land in the nearest catch.
+fn main() {
+  let z = int("0")
+  assert(attempt(fn() => 1 / z).error() == "division by zero", "/ by zero")
+  assert(attempt(fn() => 1 % z).error() == "division by zero", "% by zero")
+  assert(7 / 2 == 3 and 7 % 2 == 1 and 1.0 / 0.0 > 1e300, "ordinary division is untouched")
+  print("ok")
+}

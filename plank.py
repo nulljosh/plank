@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "4.1.0"
+VERSION = "4.1.1"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -2220,6 +2220,8 @@ void pk_index_panic(const char *file, long long line, long long i, long long len
     pk_panic(file, line, msg);
 }
 
+void pk_div_panic(const char *file, long long line) { pk_panic(file, line, "division by zero"); }
+
 char *pk_input(const char *prompt) {
     pk_hold++;
     fputs(prompt, stdout);
@@ -4288,6 +4290,10 @@ enum Json {
                 raise PlankError(e.line, f"cannot compare {lt} with {e.op}")
             return b.icmp_signed(e.op, lhs, rhs), "bool"
         if lt == "int":
+            if e.op in ("/", "%"):
+                with b.if_then(b.icmp_signed("==", rhs, ir.Constant(rhs.type, 0)), likely=False):
+                    b.call(self.c("pk_div_panic", ir.VoidType(), LL["str"], LL["int"]), self.where(e.line))
+                    b.unreachable()
             return getattr(b, INT_OPS[e.op])(lhs, rhs), lt
         if lt == "float":
             return getattr(b, FLOAT_OPS[e.op])(lhs, rhs), lt
