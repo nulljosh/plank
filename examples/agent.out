@@ -1,0 +1,5 @@
+{"name":"add","description":"Adds two whole numbers","input_schema":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"]}}
+done: 42
+done: no tool called nope
+done: it broke
+echo: just chatting

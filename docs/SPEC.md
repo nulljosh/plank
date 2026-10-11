@@ -435,4 +435,14 @@ Exit code 1 is a Plank error, at compile time or a runtime one like a bad `int("
 
 ## AI (lib/ai.pk)
 
-`import "lib/ai.pk" as ai` makes a model scriptable. `ai.model("claude-haiku-5-5")` talks to Anthropic with the key in `ANTHROPIC_API_KEY`; `ai.local("qwen", "http://localhost:8000/v1")` talks to any OpenAI-compatible server (oMLX, Ollama, Turing); `ai.mock()` answers `echo: <question>` with no network, so tests stay byte-stable. `m.ask("question")` returns the text or throws with the server's words. `ai.prompt("Summarize {topic}", ["topic": "plank"])` fills `{holes}` in a template. A system prompt is the optional last argument of `model` and `local`. It is a plain Plank module: no compiler support yet, so the `tool` and `agent` forms come next.
+`import "lib/ai.pk" as ai` makes a model scriptable. It is a plain Plank module, so there is no new syntax yet.
+
+```
+let m = ai.model("claude-haiku-5-5", "Answer in one line.")   # Anthropic; key in ANTHROPIC_API_KEY
+let q = ai.prompt("Summarize {topic}", ["topic": "plank"])    # fills {holes} in a template
+print(m.ask(q))                                               # the text, or a throw with the server's words
+```
+
+Models: `ai.model(name, system = "")` is Anthropic, `ai.local(name, url, system = "")` is any OpenAI-compatible server (oMLX, Ollama, Turing), and `ai.mock()` needs no network: it answers `echo: <question>`, and `use NAME {json}` makes it call that tool, so tests stay byte-stable.
+
+Tools and agents: `ai.tool(name, about, params, run)` is a function the model may call; `params` maps each argument name to `"str"`, `"int"`, `"float"` or `"bool"`, `run` takes the arguments as `Json` and returns text, and `t.schema()` is the JSON schema the model is shown. `ai.agent(m, [tools], memory = "")` returns an `Agent`; `a.run(task)` asks, runs the tools the model called, hands back the results, and repeats until the model answers in plain text, or throws after `max_steps` (10). A tool that throws, or a name the agent does not have, goes back to the model as an error result instead of stopping the run. `memory` is a file: the whole conversation is saved there after each run and loaded at the start of the next. Tools and agents need an Anthropic model or the mock; a local model only does `ask` for now.

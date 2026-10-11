@@ -1,0 +1,22 @@
+# lib/ai.pk: the mock model, prompt templates, tools, and an agent with memory.
+import "../lib/ai.pk" as ai
+
+fn main() {
+  let m = ai.mock()
+  assert(m.ask("hi") == "echo: hi", "mock echoes")
+  assert(ai.prompt("{a} and {b}", ["a": "x", "b": "y"]) == "x and y", "prompt fills holes")
+  let add = ai.tool("add", "Adds", ["a": "int", "b": "int"], fn(args) => str(args.get("a").int() + args.get("b").int()))
+  let boom = ai.tool("boom", "Fails", [:], fn(args) -> str {
+    throw "it broke"
+  })
+  assert(len(add.schema().get("input_schema").get("required").items()) == 2, "schema lists required params")
+  let mem = "/tmp/plank-agent-test.json"
+  remove_file(mem)
+  let bot = ai.agent(m, [add, boom], mem)
+  assert(bot.run("use add {\"a\": 1, \"b\": 2}") == "done: 3", "tool result reaches the model")
+  assert(bot.run("use nope {}") == "done: no tool called nope", "unknown tool is an error result")
+  assert(bot.run("use boom {}").starts_with("done: "), "a throwing tool does not stop the agent")
+  assert(len(json_parse(read_file(mem) ?? "[]").items()) == 12, "memory keeps every message across runs")
+  remove_file(mem)
+  print("ok")
+}

@@ -44,13 +44,13 @@ caught: int() got text that is not a whole number
 
 Most language tutorials stop at a tree-walking interpreter. Plank skips the interpreter and goes straight to machine code, so what you build on day one is what a real compiler builds, just smaller.
 
-4.0 has what you reach for in Python, Ruby or Swift: strings with interpolation and regular expressions, lists, dicts, sets and tuples, structs and enums with methods and type parameters, an exhaustive `match`, optionals with `if let` and `?.`, `Result` with `?`, closures with `map` and `filter`, generics, modules and packages straight from GitHub, dates, files and folders, shell, JSON and HTTP, C functions by name, and `try` and `catch` for every runtime error. A garbage collector frees what you stop using. A REPL, a formatter, a test runner, `plank doc` and static builds come with it. `docs/COMPARE.md` keeps score: 55 of 55, every row a yes.
+4.1 has what you reach for in Python, Ruby or Swift: strings with interpolation and regular expressions, lists, dicts, sets and tuples, structs and enums with methods and type parameters, an exhaustive `match`, optionals with `if let` and `?.`, `Result` with `?`, closures with `map` and `filter`, generics, modules and packages straight from GitHub, dates, files and folders, shell, JSON and HTTP, models, tools and agents (`lib/ai.pk`), C functions by name, and `try` and `catch` for every runtime error. A garbage collector frees what you stop using. A REPL, a formatter, a test runner, `plank doc` and static builds come with it. `docs/COMPARE.md` keeps score: 56 of 56, every row a yes.
 
 ## What you can build
 
 `apps/` holds real programs, each run by the test suite on every push:
 
-- `agent.pk`, a tool-using agent loop: ask a model over HTTP, run the tool it names, feed the result back. The shape of a Samantha or Joshua Tree script.
+- `agent.pk`, a tool-using agent loop written by hand (`lib/ai.pk` is the same idea as a library, with `examples/agent.pk` showing it): ask a model over HTTP, run the tool it names, feed the result back. The shape of a Samantha or Joshua Tree script.
 - `calc.pk`, a calculator with its own tokenizer and recursive-descent parser. A language written in Plank.
 - `todo.pk`, a to-do list for the command line that saves to a file.
 - `wordfreq.pk`, the most common words in any text file.

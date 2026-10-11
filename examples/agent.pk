@@ -1,0 +1,15 @@
+# An agent: a model, a tool, a task. The mock model calls the tool, reads the result, and answers.
+import "../lib/ai.pk" as ai
+
+fn main() {
+  let add = ai.tool("add", "Adds two whole numbers", ["a": "int", "b": "int"], fn(args) => str(args.get("a").int() + args.get("b").int()))
+  let boom = ai.tool("boom", "Always fails", [:], fn(args) -> str {
+    throw "it broke"
+  })
+  print(add.schema().text())
+  let bot = ai.agent(ai.mock(), [add, boom])
+  print(bot.run("use add {\"a\": 2, \"b\": 40}"))
+  print(bot.run("use nope {}"))
+  print(bot.run("use boom {}"))
+  print(bot.run("just chatting"))
+}

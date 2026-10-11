@@ -4,6 +4,33 @@
 #   let m = ai.local("qwen", "http://localhost:8000/v1")   # any OpenAI-compatible server: oMLX, Ollama, Turing
 #   let m = ai.mock()                           # no network; answers "echo: <prompt>", for tests
 #   print(m.ask("Why is the sky blue?"))
+struct Tool {
+  name: str
+  about: str
+  params: [str: str]
+  run: fn(Json) -> str
+
+  # schema: what the model is told about this tool; params maps a name to str, int, float or bool.
+  fn schema() -> Json {
+    var props: [str: Json] = [:]
+    var needed: [Json] = []
+    for pair in self.params.items() {
+      var kind = "string"
+      if pair.1 == "int" {
+        kind = "integer"
+      } else if pair.1 == "float" {
+        kind = "number"
+      } else if pair.1 == "bool" {
+        kind = "boolean"
+      }
+      props[pair.0] = Json.object(["type": Json.string(kind)])
+      needed.append(Json.string(pair.0))
+    }
+    let shape = Json.object(["type": Json.string("object"), "properties": Json.object(props), "required": Json.array(needed)])
+    return Json.object(["name": Json.string(self.name), "description": Json.string(self.about), "input_schema": shape])
+  }
+}
+
 struct Model {
   name: str
   url: str = ""
@@ -13,39 +40,141 @@ struct Model {
 
   # ask: one question in, one answer out. Throws with the server's words when it fails.
   fn ask(question: str) -> str {
-    if self.name == "mock" {
-      return "echo: " + question
+    if self.url != "" {
+      return self.ask_openai(question)
     }
-    if self.url == "" {
-      return self.ask_anthropic(question)
-    }
-    return self.ask_openai(question)
+    return text_of(self.step([user(question)], []))
   }
 
-  fn ask_anthropic(question: str) -> str {
+  # step: the whole conversation so far in, the model's next content blocks out (Anthropic message shape).
+  fn step(history: [Json], tools: [Tool]) -> [Json] {
+    if self.name == "mock" {
+      return mock_step(history)
+    }
+    if self.url != "" {
+      throw "tools and agents need an Anthropic model or the mock for now; " + self.name + " is a local model"
+    }
     let key = env("ANTHROPIC_API_KEY") ?? ""
     if key == "" {
       throw "ANTHROPIC_API_KEY is not set"
     }
-    var body = "{\"model\":" + json_quote(self.name) + ",\"max_tokens\":4096,\"system\":" + json_quote(self.system)
-    body += ",\"messages\":[{\"role\":\"user\",\"content\":" + json_quote(question) + "}]}"
+    var body: [str: Json] = ["model": Json.string(self.name), "max_tokens": Json.number(4096.0), "messages": Json.array(history)]
+    if self.system != "" {
+      body["system"] = Json.string(self.system)
+    }
+    if len(tools) > 0 {
+      body["tools"] = Json.array(tools.map(fn(t) => t.schema()))
+    }
     let headers = ["x-api-key: " + key, "anthropic-version: 2023-06-01", "content-type: application/json"]
-    let reply = http("POST", "https://api.anthropic.com/v1/messages", body, headers)
+    let reply = http("POST", "https://api.anthropic.com/v1/messages", Json.object(body).text(), headers)
     if status() != 200 {
       throw "ask failed (\(status())): " + reply
     }
-    return json_parse(reply).get("content").at(0).get("text").str()
+    return json_parse(reply).get("content").items()
   }
 
   fn ask_openai(question: str) -> str {
-    var body = "{\"model\":" + json_quote(self.name) + ",\"messages\":[{\"role\":\"system\",\"content\":" + json_quote(self.system)
-    body += "},{\"role\":\"user\",\"content\":" + json_quote(question) + "}]}"
+    let messages = [Json.object(["role": Json.string("system"), "content": Json.string(self.system)]), user(question)]
+    let body = Json.object(["model": Json.string(self.name), "messages": Json.array(messages)]).text()
     let reply = http("POST", self.url + "/chat/completions", body, ["content-type: application/json"])
     if status() != 200 {
       throw "ask failed (\(status())): " + reply
     }
     return json_parse(reply).get("choices").at(0).get("message").get("content").str()
   }
+}
+
+# An agent is a model, some tools, and an optional memory file. run(task) loops: ask, run the tools the
+# model called, show it the results, until it answers in plain text.
+struct Agent {
+  model: Model
+  tools: [Tool] = []
+  memory: str = ""
+  max_steps: int = 10
+
+  fn run(task: str) -> str {
+    var history: [Json] = []
+    if self.memory != "" {
+      let saved = read_file(self.memory)
+      if let text = saved {
+        history = json_parse(text).items()
+      }
+    }
+    history.append(user(task))
+    var answer = ""
+    var done = false
+    var steps = 0
+    while not done {
+      if steps == self.max_steps {
+        throw "agent stopped after \(steps) steps without an answer"
+      }
+      steps += 1
+      let blocks = self.model.step(history, self.tools)
+      history.append(Json.object(["role": Json.string("assistant"), "content": Json.array(blocks)]))
+      let calls = blocks.filter(fn(b) => b.get("type").str() == "tool_use")
+      if len(calls) == 0 {
+        answer = text_of(blocks)
+        done = true
+      } else {
+        let results = calls.map(fn(c) => self.call(c))
+        history.append(Json.object(["role": Json.string("user"), "content": Json.array(results)]))
+      }
+    }
+    if self.memory != "" {
+      write_file(self.memory, Json.array(history).text())
+    }
+    return answer
+  }
+
+  # call: run one tool_use block; a throw or an unknown tool goes back to the model as an error result.
+  fn call(c: Json) -> Json {
+    let name = c.get("name").str()
+    var out = "no tool called " + name
+    var failed = true
+    for t in self.tools {
+      if t.name == name {
+        let f = t.run
+        let got = attempt(fn() => f(c.get("input")))
+        failed = got.error() != nil
+        out = got.error() ?? got.value()
+      }
+    }
+    return Json.object(["type": Json.string("tool_result"), "tool_use_id": c.get("id"), "content": Json.string(out), "is_error": Json.bool(failed)])
+  }
+}
+
+fn user(text: str) -> Json {
+  return Json.object(["role": Json.string("user"), "content": Json.string(text)])
+}
+
+# text_of: the plain text in a list of content blocks.
+fn text_of(blocks: [Json]) -> str {
+  return blocks.filter(fn(b) => b.get("type").str() == "text").map(fn(b) => b.get("text").str()).join("")
+}
+
+# mock_step: a model with no network. "use NAME {json}" calls that tool; a tool result comes back as "done: ..."; anything else echoes.
+fn mock_step(history: [Json]) -> [Json] {
+  let last = history[len(history) - 1].get("content")
+  var reply = Json.object(["type": Json.string("text"), "text": Json.string("echo: ")])
+  match last {
+    .string(s) {
+      if s.starts_with("use ") {
+        let parts = s.split(" ")
+        let args = s[5 + len(parts[1])..]
+        reply = Json.object(["type": Json.string("tool_use"), "id": Json.string("mock_1"), "name": Json.string(parts[1]), "input": json_parse(args)])
+      } else {
+        reply = Json.object(["type": Json.string("text"), "text": Json.string("echo: " + s)])
+      }
+    }
+    .array(items) {
+      reply = Json.object(["type": Json.string("text"), "text": Json.string("done: " + items.map(fn(r) => r.get("content").str()).join(" "))])
+    }
+    .null { }
+    .bool(b) { }
+    .number(n) { }
+    .object(fields) { }
+  }
+  return [reply]
 }
 
 fn model(name: str, system: str = "") -> Model {
@@ -58,6 +187,16 @@ fn local(name: str, url: str, system: str = "") -> Model {
 
 fn mock() -> Model {
   return Model("mock")
+}
+
+# tool: a function the model may call. params maps each argument name to str, int, float or bool.
+fn tool(name: str, about: str, params: [str: str], run: fn(Json) -> str) -> Tool {
+  return Tool(name, about, params, run)
+}
+
+# agent: a model with tools. memory is a file that keeps the conversation between runs.
+fn agent(m: Model, tools: [Tool], memory: str = "") -> Agent {
+  return Agent(m, tools, memory)
 }
 
 # prompt: fill {name} holes in a template from a dict, so a prompt is data you can keep and reuse.
