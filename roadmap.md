@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Next
-- [ ] AI: `ask` as a built-in, tools through Turing's server
+- [ ] AI: `ask` as a built-in; a live Anthropic tool turn once the API key has credit
 - [ ] Bump the Homebrew formula at each release from release.sh
 
 ## Ingested 2026-10-05

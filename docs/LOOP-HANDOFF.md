@@ -10,7 +10,7 @@ A `/loop` that keeps Plank growing one release at a time, comparing it row by ro
 
 ## Next, in order
 
-0. AI: `ask` as a built-in, then wire tools into Turing's server so `ai.turing()` can run agents (today it only answers).
+0. AI: `ask` as a built-in, then a live Anthropic tool turn once the key has credit.
 1. Threads: `spawn` and `join` on pthreads, with the collector stopping the world; the biggest piece left, do it first with a fresh session
 2. Joshua Tree: a freestanding target with no libc, for scripts that run on the kernel
 3. `plank fmt` for comments inside expressions, the one place it still moves them
@@ -19,7 +19,7 @@ A `/loop` that keeps Plank growing one release at a time, comparing it row by ro
 
 ## AI layer, where it stopped (2026-10-11)
 
-Shipped 4.1 to 4.6.1: `lib/ai.pk` (model, local, turing, mock, prompt, ask, ask_json, tool, agent with file memory and `keep`), `tool fn` in the compiler, OpenAI-format tools for local models, divide-by-zero fix. Stopped on purpose: the rest needs something outside this repo. Open items: (1) the Anthropic tool path has never run live, no API key was available, so run `examples/toolfn.pk` with a real `ANTHROPIC_API_KEY` and `ai.model("claude-haiku-5-5")` first; (2) Turing's server on port 8127 answers questions but has no tool calling, so `ai.turing()` cannot run agents until `turing/app/serve.py` handles `tools`; (3) `ask` as a built-in was skipped, the library call is the same length.
+Shipped 4.1 to 4.6.1: `lib/ai.pk` (model, local, turing, mock, prompt, ask, ask_json, tool, agent with file memory and `keep`), `tool fn` in the compiler, OpenAI-format tools for local models, divide-by-zero fix. Stopped on purpose: the rest needs something outside this repo. Open items: (1) the Anthropic tool path has never run live, no API key was available, so run `examples/toolfn.pk` with a real `ANTHROPIC_API_KEY` and `ai.model("claude-haiku-5-5")` first; (2) closed by design: Turing's server on port 8127 is a fixed answer pipeline that runs its own tools and ignores the caller's system prompt and tool list, so `ai.turing()` is for `ask` and an agent should use another model; (1b) the API key in `~/.config/joshuatree/anthropic.key` returned "credit balance is too low" on 2026-10-11, which proves the request and error path but not a full tool turn, so top up and rerun; (3) `ask` as a built-in was skipped, the library call is the same length.
 
 ## Restart prompt
 

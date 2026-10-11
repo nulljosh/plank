@@ -267,7 +267,7 @@ fn local(name: str, url: str, system: str = "") -> Model {
   return Model(name, url, system)
 }
 
-# turing: Joshua's own assistant, served on this Mac at port 8127 (turing/app/serve.py). It answers questions; tools are not wired to it yet.
+# turing: Joshua's own assistant, served on this Mac at port 8127 (turing/app/serve.py). It answers questions through its own pipeline and tools, and ignores a tool list on purpose, so use it for ask, not agents.
 fn turing(system: str = "") -> Model {
   return Model("turing", "http://localhost:8127/v1", system)
 }
