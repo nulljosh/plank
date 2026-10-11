@@ -50,6 +50,17 @@ struct Model {
     return text_of(self.step([user(question)], []))
   }
 
+  # ask_json: ask for JSON and get a Json value back. Code fences are stripped; if the reply still does not parse, the model is shown the error and gets one more try.
+  fn ask_json(question: str) -> Json {
+    let first = self.ask(question + "\n\nReply with only JSON, no other text.")
+    let got = attempt(fn() => json_parse(unfence(first)))
+    if got.error() == nil {
+      return got.value()
+    }
+    let again = self.ask(question + "\n\nYour last reply was not valid JSON (" + (got.error() ?? "") + "). Reply with only the JSON.")
+    return json_parse(unfence(again))
+  }
+
   # step: the whole conversation so far in, the model's next content blocks out (Anthropic message shape).
   fn step(history: [Json], tools: [Tool]) -> [Json] {
     if self.name == "mock" {
@@ -221,7 +232,7 @@ fn from_openai(msg: Json) -> [Json] {
   return blocks
 }
 
-# mock_step: a model with no network. "use NAME {json}" calls that tool; a tool result comes back as "done: ..."; anything else echoes.
+# mock_step: a model with no network. "use NAME {json}" calls that tool; "json X" answers X, for ask_json; a tool result comes back as "done: ..."; anything else echoes.
 fn mock_step(history: [Json]) -> [Json] {
   let last = history[len(history) - 1].get("content")
   var reply = Json.object(["type": Json.string("text"), "text": Json.string("echo: ")])
@@ -231,6 +242,8 @@ fn mock_step(history: [Json]) -> [Json] {
         let parts = s.split(" ")
         let args = s[5 + len(parts[1])..]
         reply = Json.object(["type": Json.string("tool_use"), "id": Json.string("mock_1"), "name": Json.string(parts[1]), "input": json_parse(args)])
+      } else if s.starts_with("json ") {
+        reply = Json.object(["type": Json.string("text"), "text": Json.string(s[5..].split("\n\n")[0])])
       } else {
         reply = Json.object(["type": Json.string("text"), "text": Json.string("echo: " + s)])
       }
@@ -271,6 +284,19 @@ fn tool(name: str, about: str, params: [str: str], run: fn(Json) -> str) -> Tool
 # agent: a model with tools. memory is a file that keeps the conversation between runs.
 fn agent(m: Model, tools: [Tool], memory: str = "", keep: int = 0) -> Agent {
   return Agent(m, tools, memory, 10, keep)
+}
+
+# unfence: the text with a surrounding ``` or ```json fence removed, as models like to add one.
+fn unfence(text: str) -> str {
+  var t = text.trim()
+  if t.starts_with("```") {
+    let nl = t.find("\n") ?? 0
+    t = t[nl + 1..]
+    if t.ends_with("```") {
+      t = t[..len(t) - 3]
+    }
+  }
+  return t.trim()
 }
 
 # trim: drop the oldest messages, but only cut where a turn starts (a user message that is plain text),

@@ -443,7 +443,9 @@ let q = ai.prompt("Summarize {topic}", ["topic": "plank"])    # fills {holes} in
 print(m.ask(q))                                               # the text, or a throw with the server's words
 ```
 
-Models: `ai.model(name, system = "")` is Anthropic, `ai.local(name, url, system = "")` is any OpenAI-compatible server (oMLX, Ollama, Turing), `ai.turing(system = "")` is Turing on this Mac (`localhost:8127`, answers questions; no tools yet), and `ai.mock()` needs no network: it answers `echo: <question>`, and `use NAME {json}` makes it call that tool, so tests stay byte-stable.
+`m.ask_json(question)` returns a `Json` value instead of text: it asks for only JSON, strips a code fence if the model adds one, and if the reply still does not parse it shows the model the error and tries once more before throwing.
+
+Models: `ai.model(name, system = "")` is Anthropic, `ai.local(name, url, system = "")` is any OpenAI-compatible server (oMLX, Ollama, Turing), `ai.turing(system = "")` is Turing on this Mac (`localhost:8127`, answers questions; no tools yet), and `ai.mock()` needs no network: it answers `echo: <question>`, `json X` answers X (for `ask_json`), and `use NAME {json}` makes it call that tool, so tests stay byte-stable.
 
 `tool fn` writes the tool for you. Put `tool` before a top-level `fn` whose parameters and result are `str`, `int`, `float` or `bool`, and the comment lines right above it become the model's description:
 

@@ -26,5 +26,9 @@ fn main() {
   assert(len(kept) == 4 and kept[0].get("role").str() == "user", "keep cuts at the start of a turn")
   assert(len(ai.trim(kept, 0)) == 4 and len(ai.trim(kept, 99)) == 4, "keep 0 or a big keep changes nothing")
   remove_file(mem)
+  assert(ai.unfence("```json\n{\"a\": 1}\n```") == "{\"a\": 1}" and ai.unfence("  [1]  ") == "[1]", "unfence strips a code fence")
+  assert(len(m.ask_json("json [1, 2, 3]").items()) == 3, "ask_json parses the reply")
+  assert(m.ask_json("json ```json\n{\"ok\": true}\n```").get("ok").truth(), "ask_json strips a fence")
+  assert(attempt(fn() => m.ask_json("not json")).error() != nil, "ask_json throws when the retry fails too")
   print("ok")
 }
