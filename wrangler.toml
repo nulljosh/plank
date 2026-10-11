@@ -8,5 +8,9 @@ directory = "./site"
 pattern = "plank.heyitsmejosh.com"
 custom_domain = true
 
+[[routes]]
+pattern = "plank.jaybulb.com"
+custom_domain = true
+
 [observability]
 enabled = true
