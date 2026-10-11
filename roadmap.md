@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Next
-- [ ] AI: `ask` as a built-in, Turing as the default local backend (find its endpoint first)
+- [ ] AI: `ask` as a built-in, tools through Turing's server
 - [ ] Bump the Homebrew formula at each release from release.sh
 
 ## Ingested 2026-10-05

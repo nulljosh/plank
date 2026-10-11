@@ -18,5 +18,6 @@ fn main() {
   assert(wire[2].get("tool_calls").at(0).get("function").get("name").str() == "add", "tool_use becomes tool_calls")
   assert(wire[3].get("role").str() == "tool" and wire[3].get("tool_call_id").str() == "c1", "tool_result becomes a tool message")
   assert(add_tool().openai().get("function").get("parameters").get("type").str() == "object", "openai tool schema")
+  assert(ai.turing().url == "http://localhost:8127/v1" and ai.turing("x").system == "x", "turing is a local model on port 8127")
   print("ok")
 }

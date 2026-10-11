@@ -2,6 +2,7 @@
 #   import "lib/ai.pk" as ai
 #   let m = ai.model("claude-haiku-5-5")        # Anthropic, key from ANTHROPIC_API_KEY
 #   let m = ai.local("qwen", "http://localhost:8000/v1")   # any OpenAI-compatible server: oMLX, Ollama, Turing
+#   let m = ai.turing()                         # Turing on this Mac, port 8127
 #   let m = ai.mock()                           # no network; answers "echo: <prompt>", for tests
 #   print(m.ask("Why is the sky blue?"))
 struct Tool {
@@ -248,6 +249,11 @@ fn model(name: str, system: str = "") -> Model {
 
 fn local(name: str, url: str, system: str = "") -> Model {
   return Model(name, url, system)
+}
+
+# turing: Joshua's own assistant, served on this Mac at port 8127 (turing/app/serve.py). It answers questions; tools are not wired to it yet.
+fn turing(system: str = "") -> Model {
+  return Model("turing", "http://localhost:8127/v1", system)
 }
 
 fn mock() -> Model {
