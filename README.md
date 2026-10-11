@@ -46,6 +46,26 @@ Most language tutorials stop at a tree-walking interpreter. Plank skips the inte
 
 4.6 has what you reach for in Python, Ruby or Swift: strings with interpolation and regular expressions, lists, dicts, sets and tuples, structs and enums with methods and type parameters, an exhaustive `match`, optionals with `if let` and `?.`, `Result` with `?`, closures with `map` and `filter`, generics, modules and packages straight from GitHub, dates, files and folders, shell, JSON and HTTP, models, `tool fn` and agents (`lib/ai.pk`), C functions by name, and `try` and `catch` for every runtime error. A garbage collector frees what you stop using. A REPL, a formatter, a test runner, `plank doc` and static builds come with it. `docs/COMPARE.md` keeps score: 60 of 60, every row a yes.
 
+## Plank scripts intelligence
+
+Python scripts computers. Plank scripts intelligence. A model, a prompt, a tool and an agent are ordinary Plank in `lib/ai.pk`, and `tool fn` writes the tool for you by reading the signature and the comment above it:
+
+```
+import "lib/ai.pk" as ai
+
+# Adds two whole numbers
+tool fn add(a: int, b: int) -> int {
+  return a + b
+}
+
+fn main() {
+  let bot = ai.agent(ai.model("claude-haiku-5-5"), [add_tool()], "memory.json")
+  print(bot.run("What is 20 + 22?"))
+}
+```
+
+`ai.model` is Anthropic, `ai.local` is any OpenAI-compatible server (oMLX, Ollama), `ai.turing()` is Turing on this Mac, and `ai.mock()` runs with no network so tests stay the same on every machine. `m.ask_json(q)` gives back `Json`. Turing is the intelligence, Joshua Tree is the operating system, Plank is the language that connects them. See `examples/toolfn.pk` and the AI section of `docs/SPEC.md`.
+
 ## What you can build
 
 `apps/` holds real programs, each run by the test suite on every push:

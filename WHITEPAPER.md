@@ -48,6 +48,10 @@ A generic function is kept as a tree, not compiled. Each call works out the type
 
 `plank fmt` does not pattern-match text. It parses the file, then prints the tree in the house layout. Comments would be lost, so the lexer hands them over with their line numbers and the printer puts each one back before the first statement past it. A blank line survives where the source had one, by the same arithmetic. The formatter refuses any file it cannot print twice to the same text, which is how it checks itself.
 
+## Scripting intelligence
+
+The AI layer is a library, not a language feature, on purpose. A model is a struct with one method that matters, `step`: a conversation in, content blocks out. An agent is a loop over `step`. A tool is a closure plus a schema. The one thing a library cannot do is read a function's signature, so `tool fn` is the single compiler feature: it writes the schema from the parameters and the description from the comment above, and the schema cannot drift from the code. Everything else (Anthropic and OpenAI wire formats, file memory capped at a turn boundary, JSON answers with a retry, a mock model for byte-stable tests) stayed in `lib/ai.pk`, where it reads like any other Plank. The same rule that keeps the compiler in one file keeps the AI layer out of it.
+
 ## Where it stands
 
 4.6 does what Python, Ruby and Swift programs do every day: modules and packages from GitHub, Result and ?, sets, dates, files, regular expressions, generics over functions, structs and enums, C by name, models and agents as an ordinary library (`lib/ai.pk`) and `tool fn`, which reads a function's signature to tell the model how to call it, and errors you can catch, compiled to a native binary that can carry its libc with it. It frees its memory while running and ships with a REPL, a formatter, a test runner and its own built-in help. `docs/COMPARE.md` is the scorecard, 60 of 60. Each feature still has to earn its lines, and the file still has to read in a sitting.
