@@ -1,4 +1,4 @@
-# Plank loop handoff (2026-10-02, small hours)
+# Plank loop handoff (2026-10-11, small hours)
 
 ## What the loop is
 
@@ -6,11 +6,11 @@ A `/loop` that keeps Plank growing one release at a time, comparing it row by ro
 
 ## Where things stand
 
-4.6.0 added `ask_json` (JSON back, fence stripped, one retry). 4.5.0 added `keep` on `ai.agent` (memory capped at a turn boundary). 4.4.0 added `ai.turing()`, the model for Turing's own server (port 8127, OpenAI-compatible). 4.3.0 made agents work with local OpenAI-compatible models (oMLX, Ollama, Turing). 4.2.0 added `tool fn` (schema from the signature, description from the comment above). 4.1.1 made integer `/` and `%` by zero stop with a line number (catchable). 4.1.0 added `lib/ai.pk` (model, prompt, ask, tool, agent with file memory; mock model for tests). 4.0.0 was the milestone: `Result<T>` and `?` on generic enums, packages fetched from GitHub, `plank doc`, on top of 3.0's modules, sets, dates and static builds. The scorecard is 60 rows, every one a yes. The suite is 170 checks and proves the docs name every built-in, keyword, method and command, that `plank doc` matches the built-ins exactly, that every file is formatted, that a static build runs, and that the REPL behaves. CI is green on macOS and Linux. Every tag has a GitHub release and the Homebrew formula `plank-lang` follows each one.
+4.6.1 put the AI story on the README, landing and whitepaper. 4.6.0 added `ask_json` (JSON back, fence stripped, one retry). 4.5.0 added `keep` on `ai.agent` (memory capped at a turn boundary). 4.4.0 added `ai.turing()`, the model for Turing's own server (port 8127, OpenAI-compatible). 4.3.0 made agents work with local OpenAI-compatible models (oMLX, Ollama, Turing). 4.2.0 added `tool fn` (schema from the signature, description from the comment above). 4.1.1 made integer `/` and `%` by zero stop with a line number (catchable). 4.1.0 added `lib/ai.pk` (model, prompt, ask, tool, agent with file memory; mock model for tests). 4.0.0 was the milestone: `Result<T>` and `?` on generic enums, packages fetched from GitHub, `plank doc`, on top of 3.0's modules, sets, dates and static builds. The scorecard is 60 rows, every one a yes. The suite is 170 checks and proves the docs name every built-in, keyword, method and command, that `plank doc` matches the built-ins exactly, that every file is formatted, that a static build runs, and that the REPL behaves. CI is green on macOS and Linux. Every tag has a GitHub release and the Homebrew formula `plank-lang` follows each one.
 
 ## Next, in order
 
-0. AI: `ask` as a built-in, then a live Anthropic tool turn once the key has credit.
+0. AI: a live Anthropic tool turn once the key has credit (the loop is stopped on this; see below).
 1. Threads: `spawn` and `join` on pthreads, with the collector stopping the world; the biggest piece left, do it first with a fresh session
 2. Joshua Tree: a freestanding target with no libc, for scripts that run on the kernel
 3. `plank fmt` for comments inside expressions, the one place it still moves them
