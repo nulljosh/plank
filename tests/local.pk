@@ -1,0 +1,22 @@
+# Local models speak the OpenAI format: lib/ai.pk converts the conversation both ways.
+import "../lib/ai.pk" as ai
+
+# Adds two whole numbers
+tool fn add(a: int, b: int) -> int {
+  return a + b
+}
+
+fn main() {
+  let calls = ai.from_openai(json_parse("{\"content\": null, \"tool_calls\": [{\"id\": \"c1\", \"type\": \"function\", \"function\": {\"name\": \"add\", \"arguments\": \"{\\\"a\\\": 2, \\\"b\\\": 3}\"}}]}"))
+  assert(len(calls) == 1 and calls[0].get("type").str() == "tool_use", "a tool call becomes a tool_use block")
+  assert(calls[0].get("input").get("b").int() == 3, "arguments are parsed")
+  let said = ai.from_openai(json_parse("{\"content\": \"hi\"}"))
+  assert(ai.text_of(said) == "hi", "plain text becomes a text block")
+  let history = [ai.user("add 2 and 3"), Json.object(["role": Json.string("assistant"), "content": Json.array(calls)]), Json.object(["role": Json.string("user"), "content": Json.array([Json.object(["type": Json.string("tool_result"), "tool_use_id": Json.string("c1"), "content": Json.string("5")])])])]
+  let wire = ai.to_openai(history, "be brief")
+  assert(len(wire) == 4 and wire[0].get("role").str() == "system", "system first, then the messages")
+  assert(wire[2].get("tool_calls").at(0).get("function").get("name").str() == "add", "tool_use becomes tool_calls")
+  assert(wire[3].get("role").str() == "tool" and wire[3].get("tool_call_id").str() == "c1", "tool_result becomes a tool message")
+  assert(add_tool().openai().get("function").get("parameters").get("type").str() == "object", "openai tool schema")
+  print("ok")
+}

@@ -29,6 +29,12 @@ struct Tool {
     let shape = Json.object(["type": Json.string("object"), "properties": Json.object(props), "required": Json.array(needed)])
     return Json.object(["name": Json.string(self.name), "description": Json.string(self.about), "input_schema": shape])
   }
+
+  # openai: the same tool in the shape OpenAI-compatible servers want.
+  fn openai() -> Json {
+    let fnc = Json.object(["name": Json.string(self.name), "description": Json.string(self.about), "parameters": self.schema().get("input_schema")])
+    return Json.object(["type": Json.string("function"), "function": fnc])
+  }
 }
 
 struct Model {
@@ -40,9 +46,6 @@ struct Model {
 
   # ask: one question in, one answer out. Throws with the server's words when it fails.
   fn ask(question: str) -> str {
-    if self.url != "" {
-      return self.ask_openai(question)
-    }
     return text_of(self.step([user(question)], []))
   }
 
@@ -52,7 +55,7 @@ struct Model {
       return mock_step(history)
     }
     if self.url != "" {
-      throw "tools and agents need an Anthropic model or the mock for now; " + self.name + " is a local model"
+      return self.step_openai(history, tools)
     }
     let key = env("ANTHROPIC_API_KEY") ?? ""
     if key == "" {
@@ -73,14 +76,17 @@ struct Model {
     return json_parse(reply).get("content").items()
   }
 
-  fn ask_openai(question: str) -> str {
-    let messages = [Json.object(["role": Json.string("system"), "content": Json.string(self.system)]), user(question)]
-    let body = Json.object(["model": Json.string(self.name), "messages": Json.array(messages)]).text()
-    let reply = http("POST", self.url + "/chat/completions", body, ["content-type: application/json"])
+  # step_openai: the same step against an OpenAI-compatible server (oMLX, Ollama, Turing), converting both ways.
+  fn step_openai(history: [Json], tools: [Tool]) -> [Json] {
+    var body: [str: Json] = ["model": Json.string(self.name), "messages": Json.array(to_openai(history, self.system))]
+    if len(tools) > 0 {
+      body["tools"] = Json.array(tools.map(fn(t) => t.openai()))
+    }
+    let reply = http("POST", self.url + "/chat/completions", Json.object(body).text(), ["content-type: application/json"])
     if status() != 200 {
       throw "ask failed (\(status())): " + reply
     }
-    return json_parse(reply).get("choices").at(0).get("message").get("content").str()
+    return from_openai(json_parse(reply).get("choices").at(0).get("message"))
   }
 }
 
@@ -150,6 +156,65 @@ fn user(text: str) -> Json {
 # text_of: the plain text in a list of content blocks.
 fn text_of(blocks: [Json]) -> str {
   return blocks.filter(fn(b) => b.get("type").str() == "text").map(fn(b) => b.get("text").str()).join("")
+}
+
+# to_openai: Anthropic-shaped history as OpenAI chat messages; tool_use blocks become tool_calls, tool_result blocks become tool messages.
+fn to_openai(history: [Json], system: str) -> [Json] {
+  var out: [Json] = []
+  if system != "" {
+    out.append(Json.object(["role": Json.string("system"), "content": Json.string(system)]))
+  }
+  for m in history {
+    let role = m.get("role").str()
+    match m.get("content") {
+      .string(text) {
+        out.append(Json.object(["role": Json.string(role), "content": Json.string(text)]))
+      }
+      .array(blocks) {
+        if role == "assistant" {
+          var msg: [str: Json] = ["role": Json.string("assistant"), "content": Json.string(text_of(blocks))]
+          let calls = blocks.filter(fn(b) => b.get("type").str() == "tool_use")
+          if len(calls) > 0 {
+            msg["tool_calls"] = Json.array(calls.map(fn(c) => Json.object(["id": c.get("id"), "type": Json.string("function"), "function": Json.object(["name": c.get("name"), "arguments": Json.string(c.get("input").text())])])))
+          }
+          out.append(Json.object(msg))
+        } else {
+          for b in blocks {
+            out.append(Json.object(["role": Json.string("tool"), "tool_call_id": b.get("tool_use_id"), "content": b.get("content")]))
+          }
+        }
+      }
+      .null { }
+      .bool(b) { }
+      .number(n) { }
+      .object(fields) { }
+    }
+  }
+  return out
+}
+
+# from_openai: an OpenAI reply message as Anthropic-shaped content blocks.
+fn from_openai(msg: Json) -> [Json] {
+  var blocks: [Json] = []
+  match msg.get("content") {
+    .string(text) {
+      if text != "" {
+        blocks.append(Json.object(["type": Json.string("text"), "text": Json.string(text)]))
+      }
+    }
+    .null { }
+    .bool(b) { }
+    .number(n) { }
+    .array(items) { }
+    .object(fields) { }
+  }
+  if "tool_calls" in msg.keys() {
+    for c in msg.get("tool_calls").items() {
+      let f = c.get("function")
+      blocks.append(Json.object(["type": Json.string("tool_use"), "id": c.get("id"), "name": f.get("name"), "input": json_parse(f.get("arguments").str())]))
+    }
+  }
+  return blocks
 }
 
 # mock_step: a model with no network. "use NAME {json}" calls that tool; a tool result comes back as "done: ..."; anything else echoes.

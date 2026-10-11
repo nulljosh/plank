@@ -59,6 +59,7 @@ The goal: write the programs you would write in Python, Ruby or Swift, in Plank,
 | Help from the tool itself | help() | ri | Quick Help | `plank doc` (3.3) |
 | Scripting a language model | anthropic SDK | anthropic gem | none | `import "lib/ai.pk"`: model, prompt, ask (4.1) |
 | Tools from a signature | pydantic / decorators | none | none | `tool fn` (4.2) |
+| Local models with tools | openai SDK + base_url | ruby-openai | none | `ai.local` + `ai.agent`, any OpenAI-compatible server (4.3) |
 | Agents that call tools | LangChain | langchainrb | none | `ai.agent` with `ai.tool` and file memory (4.1) |
 | Tests in the language | unittest | minitest | XCTest | `assert` + `plank test` (1.3) |
 
@@ -66,4 +67,4 @@ Out of scope, on purpose: threads and async, a package manager, a JIT. Each is a
 
 ## Score
 
-57 of 57. Every row is a yes. The next rows are on `roadmap.md`; when one lands it joins the table.
+58 of 58. Every row is a yes. The next rows are on `roadmap.md`; when one lands it joins the table.
