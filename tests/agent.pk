@@ -18,5 +18,13 @@ fn main() {
   assert(bot.run("use boom {}").starts_with("done: "), "a throwing tool does not stop the agent")
   assert(len(json_parse(read_file(mem) ?? "[]").items()) == 12, "memory keeps every message across runs")
   remove_file(mem)
+  let short = ai.agent(m, [add], mem, 5)
+  short.run("use add {\"a\": 1, \"b\": 1}")
+  short.run("use add {\"a\": 2, \"b\": 2}")
+  short.run("use add {\"a\": 3, \"b\": 3}")
+  let kept = json_parse(read_file(mem) ?? "[]").items()
+  assert(len(kept) == 4 and kept[0].get("role").str() == "user", "keep cuts at the start of a turn")
+  assert(len(ai.trim(kept, 0)) == 4 and len(ai.trim(kept, 99)) == 4, "keep 0 or a big keep changes nothing")
+  remove_file(mem)
   print("ok")
 }

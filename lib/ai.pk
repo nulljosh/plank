@@ -98,13 +98,16 @@ struct Agent {
   tools: [Tool] = []
   memory: str = ""
   max_steps: int = 10
+  keep: int = 0
+
+  # 0 keeps everything; n keeps about the last n messages, cut at the start of a turn
 
   fn run(task: str) -> str {
     var history: [Json] = []
     if self.memory != "" {
       let saved = read_file(self.memory)
       if let text = saved {
-        history = json_parse(text).items()
+        history = trim(json_parse(text).items(), self.keep)
       }
     }
     history.append(user(task))
@@ -128,7 +131,7 @@ struct Agent {
       }
     }
     if self.memory != "" {
-      write_file(self.memory, Json.array(history).text())
+      write_file(self.memory, Json.array(trim(history, self.keep)).text())
     }
     return answer
   }
@@ -266,8 +269,44 @@ fn tool(name: str, about: str, params: [str: str], run: fn(Json) -> str) -> Tool
 }
 
 # agent: a model with tools. memory is a file that keeps the conversation between runs.
-fn agent(m: Model, tools: [Tool], memory: str = "") -> Agent {
-  return Agent(m, tools, memory)
+fn agent(m: Model, tools: [Tool], memory: str = "", keep: int = 0) -> Agent {
+  return Agent(m, tools, memory, 10, keep)
+}
+
+# trim: drop the oldest messages, but only cut where a turn starts (a user message that is plain text),
+# so a tool_result is never left without the tool_use that asked for it.
+fn trim(history: [Json], keep: int) -> [Json] {
+  if keep <= 0 or len(history) <= keep {
+    return history
+  }
+  var start = len(history) - keep
+  while start < len(history) and not turn_start(history[start]) {
+    start += 1
+  }
+  if start == len(history) {
+    start = len(history) - keep
+    while start > 0 and not turn_start(history[start]) {
+      start -= 1
+    }
+  }
+  return history[start..]
+}
+
+fn turn_start(m: Json) -> bool {
+  if m.get("role").str() != "user" {
+    return false
+  }
+  match m.get("content") {
+    .string(text) {
+      return true
+    }
+    .null { }
+    .bool(b) { }
+    .number(n) { }
+    .array(items) { }
+    .object(fields) { }
+  }
+  return false
 }
 
 # prompt: fill {name} holes in a template from a dict, so a prompt is data you can keep and reuse.
