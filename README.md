@@ -83,7 +83,7 @@ It is free and stays free. It exists to be read, forked and taught from.
 ## Install
 
 ```
-brew install nulljosh/plank/plank
+brew install nulljosh/tap/plank-lang
 ```
 
 Or clone the repo and run `./plank` straight from it. Either way you need a C compiler for linking (`cc`), and the first run fetches llvmlite by itself through `uv`.
