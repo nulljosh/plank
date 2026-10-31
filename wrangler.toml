@@ -5,10 +5,6 @@ compatibility_date = "2025-01-01"
 directory = "./site"
 
 [[routes]]
-pattern = "plank.heyitsmejosh.com"
-custom_domain = true
-
-[[routes]]
 pattern = "plank.jaybulb.com"
 custom_domain = true
 
