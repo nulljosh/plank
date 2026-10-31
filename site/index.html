@@ -30,7 +30,7 @@
   code { font-family: var(--font-code, ui-monospace, "SF Mono", Menlo, monospace); font-size: .9em; background: var(--color-code-bg, #f0f0f0); padding: .1em .35em; border-radius: 4px; }
 
   /* drifting planks behind everything */
-  #bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
+  #bg { position: fixed; top: 0; left: 0; width: 100%; height: 100lvh; z-index: -1; pointer-events: none; }  /* lvh: the phone address bar never resizes it */
 
   .sheet-rule { display: flex; align-items: center; gap: 16px; padding: 14px 20px 0; font-size: 13px; letter-spacing: .08em; font-variant: var(--caption, small-caps); font-weight: 500; color: var(--text2, rgba(26,26,26,.6)); white-space: nowrap; }
   .sheet-rule::before { content: ""; order: 1; flex: 1; height: 1px; background: var(--border, #e0e0e0); }
@@ -307,9 +307,9 @@ plank fmt</pre>
   var c = document.getElementById("bg"), ctx = c.getContext("2d"), planks = [], W, H;
   function ink() { return getComputedStyle(document.body).color; }
   function resize() {
-    var same = planks.length && c.width === innerWidth * devicePixelRatio;
-    W = c.width = innerWidth * devicePixelRatio; H = c.height = innerHeight * devicePixelRatio;
-    if (same) return;  // a phone's address bar changes the height on every scroll; keep the planks where they are
+    // a phone's address bar changes innerHeight on every scroll; only a width change redraws the field
+    if (planks.length && c.width === innerWidth * devicePixelRatio) return;
+    W = c.width = innerWidth * devicePixelRatio; H = c.height = c.clientHeight * devicePixelRatio;
     planks = [];
     for (var i = 0; i < 26; i++) planks.push({ x: Math.random() * W, y: Math.random() * H, w: (120 + Math.random() * 260) * devicePixelRatio, h: (10 + Math.random() * 14) * devicePixelRatio, v: (0.08 + Math.random() * 0.25) * devicePixelRatio * (Math.random() < 0.5 ? -1 : 1), a: 0.02 + Math.random() * 0.03 });
   }
