@@ -1,0 +1,22 @@
+/* Plank design tokens. Neutral paper and black ink; rust is the one colour Plank owns. The icon tile is ink (#1c1a17). */
+:root {
+  --accent: #a33d18;          /* links and focus; rust, AA on paper */
+  --accent-light: #b3461f;    /* gradient top, the window frame */
+  --accent-deep: #8f3517;     /* gradient bottom, the band */
+  --tile: #1c1a17;            /* icon tile */
+  --plank: #f3efe4;           /* icon glyph */
+  --bg: #fafafa;
+  --bg2: #f0f0f0;
+  --text: #1a1a1a;
+  --text2: rgba(26, 26, 26, .66);
+  --border: #e0e0e0;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --size-body: 17px;
+  --size-subhead: 15px;
+  --size-footnote: 13px;
+  --control: 48px;
+  --r-pill: 999px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --accent: #ff8a5c; --bg: #111110; --bg2: #1c1b19; --text: #f2f2f0; --text2: rgba(242, 242, 240, .66); --border: #2c2a27; }
+}

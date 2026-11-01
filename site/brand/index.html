@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plank brand kit</title>
+<meta name="description" content="Plank's mark, colour, type, space and components, in one page.">
+<meta name="theme-color" content="#ffffff">
+<link rel="icon" href="icon-1024.png">
+<style>
+@import url("https://jaybulb.com/tokens.css");
+@import url("tokens.css");
+/* written by make_brand_page.py; white paper in light mode, the shared tokens in dark */
+@media (prefers-color-scheme: light) { :root { --color-bg: #fff; --color-bg2: #f5f5f7; --color-hairline: #e5e5ea; } }
+:root { --a: #a33d18; --a-light: #b3461f; --a-deep: #8f3517; --a-solid: #a33d18; --a-link: #a33d18; --ink: var(--color-text, #1d1d1f); --paper: var(--color-bg, #fff); --surface: var(--color-bg2, #f5f5f7); --line: var(--color-hairline, #e5e5ea); --sub: var(--color-secondary, rgba(0,0,0,.64)); }
+@media (prefers-color-scheme: dark) { :root { --a-link: #b3461f; } }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 17px; line-height: 24px; color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased; }
+a { color: var(--a-link); }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+.nav { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 20px; background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid var(--line); }
+.nav a { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--ink); text-decoration: none; }
+.nav img { width: 28px; height: 28px; border-radius: 22.5%; }
+.nav .back { font-weight: 500; color: var(--sub); font-size: 15px; }
+.label { font-size: 13px; line-height: 16px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--sub); margin-bottom: 16px; }
+header { padding: 96px 0 64px; text-align: center; }
+h1 { font-size: clamp(44px, 7vw, 96px); line-height: .95; font-weight: 700; letter-spacing: -.035em; text-wrap: balance; }
+header p:last-child { max-width: 560px; margin: 24px auto 0; color: var(--sub); }
+section { padding: 64px 0; border-top: 1px solid var(--line); }
+h2 { font-size: clamp(32px, 4vw, 48px); line-height: 1; font-weight: 700; letter-spacing: -.03em; margin-bottom: 12px; }
+.intro { color: var(--sub); max-width: 620px; margin-bottom: 32px; }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.card { border: 1px solid var(--line); border-radius: 20px; padding: 24px; background: var(--paper); }
+.card small { display: block; color: var(--sub); font-size: 13px; line-height: 18px; margin-top: 8px; }
+code { font: 13px/18px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.marks { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 32px; }
+.marks figure { text-align: center; }
+.marks img { display: block; border-radius: 22.5%; margin: 0 auto 8px; }
+.marks figcaption { font-size: 13px; color: var(--sub); }
+.mark-on { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 32px; }
+.mark-on div { height: 160px; border-radius: 20px; display: grid; place-items: center; border: 1px solid var(--line); }
+.mark-on i { display: block; width: 112px; height: 112px; background: currentColor; -webkit-mask: url(mark.svg) center / contain no-repeat; mask: url(mark.svg) center / contain no-repeat; }
+.mark-on .on-accent { background: linear-gradient(var(--a-light), var(--a-deep)); color: #fff; border: 0; }
+.mark-on .on-paper { color: var(--a-link); }
+.sw { height: 96px; border-radius: 12px; margin-bottom: 12px; border: 1px solid var(--line); }
+.type p { border-bottom: 1px solid var(--line); padding: 16px 0; display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+.type p span:last-child { color: var(--sub); font-size: 13px; white-space: nowrap; }
+.t34 { font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: -.02em; } .t22 { font-size: 22px; line-height: 28px; font-weight: 600; } .t15 { font-size: 15px; line-height: 20px; } .t13 { font-size: 13px; line-height: 18px; }
+.space div { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; font-size: 13px; color: var(--sub); }
+.space b { display: block; height: 16px; background: var(--a); border-radius: 2px; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.btn { height: 48px; padding: 0 24px; border-radius: 999px; display: inline-flex; align-items: center; font-weight: 600; font-size: 17px; text-decoration: none; border: 1px solid var(--a-solid); white-space: nowrap; }
+.btn-solid { background: var(--a-solid); color: #ffffff; }
+.btn-ghost { background: var(--paper); color: var(--a-link); border-color: var(--a-link); }
+.btn:focus-visible { outline: 4px solid color-mix(in srgb, var(--a) 30%, transparent); outline-offset: 2px; }
+.list { margin-top: 32px; border: 1px solid var(--line); border-radius: 20px; overflow: hidden; max-width: 480px; }
+.list div { display: flex; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--paper); }
+.list div:last-child { border-bottom: 0; }
+.list span:last-child { color: var(--sub); }
+.tog { width: 51px; height: 31px; border-radius: 999px; background: var(--a-solid); position: relative; }
+.tog::after { content: ""; position: absolute; top: 2px; right: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; }
+.files a { display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; }
+.files a span:last-child { color: var(--sub); font-size: 15px; text-align: right; }
+.files a:hover span:first-child { color: var(--a-link); }
+footer { padding: 48px 0; text-align: center; font-size: 13px; color: var(--sub); border-top: 1px solid var(--line); }
+@media (max-width: 600px) { .mark-on { grid-template-columns: 1fr; } .type p { flex-direction: column; gap: 4px; } }
+.marks img { box-shadow: 0 0 0 1px var(--line); }
+</style>
+</head>
+<body>
+<nav class="nav" aria-label="Main"><a href="/"><img src="icon-1024.png" alt="">Plank</a><a class="back" href="/">Back to Plank</a></nav>
+<main class="wrap">
+  <header>
+    <p class="label">Plank, brand kit and design system</p>
+    <h1>One plank. Paper and ink.</h1>
+    <p>The mark, the colour, the type, the space and the parts the app is built from. Free to use when you write about Plank.</p>
+  </header>
+
+  <section aria-labelledby="mark-h">
+    <p class="label">The mark</p>
+    <h2 id="mark-h">The plank</h2>
+    <p class="intro">A cream plank on an ink tile, rings on the cut end. Rust is the only colour Plank owns.</p>
+    <div class="marks">
+      <figure><img src="icon-1024.png" width="160" height="160" alt="The Plank icon at 160 pixels"><figcaption>160</figcaption></figure>
+      <figure><img src="icon-1024.png" width="64" height="64" alt="The Plank icon at 64 pixels"><figcaption>64</figcaption></figure>
+      <figure><img src="icon-1024.png" width="29" height="29" alt="The Plank icon at 29 pixels"><figcaption>29</figcaption></figure>
+      <figure><img src="icon-1024.png" width="16" height="16" alt="The Plank icon at 16 pixels"><figcaption>16</figcaption></figure>
+    </div>
+    <div class="mark-on">
+      <div class="on-accent"><i role="img" aria-label="The glyph on the gradient tile"></i></div>
+      <div class="on-paper"><i role="img" aria-label="The glyph in the accent on paper"></i></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="colour-h">
+    <p class="label">Colour</p>
+    <h2 id="colour-h">One colour, and paper</h2>
+    <p class="intro">The accent is the only colour Plank owns. It marks actions, links and the icon. The rest is paper and ink, from the shared system.</p>
+    <div class="grid">
+      <div class="card"><div class="sw" style="background:#a33d18"></div><b>Accent</b><small><code>#a33d18</code>. Actions, links, focus.</small></div>
+      <div class="card"><div class="sw" style="background:#b3461f"></div><b>Accent light</b><small><code>#b3461f</code>. The top of the icon.</small></div>
+      <div class="card"><div class="sw" style="background:#8f3517"></div><b>Accent deep</b><small><code>#8f3517</code>. The foot of the icon.</small></div>
+      <div class="card"><div class="sw" style="background:linear-gradient(#b3461f,#8f3517)"></div><b>Icon gradient</b><small><code>#b3461f</code> to <code>#8f3517</code>, top to bottom.</small></div>
+      <div class="card"><div class="sw" style="background:#fff"></div><b>Paper</b><small><code>#ffffff</code> light, <code>#1c1a17</code> dark.</small></div>
+      <div class="card"><div class="sw" style="background:#f5f5f7"></div><b>Surface</b><small><code>#f5f5f7</code> light, <code>#26231f</code> dark.</small></div>
+      <div class="card"><div class="sw" style="background:#e5e5ea"></div><b>Hairline</b><small><code>#e5e5ea</code> light, <code>#3a352e</code> dark.</small></div>
+      <div class="card"><div class="sw" style="background:#1d1d1f"></div><b>Ink</b><small><code>#1d1d1f</code> light, <code>#f5f0e4</code> dark.</small></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="type-h">
+    <p class="label">Type</p>
+    <h2 id="type-h">The system font</h2>
+    <p class="intro">San Francisco on Apple, Helvetica or Arial elsewhere. No custom faces. Headlines bold and tight, everything else regular.</p>
+    <div class="type">
+      <p><span class="t34">One plank. Paper and ink.</span><span>34 / 41 bold</span></p>
+      <p><span class="t22">A section heading</span><span>22 / 28 semibold</span></p>
+      <p><span>Body copy sits at seventeen points with room to breathe.</span><span>17 / 24 body</span></p>
+      <p><span class="t15">Secondary lines and list values</span><span>15 / 20</span></p>
+      <p><span class="t13">Captions and labels</span><span>13 / 18</span></p>
+    </div>
+  </section>
+
+  <section aria-labelledby="space-h">
+    <p class="label">Space and shape</p>
+    <h2 id="space-h">An 8 point grid</h2>
+    <p class="intro">Padding, margin and gap come only from this scale. Side margin 20. Cards and groups 20 radius, controls fully round, the icon 22.5 percent.</p>
+    <div class="space">
+      <div><b style="width:4px"></b>4</div><div><b style="width:8px"></b>8</div><div><b style="width:12px"></b>12</div><div><b style="width:16px"></b>16</div>
+      <div><b style="width:24px"></b>24</div><div><b style="width:32px"></b>32</div><div><b style="width:48px"></b>48</div><div><b style="width:64px"></b>64</div><div><b style="width:96px"></b>96</div>
+    </div>
+  </section>
+
+  <section aria-labelledby="parts-h">
+    <p class="label">Components</p>
+    <h2 id="parts-h">The parts</h2>
+    <p class="intro">Controls are 48 point capsules, one height in a row. Focus is a 4 point ring at 30 percent accent. Settings live in inset grouped lists.</p>
+    <div class="row">
+      <a class="btn btn-solid" href="/">Back to Plank</a>
+      <a class="btn btn-ghost" href="/">Back to Plank</a>
+    </div>
+    <div class="list" aria-hidden="true">
+      <div><span>Notifications</span><span class="tog"></span></div>
+      <div><span>Appearance</span><span>Automatic</span></div>
+      <div><span>Version</span><span>Current</span></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="files-h">
+    <p class="label">Files</p>
+    <h2 id="files-h">Take what you need</h2>
+    <div class="files">
+      <a href="icon-1024.png" download><span>App icon, 1024 PNG</span><span>No alpha, App Store ready</span></a>
+      <a href="mark.svg" download><span>Glyph, SVG</span><span>currentColor, on your own background</span></a>
+      <a href="tokens.css" download><span>Tokens, CSS</span><span>The accent and its ring</span></a>
+      <a href="https://github.com/nulljosh/plank/blob/main/brand/BRAND.md"><span>BRAND.md</span><span>The same rules, as text</span></a>
+    </div>
+  </section>
+</main>
+<footer>Plank &middot; <a href="/">Home</a></footer>
+</body>
+</html>
