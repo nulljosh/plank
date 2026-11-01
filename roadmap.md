@@ -4,5 +4,5 @@
 - [ ] AI: a live Anthropic tool turn (run examples/toolfn.pk) once the API key has credit
 
 ## Ingested 2026-10-30
-- [ ] Needs a Hermes-style landing page. Confirm with Joshua before replacing the house landing.
+- [x] (11-01: house layout live, tagline H1, live compiler demo kept) Needs a Hermes-style landing page.
 - [ ] GitHub releases are stale

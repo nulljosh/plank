@@ -2,297 +2,165 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Plank, a compiled language you can read in an evening</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Plank. A compiled language you can read in an evening.</title>
 <meta name="description" content="A small compiled language whose whole compiler is one file. Structs, enums, closures, optionals, lists and dicts, compiled to native binaries through LLVM.">
-<meta property="og:title" content="Plank">
+<meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111110" media="(prefers-color-scheme: dark)">
+<meta property="og:title" content="Plank. A compiled language you can read in an evening.">
 <meta property="og:description" content="A compiled language you can read in an evening.">
 <meta property="og:image" content="https://plank.jaybulb.com/og.png">
 <meta property="og:url" content="https://plank.jaybulb.com/">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://plank.jaybulb.com/og.png">
+<link rel="canonical" href="https://plank.jaybulb.com/">
 <link rel="icon" href="icon.svg">
-<link rel="stylesheet" href="https://jaybulb.com/tokens.css">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="landing.css">
+<script src="landing.js" defer></script>
 <style>
-  /* Plank wears neutral paper, not the house cream. */
-  :root { --color-bg: #fafafa; --color-bg2: #f0f0f0; --color-text: #1a1a1a; --color-secondary: rgba(26,26,26,.6); --color-soft: rgba(26,26,26,.72); --color-hairline: #e0e0e0; --color-code-bg: #f0f0f0; --text3: rgba(26,26,26,.34); --shadow-lg: 0 12px 36px rgba(0,0,0,.1); }
-</style>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html { scroll-behavior: smooth; }
-  body { background: var(--bg, #fafafa); color: var(--text, #1a1a1a); font-family: var(--font-body, -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
-  a { color: inherit; }
-  ::selection { background: var(--bulb, #ffca30); color: var(--text, #1a1a1a); }
-  section.copy a { text-decoration: underline; text-decoration-color: var(--color-underline, rgba(179,70,31,.45)); text-underline-offset: 2px; }
-  section.copy a:hover { text-decoration-color: var(--color-underline-hover, #b3461f); }
-  h1, h2, h3 { text-wrap: balance; }
-  p { text-wrap: pretty; }
-  code { font-family: var(--font-code, ui-monospace, "SF Mono", Menlo, monospace); font-size: .9em; background: var(--color-code-bg, #f0f0f0); padding: .1em .35em; border-radius: 4px; }
-
-  /* drifting planks behind everything */
-  #bg { position: fixed; top: 0; left: 0; width: 100%; height: 100lvh; z-index: -1; pointer-events: none; }  /* lvh: the phone address bar never resizes it */
-
-  .sheet-rule { display: flex; align-items: center; gap: 16px; padding: 14px 20px 0; font-size: 13px; letter-spacing: .08em; font-variant: var(--caption, small-caps); font-weight: 500; color: var(--text2, rgba(26,26,26,.6)); white-space: nowrap; }
-  .sheet-rule::before { content: ""; order: 1; flex: 1; height: 1px; background: var(--border, #e0e0e0); }
-  .sheet-rule > :first-child { order: 0; }
-  .sheet-rule > :last-child { order: 2; }
-  .sheet-rule a { text-decoration: none; }
-  .sheet-rule a:hover { text-decoration: underline; }
-
-  .hero { text-align: center; padding: 96px 20px 56px; display: flex; flex-direction: column; align-items: center; }
-  .mark { width: 92px; height: 92px; color: var(--text, #1a1a1a); }
-  .hero h1 { font-size: clamp(2.6rem, 8vw, 5rem); line-height: 1.02; letter-spacing: -.035em; font-weight: 700; margin-top: 18px; }
-  .hero h1 .brand { display: block; }
-  .eyebrow { margin-top: 14px; font-size: 14px; font-variant: var(--caption, small-caps); letter-spacing: .08em; font-weight: 600; }
-  .eyebrow a { text-decoration: none; }
-  .lede { font-size: 1.2rem; color: var(--text2, rgba(26,26,26,.6)); max-width: 46ch; margin: 22px auto 0; }
-  .cta { margin-top: 28px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-  .btn { display: inline-block; padding: 10px 18px; border-radius: var(--radius-pill, 999px); border: 1px solid var(--text, #1a1a1a); text-decoration: none; font-size: .95rem; font-weight: 500; }
-  .btn.solid { background: var(--text, #1a1a1a); color: var(--bg, #fafafa); }
-  .btn:hover { opacity: .85; }
-
-  /* the demo: the product, fed by real compiler output */
-  .stage { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
-  .win { border: 1px solid var(--border2, #f0f0f0); border-radius: var(--radius-lg, 18px); background: var(--bg2, #f0f0f0); overflow: hidden; box-shadow: var(--shadow-lg, 0 12px 36px rgba(0,0,0,.1)); }
-  .bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border, #e0e0e0); }
-  .bar i { width: 11px; height: 11px; border-radius: 50%; background: var(--border2, #f0f0f0); }
-  .tabs { margin-left: 14px; min-width: 0; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
-  .tabs::-webkit-scrollbar { display: none; }
-  .tabs button, .mode button { font: inherit; font-size: .8rem; color: var(--color-soft, rgba(26,26,26,.72)); background: none; border: 0; padding: 4px 10px; border-radius: var(--radius-sm, 6px); cursor: pointer; white-space: nowrap; }
-  .tabs button[aria-selected="true"], .mode button[aria-pressed="true"] { color: var(--text, #1a1a1a); background: var(--border, #e0e0e0); }
-  .mode { margin-left: auto; display: flex; gap: 2px; }
-  .panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .pane { min-width: 0; }
-  .pane + .pane { border-left: 1px solid var(--border, #e0e0e0); }
-  .pane h2 { font-size: .8rem; font-variant: var(--caption, small-caps); letter-spacing: .06em; color: var(--text2, rgba(26,26,26,.6)); font-weight: 600; padding: 10px 16px 0; }
-  pre { font-family: var(--font-code, ui-monospace, "SF Mono", Menlo, monospace); font-size: .86rem; line-height: 1.55; padding: 10px 16px 16px; overflow: auto; white-space: pre; height: 26rem; tab-size: 4; }
-  .k { color: var(--text2, rgba(26,26,26,.6)); }
-  .cursor::after { content: ""; display: inline-block; width: .55em; height: 1em; background: var(--text, #1a1a1a); vertical-align: -.15em; animation: blink 1s steps(1) infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
-  .plate-cap { margin: 14px 0 0; text-align: center; font-size: 13px; letter-spacing: .08em; font-variant: var(--caption, small-caps); font-weight: 500; color: var(--text2, rgba(26,26,26,.6)); }
-
-  .wrap { max-width: 640px; margin: 0 auto; padding: 0 20px; }
-  .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; max-width: 760px; margin: 80px auto 0; padding: 0 20px; }
-  .fact { border: 1px solid var(--border, #e0e0e0); border-radius: var(--radius, 12px); padding: 16px 14px; background: var(--bg2, #f0f0f0); text-align: center; }
-  .fact b { display: block; font-size: 1.6rem; letter-spacing: -.03em; line-height: 1.1; }
-  .fact span { font-size: .8rem; color: var(--text2, rgba(26,26,26,.6)); }
-  section.copy { padding-top: 72px; }
-  section.copy h2 { font-size: 1.7rem; letter-spacing: -.025em; margin-bottom: 14px; }
-  section.copy p + p { margin-top: 14px; }
-  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 22px; }
-  .step { border-top: 2px solid var(--accent, #b3461f); padding-top: 10px; }
-  .step b { display: block; font-size: .95rem; }
-  .step span { font-size: .85rem; color: var(--text2, rgba(26,26,26,.6)); }
-  .apps { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 22px; }
-  .app { border: 1px solid var(--border, #e0e0e0); border-radius: var(--radius, 12px); background: var(--bg2, #f0f0f0); padding: 14px 16px; min-width: 0; }
-  .app h3 { font-size: .95rem; display: flex; justify-content: space-between; align-items: baseline; }
-  .app h3 a { font-size: .75rem; font-weight: 500; color: var(--text2, rgba(26,26,26,.6)); text-decoration: none; }
-  .app h3 a:hover { text-decoration: underline; }
-  .app p { font-size: .85rem; color: var(--text2, rgba(26,26,26,.6)); margin-top: 4px; }
-  .app pre { height: auto; max-height: 9.5rem; padding: 10px 0 0; font-size: .75rem; overflow: hidden; }
-  .run pre { height: auto; border: 1px solid var(--border2, #f0f0f0); border-radius: var(--radius, 12px); background: var(--bg2, #f0f0f0); padding: 14px 16px; margin-top: 14px; }
-  footer { margin: 96px 0 40px; }
-
-  .reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
-  .reveal.in { opacity: 1; transform: none; }
-
-  .sheet-rule a, .eyebrow a, .app h3 a { display: inline-block; padding: 12px 6px; margin: -12px -6px; }  /* a comfortable thumb target without moving the type */
-  @media (max-width: 720px) {
-    .hero { padding: 48px 16px 32px; }
-    .hero h1 { font-size: clamp(2.4rem, 12vw, 3.2rem); }
-    .lede { font-size: 1.05rem; }
-    .mark { width: 72px; height: 72px; }
-    .btn { padding: 13px 20px; min-height: 44px; }
-    .tabs button, .mode button { padding: 11px 12px; min-height: 44px; font-size: .9rem; }
-    .tabs { gap: 0; }
-    .bar { padding: 4px 8px; }
-    .stage { padding: 0 12px; }
-    .wrap { padding: 0 16px; }
-    .app pre { font-size: .8rem; }
-    .jb-signup input[type=email], .jb-signup button { min-height: 44px; }
-    .panes { grid-template-columns: minmax(0, 1fr); }  /* minmax keeps long IR lines from widening the page */
-    .pane + .pane { border-left: 0; border-top: 1px solid var(--border, #e0e0e0); }
-    pre { height: 15rem; }
-    .facts, .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .apps { grid-template-columns: minmax(0, 1fr); }
-    .mode { display: none; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .cursor::after { animation: none; }
-    .reveal { opacity: 1; transform: none; transition: none; }
-  }
-  /* Footer directory: four columns, two-by-two on phones. */
-  footer .foot-rule { display: flex; align-items: center; gap: 16px; max-width: 880px; margin: 0 auto; padding: 14px 20px 28px; font-size: 13px; letter-spacing: .06em; font-weight: 500; color: var(--text2, rgba(26,26,26,.6)); }
-  footer .foot-rule::before { content: ""; order: 1; flex: 1; height: 1px; background: var(--border, #e0e0e0); }
-  footer .foot-rule > :first-child { order: 0; }
-  footer .foot-rule > :last-child { order: 2; }
-  @media (max-width: 520px) { footer .foot-rule { flex-wrap: wrap; justify-content: center; gap: 10px 16px; } footer .foot-rule::before { order: -1; flex-basis: 100%; } }
-  .foot-dir { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px 24px; max-width: 880px; margin: 0 auto; padding: 0 20px 28px; text-align: left; }
-  .foot-col h3 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--text, #1a1a1a); letter-spacing: 0.02em; }
-  .foot-col ul { list-style: none; margin: 0; padding: 0; }
-  .foot-col a { position: relative; display: inline-block; padding: 5px 0; margin: 0; color: var(--text2, rgba(26,26,26,.6)); text-decoration: none; font-size: 13px; line-height: 1.35; }
-  .foot-col a::after { content: ""; position: absolute; top: 50%; left: 0; transform: translateY(-50%); width: 100%; height: 44px; min-width: 44px; }
-  .foot-col a:hover { color: var(--text, #1a1a1a); text-decoration: underline; }
-  .foot-bar { max-width: 880px; margin: 0 auto; padding: 18px 20px 0; border-top: 1px solid var(--border, #e0e0e0); }
-  .foot-bar .foot-meta { margin: 0; text-align: left; color: var(--text2, rgba(26,26,26,.6)); font-size: 12.5px; line-height: 1.9; }
-  .foot-bar .foot-meta a { color: var(--text2, rgba(26,26,26,.6)); }
-  @media (max-width: 700px) { .foot-dir { grid-template-columns: repeat(2, 1fr); } }
+.hero .mark { width: 56px; height: 56px; margin: 0 auto var(--sp-5); display: block; color: var(--text); }
+.facts { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--band-line); }
+.fact { padding: var(--sp-6); border-right: 1px solid var(--band-line); }
+.fact:last-child { border-right: 0; }
+.fact b { display: block; font-size: clamp(32px, 3.2vw, 48px); line-height: 1.05; font-weight: 700; letter-spacing: -.03em; }
+.fact span { display: block; margin-top: var(--sp-2); color: var(--band-sub); font-size: 15px; line-height: 22px; }
+@media (max-width: 900px) { .facts { grid-template-columns: 1fr 1fr; } .fact:nth-child(2) { border-right: 0; } .fact:nth-child(-n+2) { border-bottom: 1px solid var(--band-line); } }
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-4); margin-top: var(--sp-6); text-align: left; }
+.step { border-top: 2px solid var(--accent); padding-top: var(--sp-3); }
+.step b { display: block; }
+.step span { font-size: 15px; line-height: 22px; color: var(--sub); }
+@media (max-width: 720px) { .steps { grid-template-columns: 1fr 1fr; } }
 </style>
 </head>
-<body id="top">
-<canvas id="bg" aria-hidden="true"></canvas>
+<body>
 
-<div class="sheet-rule" aria-hidden="true"><span>Plank</span><span><a href="https://github.com/nulljosh/plank" tabindex="-1">GitHub</a></span></div>
-
-<main>
-
-<header class="hero">
-  <svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><defs><clipPath id="pkc"><path d="M3.00 45.29L3.00 38.38L14.97 45.29L14.97 52.20Z"/></clipPath><mask id="pk"><rect width="64" height="64" fill="#fff"/><g fill="none" stroke="#000" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.00 38.38L14.97 45.29L61.00 18.71M14.97 45.29L14.97 52.20"/><g clip-path="url(#pkc)"><circle cx="8.98" cy="53.58" r="7.26"/><circle cx="8.98" cy="53.58" r="10.71"/></g><path d="M10.56 36.36L32.47 23.71L35.81 22.35L38.77 21.21L41.36 20.29L43.56 19.59L45.38 19.11L46.82 18.85L47.89 18.80L48.57 18.98L48.88 19.37L48.80 19.99L48.34 20.82L47.51 21.87L46.29 23.14L44.70 24.63L42.72 26.34L40.37 28.27L23.98 37.74M19.36 32.94L31.51 25.92L33.23 25.22L34.76 24.64L36.09 24.16L37.22 23.80L38.16 23.55L38.91 23.42L39.45 23.39L39.81 23.48L39.96 23.69L39.92 24.00L39.69 24.43L39.26 24.98L38.63 25.63L37.81 26.40L36.79 27.28L35.58 28.27L28.95 32.10"/></g></mask></defs><path mask="url(#pk)" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M3.00 38.38L49.03 11.80L61.00 18.71L61.00 25.62L14.97 52.20L3.00 45.29Z"/></svg>
-  <h1>Introducing <span class="brand">Plank.</span></h1>
-  <p class="eyebrow"><a href="https://github.com/nulljosh/plank/releases">v<span id="ver">0.1</span></a></p>
-  <p class="lede">A compiled language you can read in an evening. One file turns structs, enums, closures, lists and dicts into a native binary. LLVM does the hard part. You get to read the rest.</p>
-  <div class="cta">
-    <a class="btn solid" href="#run">Run it</a>
-    <a class="btn" href="https://github.com/nulljosh/plank/blob/main/docs/SPEC.md">Read the reference</a>
+<header class="nav" aria-label="Site">
+  <nav class="nav-links" aria-label="Main">
+    <a href="#features">Why</a>
+    <a href="#build">Programs</a>
+  </nav>
+  <a class="nav-brand" href="#top" aria-label="Plank home"><img src="icon.svg" alt="" width="28" height="28"><span>Plank</span></a>
+  <div class="nav-end">
+    <a class="nav-get" href="https://github.com/nulljosh/plank">GitHub</a>
+    <a class="btn btn-solid" href="#run">Install</a>
   </div>
 </header>
 
-<div class="stage">
-  <div class="win" id="demo">
-    <div class="bar">
-      <i></i><i></i><i></i>
-      <div class="tabs" role="tablist" id="tabs"></div>
-      <div class="mode">
-        <button type="button" id="m-run" aria-pressed="true">plank run</button>
-        <button type="button" id="m-emit" aria-pressed="false">plank emit</button>
+<!-- Art, dithered to halftone dots by hand from public domain works via Wikimedia Commons: Pieter Bruegel the Elder,
+     The Tower of Babel (Kunsthistorisches Museum, Vienna) and The Little Tower of Babel (Boijmans, Rotterdam), and an
+     engraving of a mechanical Jacquard loom (Wellcome Collection, CC BY). -->
+<main id="top">
+<section class="hero">
+  <div class="wrap center">
+    <svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><defs><clipPath id="pkc"><path d="M3.00 45.29L3.00 38.38L14.97 45.29L14.97 52.20Z"/></clipPath><mask id="pk"><rect width="64" height="64" fill="#fff"/><g fill="none" stroke="#000" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.00 38.38L14.97 45.29L61.00 18.71M14.97 45.29L14.97 52.20"/><g clip-path="url(#pkc)"><circle cx="8.98" cy="53.58" r="7.26"/><circle cx="8.98" cy="53.58" r="10.71"/></g><path d="M10.56 36.36L32.47 23.71L35.81 22.35L38.77 21.21L41.36 20.29L43.56 19.59L45.38 19.11L46.82 18.85L47.89 18.80L48.57 18.98L48.88 19.37L48.80 19.99L48.34 20.82L47.51 21.87L46.29 23.14L44.70 24.63L42.72 26.34L40.37 28.27L23.98 37.74M19.36 32.94L31.51 25.92L33.23 25.22L34.76 24.64L36.09 24.16L37.22 23.80L38.16 23.55L38.91 23.42L39.45 23.39L39.81 23.48L39.96 23.69L39.92 24.00L39.69 24.43L39.26 24.98L38.63 25.63L37.81 26.40L36.79 27.28L35.58 28.27L28.95 32.10"/></g></mask></defs><path mask="url(#pk)" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M3.00 38.38L49.03 11.80L61.00 18.71L61.00 25.62L14.97 52.20L3.00 45.29Z"/></svg>
+    <p class="label">Plank <a href="https://github.com/nulljosh/plank/releases">v<span id="ver">0.1</span></a>, a compiled language</p>
+    <h1 class="hero-h1">A compiled language you can read in an evening.</h1>
+    <p class="lead">One file turns structs, enums, closures, lists and dicts into a native binary. LLVM does the hard part. You get to read the rest.</p>
+    <div class="cta">
+      <a class="btn btn-solid" href="#run">Install it</a>
+      <a class="btn btn-ghost" href="https://github.com/nulljosh/plank/blob/main/docs/SPEC.md">Read the reference</a>
+    </div>
+    <p class="fine">macOS and Linux. MIT licensed.</p>
+  </div>
+
+  <div class="demo-wrap reveal">
+    <div class="stage">
+      <div class="art stage-art" style="--img: url(art/littlebabel.png)" aria-hidden="true"></div>
+      <div class="win" id="demo">
+        <div class="bar">
+          <i></i><i></i><i></i>
+          <div class="tabs" role="tablist" id="tabs" aria-label="Examples"></div>
+          <div class="mode">
+            <button type="button" id="m-run" aria-pressed="true">plank run</button>
+            <button type="button" id="m-emit" aria-pressed="false">plank emit</button>
+          </div>
+        </div>
+        <div class="panes">
+          <div class="pane"><h2 id="srcname">fib.pk</h2><pre id="src" tabindex="0"></pre></div>
+          <div class="pane"><h2>Terminal</h2><pre id="term" tabindex="0"></pre></div>
+        </div>
       </div>
     </div>
-    <div class="panes">
-      <div class="pane"><h2 id="srcname">fib.pk</h2><pre id="src"></pre></div>
-      <div class="pane"><h2>Terminal</h2><pre id="term"></pre></div>
+    <p class="demo-hint">Real programs, real output, straight from the compiler.</p>
+  </div>
+</section>
+
+<section class="band" id="features">
+  <div class="band-head">
+    <div class="art band-art" style="--img: url(art/babel.png)" aria-hidden="true"></div>
+    <div class="band-copy reveal">
+      <p class="label">A language, built in the open</p>
+      <h2>The missing middle</h2>
+      <p>Real compilers are a hundred thousand lines. Tutorials stop before a binary comes out. Plank is a real compiler you can finish reading.</p>
     </div>
   </div>
-  <p class="plate-cap">Fig. 1 &middot; Real programs, real output, straight from the compiler</p>
-</div>
-
-<div class="facts reveal" aria-label="Plank in numbers">
+  <div class="facts reveal" aria-label="Plank in numbers">
   <div class="fact"><b>60/60</b><span>everyday things Python, Ruby and Swift do, all yes</span></div>
   <div class="fact"><b>1</b><span>file is the whole compiler</span></div>
   <div class="fact"><b>2</b><span>platforms, macOS and Linux</span></div>
   <div class="fact"><b>0.03s</b><span>to run fib(35) natively</span></div>
 </div>
-
-<section class="copy wrap reveal">
-  <h2>Python scripts computers. Plank scripts intelligence.</h2>
-  <p>A model, a prompt, a tool and an agent are ordinary Plank, not a framework. <code>tool fn</code> reads a function's signature and the comment above it and tells the model how to call it. An agent loops until the model answers in plain text, keeps its memory in a file, and runs the same on Anthropic, a local server, or Turing on this Mac.</p>
-  <p><code>import "lib/ai.pk" as ai</code>, then <code>ai.agent(ai.model("claude-haiku-5-5"), [add_tool()]).run("what is 20 + 22?")</code>. The mock model runs with no network, so the examples print the same on every machine. <a href="https://github.com/nulljosh/plank/blob/main/examples/toolfn.pk">examples/toolfn.pk</a>.</p>
-</section>
-
-<section class="copy wrap reveal">
-  <h2>Why it exists</h2>
-  <p>Building a language sounds like a year of work. Real compilers are a hundred thousand lines you will never finish reading. Tutorials stop right before the part where a binary comes out. Plank is the missing middle: a real compiler, native output, small enough that the whole thing fits in your head.</p>
-  <p>No interpreter, no bytecode. Source becomes LLVM IR, LLVM optimizes it, your system linker finishes the job. The same road a production compiler takes, in a much smaller car.</p>
-  <p>The design rules come from Paul Graham's Hackers and Painters: a language is for sketching, its power is how short programs get, and it should be a few ideas that generate the rest. <a href="https://github.com/nulljosh/plank/blob/main/docs/HACKERS-AND-PAINTERS.md">The summary and the eight rules</a>.</p>
-</section>
-
-<section class="copy wrap reveal">
-  <h2>How a program becomes a binary</h2>
-  <p>Four steps, each a plain function or class in the file, in the same order you read them.</p>
-  <div class="steps">
-    <div class="step"><b>Lex</b><span>One regex and a small string scanner turn text into tokens. Newlines end statements.</span></div>
-    <div class="step"><b>Parse</b><span>Recursive descent for statements, Pratt for expressions.</span></div>
-    <div class="step"><b>Generate</b><span>One walk emits LLVM IR and checks types as it goes.</span></div>
-    <div class="step"><b>Link</b><span>LLVM optimizes, your C compiler links against libc.</span></div>
+  <div class="frows">
+    <article class="frow reveal"><div class="art" style="--img: url(art/jacquard.png)" aria-hidden="true"></div><div><p class="label">AI in the language</p><h3>Python scripts computers. Plank scripts intelligence.</h3><p>A model, a prompt, a tool and an agent are ordinary Plank. <code>tool fn</code> reads a function and the comment above it and tells the model how to call it.</p></div></article>
+    <article class="frow reveal"><div class="art" style="--img: url(art/masons.png)" aria-hidden="true"></div><div><p class="label">No interpreter</p><h3>Source to a native binary</h3><p>Source becomes LLVM IR, LLVM optimizes it, your system linker finishes the job. The road a production compiler takes, in a much smaller car.</p></div></article>
+  </div>
+  <div class="cells">
+    <article class="cell reveal"><p class="label">Types</p><h3>Nothing behind your back</h3><p>Structs, enums, optionals, closures and generics. <code>match</code> refuses to forget a case.</p></article>
+    <article class="cell reveal"><p class="label">Strings and lists</p><h3>The everyday things</h3><p>Interpolation, slices, regex, <code>map</code>, <code>filter</code>, <code>sort(by:)</code> and packages from GitHub.</p></article>
+    <article class="cell reveal"><p class="label">Tools</p><h3>Around the language</h3><p>A REPL, <code>plank fmt</code>, <code>plank test</code> and <code>build --static</code>.</p></article>
   </div>
 </section>
 
-<section class="copy wrap reveal">
-  <h2>What is in the box</h2>
-  <p>int, float, bool, str, lists, dicts, tuples, structs, enums, optionals, closures and generics. <code>let</code> binds once, <code>var</code> can change, nothing converts behind your back. <code>match</code> refuses to forget a case. Every runtime error names the file and line and can be caught.</p>
-  <p>Strings that interpolate, split, slice and match regular expressions. <code>map</code>, <code>filter</code>, <code>sort(by:)</code>, <code>for i, x in xs</code>, <code>while let</code>, <code>?.</code>. Modules and packages from GitHub, <code>Result</code> with <code>?</code>, sets, dates, files and folders, arguments, shell, JSON, HTTP, and any C function by name with <code>extern fn</code>. A garbage collector, so a long-running program stays small.</p>
-  <p>Around the language: a REPL that only ever shows what a real binary printed, <code>plank fmt</code> so every file reads like the examples, <code>plank test</code> for test folders, one line to install, and <code>build --static</code> for a binary you can copy to any Linux box. The goal is a language that feels like Swift or Python and still reads in an evening.</p>
+<section class="sec" id="how">
+  <div class="wrap center">
+    <p class="label reveal">How it works</p>
+    <h2 class="reveal">Four steps, one file</h2>
+    <p class="body reveal">Each step is a plain function or class, in the order you read them. The design rules come from Paul Graham's <a href="https://github.com/nulljosh/plank/blob/main/docs/HACKERS-AND-PAINTERS.md">Hackers and Painters</a>.</p>
+    <div class="steps reveal">
+      <div class="step"><b>Lex</b><span>One regex and a small scanner turn text into tokens.</span></div>
+      <div class="step"><b>Parse</b><span>Recursive descent for statements, Pratt for expressions.</span></div>
+      <div class="step"><b>Generate</b><span>One walk emits LLVM IR and checks types as it goes.</span></div>
+      <div class="step"><b>Link</b><span>LLVM optimizes, your C compiler links against libc.</span></div>
+    </div>
+  </div>
 </section>
 
-<section class="copy wrap reveal" id="build">
-  <h2>What you can build</h2>
-  <p>Real programs from the repo. The test suite compiles and runs every one of them on every push, and the output under each is theirs.</p>
-  <div class="apps" id="apps"></div>
+<section class="sec plats" id="build">
+  <div class="wrap center">
+    <p class="label reveal">What you can build</p>
+    <h2 class="reveal">Programs it already runs</h2>
+    <p class="body reveal">The test suite compiles and runs every one of them on every push. The output under each is theirs.</p>
+    <div class="apps" id="apps"></div>
+  </div>
 </section>
 
-<section class="copy wrap run reveal" id="run">
-  <h2>Run it</h2>
-  <p>One line to install, or clone the repo and run it from there. Needs a C compiler for linking; the first run fetches llvmlite on its own.</p>
-<pre>brew install nulljosh/tap/plank-lang
+<section class="sec" id="run">
+  <div class="wrap center">
+    <p class="label reveal">Run it</p>
+    <h2 class="reveal">One line to install</h2>
+    <p class="body reveal">Or clone the repo and run it from there. It needs a C compiler for linking; the first run fetches llvmlite on its own.</p>
+<pre class="install reveal">brew install nulljosh/tap/plank-lang
 plank repl
 plank run examples/fib.pk
 plank build examples/fib.pk
 plank test
 plank fmt</pre>
+  </div>
 </section>
-
-<!-- Email capture. Posts to authmail.jaybulb.com/signup (Resend "General" audience). No JS: the Worker 303s back to #signed-up. -->
-<form class="jb-signup" action="https://authmail.jaybulb.com/signup" method="post">
-  <label for="jb-email">New apps and updates, no spam.</label>
-  <input id="jb-email" type="email" name="email" placeholder="you@example.com" autocomplete="email" required maxlength="254">
-  <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="jb-hp">
-  <button type="submit">Subscribe</button>
-  <p id="signed-up" class="jb-msg" role="status">You're on the list.</p>
-  <p id="signup-failed" class="jb-msg" role="status">That email didn't work. Try again?</p>
-</form>
-<style>
-.jb-signup{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:460px;margin:40px auto;padding:0 16px;font:inherit;color:inherit}
-.jb-signup label{flex-basis:100%;text-align:center;opacity:.7}
-.jb-signup input[type=email]{flex:1;min-width:200px;padding:10px 12px;border:1px solid currentColor;border-radius:var(--radius-md, 9px);background:transparent;color:inherit;font:inherit}
-.jb-signup button{padding:10px 16px;border:1px solid currentColor;border-radius:var(--radius-md, 9px);background:transparent;color:inherit;font:inherit;cursor:pointer}
-.jb-hp{position:absolute;left:-9999px;width:1px;height:1px}
-.jb-msg{display:none;flex-basis:100%;text-align:center;margin:4px 0 0}
-.jb-msg:target{display:block}
-</style>
-
 </main>
 
-<footer>
-  <div class="foot-rule" aria-hidden="true"><span>Plank</span><span>Read it in an evening</span></div>
-  <nav class="foot-dir" aria-label="Footer">
-    <div class="foot-col">
-      <h3>Plank</h3>
-      <ul>
-        <li><a href="https://github.com/nulljosh/plank/releases">Releases</a></li>
-        <li><a href="https://github.com/nulljosh/plank/blob/main/roadmap.md">Roadmap</a></li>
-        <li><a href="https://github.com/nulljosh/plank/blob/main/docs/COMPARE.md">Compared with other languages</a></li>
-        <li><a href="https://github.com/nulljosh/plank/blob/main/docs/HACKERS-AND-PAINTERS.md">Hackers and Painters</a></li>
-      </ul>
-    </div>
-    <div class="foot-col">
-      <h3>Explore</h3>
-      <ul>
-        <li><a href="#demo">Try it live</a></li>
-        <li><a href="#build">What you can build</a></li>
-        <li><a href="#run">Run it</a></li>
-      </ul>
-    </div>
-    <div class="foot-col">
-      <h3>Developers</h3>
-      <ul>
-        <li><a href="https://github.com/nulljosh/plank">Source</a></li>
-        <li><a href="https://github.com/nulljosh/plank/blob/main/docs/SPEC.md">Language spec</a></li>
-        <li><a href="https://github.com/nulljosh/plank/blob/main/docs/ARCHITECTURE.md">Architecture</a></li>
-        <li><a href="https://github.com/nulljosh/plank/blob/main/CONTRIBUTING.md">Contributing</a></li>
-        <li><a href="https://github.com/nulljosh/plank/issues">Report a bug</a></li>
-      </ul>
-    </div>
-    <div class="foot-col">
-      <h3>Project</h3>
-      <ul>
-        <li><a href="https://github.com/nulljosh/plank/blob/main/LICENSE">License (MIT)</a></li>
-        <li><a href="https://jaybulb.com">Portfolio</a></li>
-        <li><a href="#top">Back to top</a></li>
-      </ul>
-    </div>
-  </nav>
-  <div class="foot-bar">
-    <p class="foot-meta">Plank <span id="footver"></span> &middot; MIT License &middot; &copy; 2026 Joshua Trommel &middot; Made with <span aria-hidden="true">&hearts;</span> in Vancouver, BC</p>
+<footer class="foot">
+  <div class="foot-top">
+    <div class="foot-brand"><img src="icon.svg" alt="" width="40" height="40"><b>Plank</b><p>Read it in an evening. <span id="footver"></span></p></div>
+    <nav class="foot-cols" aria-label="Footer">
+      <div><p class="label">Plank</p><a href="https://github.com/nulljosh/plank/releases">Releases</a><a href="https://github.com/nulljosh/plank/blob/main/roadmap.md">Roadmap</a><a href="https://github.com/nulljosh/plank/blob/main/docs/COMPARE.md">Compared</a><a href="#run">Install</a></div>
+      <div><p class="label">Developers</p><a href="https://github.com/nulljosh/plank">Source</a><a href="https://github.com/nulljosh/plank/blob/main/docs/SPEC.md">Language spec</a><a href="https://github.com/nulljosh/plank/blob/main/docs/ARCHITECTURE.md">Architecture</a><a href="https://github.com/nulljosh/plank/blob/main/CONTRIBUTING.md">Contributing</a><a href="https://github.com/nulljosh/plank/issues">Report a bug</a></div>
+      <div><p class="label">More</p><a href="mailto:trommatic@icloud.com?subject=Plank">Feedback</a><a href="https://jaybulb.com">More projects</a><a href="#top">Back to top</a></div>
+    </nav>
   </div>
+  <div class="word-band" aria-hidden="true"><canvas class="word-canvas"></canvas></div>
+  <p class="legal">&copy; 2026 Joshua Trommel &middot; MIT License</p>
 </footer>
 
 <script src="demo.js"></script>
@@ -302,35 +170,6 @@ plank fmt</pre>
   var D = window.PLANK_DEMO || { version: "0.1", examples: [] };
   document.getElementById("ver").textContent = D.version;
   document.getElementById("footver").textContent = "v" + D.version;
-
-  // background: slow planks drifting, in the page's own ink at low alpha
-  var c = document.getElementById("bg"), ctx = c.getContext("2d"), planks = [], W, H;
-  function ink() { return getComputedStyle(document.body).color; }
-  function resize() {
-    // a phone's address bar changes innerHeight on every scroll; only a width change redraws the field
-    if (planks.length && c.width === innerWidth * devicePixelRatio) return;
-    W = c.width = innerWidth * devicePixelRatio; H = c.height = c.clientHeight * devicePixelRatio;
-    planks = [];
-    for (var i = 0; i < 26; i++) planks.push({ x: Math.random() * W, y: Math.random() * H, w: (120 + Math.random() * 260) * devicePixelRatio, h: (10 + Math.random() * 14) * devicePixelRatio, v: (0.08 + Math.random() * 0.25) * devicePixelRatio * (Math.random() < 0.5 ? -1 : 1), a: 0.02 + Math.random() * 0.03 });
-  }
-  function draw() {
-    ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = ink();
-    var sy = scrollY * devicePixelRatio * 0.15;
-    planks.forEach(function (p) {
-      p.x += p.v; if (p.x > W + p.w) p.x = -p.w; if (p.x < -p.w) p.x = W + p.w;
-      var y = ((p.y - sy) % (H + p.h) + H + p.h) % (H + p.h) - p.h;
-      ctx.globalAlpha = p.a; ctx.beginPath(); ctx.roundRect(p.x, y, p.w, p.h, p.h / 2); ctx.fill();
-    });
-    ctx.globalAlpha = 1;
-    if (!still) requestAnimationFrame(draw);
-  }
-  addEventListener("resize", resize); resize(); draw();
-  if (still) addEventListener("scroll", draw, { passive: true });
-
-  // reveal on scroll
-  var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }); }, { rootMargin: "0px 0px -10% 0px" });
-  document.querySelectorAll(".reveal").forEach(function (el) { io.observe(el); });
 
   // apps: name, what it is, and the first lines of its real output
   var appsEl = document.getElementById("apps");
@@ -387,5 +226,6 @@ plank fmt</pre>
   }
 })();
 </script>
+<script src="footer-band.js" defer></script>
 </body>
 </html>
