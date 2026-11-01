@@ -25,12 +25,12 @@
 .fact:last-child { border-right: 0; }
 .fact b { display: block; font-size: clamp(32px, 3.2vw, 48px); line-height: 1.05; font-weight: 700; letter-spacing: -.03em; }
 .fact span { display: block; margin-top: var(--sp-2); color: var(--band-sub); font-size: 15px; line-height: 22px; }
-@media (max-width: 900px) { .facts { grid-template-columns: 1fr 1fr; } .fact:nth-child(2) { border-right: 0; } .fact:nth-child(-n+2) { border-bottom: 1px solid var(--band-line); } }
+@media (max-width: 900px) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .fact:nth-child(2) { border-right: 0; } .fact:nth-child(-n+2) { border-bottom: 1px solid var(--band-line); } }
 .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-4); margin-top: var(--sp-6); text-align: left; }
 .step { border-top: 2px solid var(--accent); padding-top: var(--sp-3); }
 .step b { display: block; }
 .step span { font-size: 15px; line-height: 22px; color: var(--sub); }
-@media (max-width: 720px) { .steps { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 720px) { .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>
 </head>
 <body>
