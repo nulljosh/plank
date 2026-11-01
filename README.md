@@ -1,8 +1,6 @@
 <img src="icon.svg" width="80" alt="Plank logo" style="border-radius:18px">
 
-# Plank
-
-[![version](https://img.shields.io/github/v/release/nulljosh/plank?label=version&color=blue)](https://github.com/nulljosh/plank/releases) [![tests](https://img.shields.io/github/actions/workflow/status/nulljosh/plank/test.yml?label=tests)](https://github.com/nulljosh/plank/actions) ![license](https://img.shields.io/badge/license-MIT-green) ![one file](https://img.shields.io/badge/compiler-one%20file-black) [![scorecard](https://img.shields.io/badge/vs%20Python%2FRuby%2FSwift-23%2F23-brightgreen)](docs/COMPARE.md) [![GitHub](https://img.shields.io/badge/GitHub-nulljosh%2Fplank-black?logo=github)](https://github.com/nulljosh/plank)
+[![version](https://img.shields.io/github/v/release/nulljosh/plank?label=version&color=blue)](https://github.com/nulljosh/plank/releases) [![tests](https://img.shields.io/github/actions/workflow/status/nulljosh/plank/test.yml?label=tests)](https://github.com/nulljosh/plank/actions) ![license](https://img.shields.io/badge/license-MIT-green) ![one file](https://img.shields.io/badge/compiler-one%20file-black) [![scorecard](https://img.shields.io/badge/vs%20Python%2FRuby%2FSwift-23%2F23-brightgreen)](docs/COMPARE.md)
 
 **[plank.jaybulb.com →](https://plank.jaybulb.com)**
 
