@@ -5,4 +5,4 @@
 
 ## Ingested 2026-10-30
 - [x] (11-01: house layout live, tagline H1, live compiler demo kept) Needs a Hermes-style landing page.
-- [ ] GitHub releases are stale
+- [x] (11-01: v4.6.1 is the latest tag and release) GitHub releases are stale
