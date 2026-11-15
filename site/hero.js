@@ -1,13 +1,13 @@
-// Hero wall: Plank's real examples (demo.js, generated from examples/ by the compiler). Each card types a different
-// program, runs it, and shows the first lines of its real output. Never the same program twice at once.
+// Hero: one full-bleed Plank editor behind the copy. It types a real example (demo.js, generated from examples/ by
+// the compiler), runs it and shows its real output, then moves on to the next example. One surface, never a card wall.
 (function () {
   var wall = document.getElementById('kwall'), D = window.PLANK_DEMO; if (!wall || !D) return;
   var still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var n = innerWidth <= 560 ? 4 : innerWidth <= 900 ? 6 : 9;
+  var n = 1;
   // skip the comment header and blank lines, keep programs short enough to read on a card
   var ex = D.examples.filter(function (e) { return e.out && e.src; }).map(function (e) {
-    var lines = e.src.split('\n').filter(function (l) { return l.trim() && !/^#/.test(l.trim()); }).map(function (l) { return l.length > 46 ? l.slice(0, 45) + '…' : l; });
-    return { name: e.name, src: lines.slice(0, 7), out: e.out.split('\n').filter(Boolean).slice(0, 3) };
+    var lines = e.src.split('\n').filter(function (l) { return l.trim() && !/^#/.test(l.trim()); }).map(function (l) { return l.length > 64 ? l.slice(0, 63) + '…' : l; });
+    return { name: e.name, src: lines.slice(0, 12), out: e.out.split('\n').filter(Boolean).slice(0, 4) };
   });
   var m = Math.min(n, ex.length);
   var el = function (t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
@@ -26,7 +26,7 @@
   })(i);
 })();
 
-// Hero parallax: the wall drifts at 0.45, the copy lifts at 0.2 and fades. Off under reduced motion.
+// Hero parallax: the product layer drifts at 0.45, the copy lifts at 0.2 and fades. Off under reduced motion.
 (function () {
   var bg = document.querySelector('.hero-bg'), copy = document.querySelector('.hero-copy');
   if (!bg || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
