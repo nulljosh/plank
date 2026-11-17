@@ -16,3 +16,8 @@ Proven 2026-11-20: Apple `cc` compiles Plank's `plank emit` IR plus the C runtim
 - [ ] 4.12 everything else, until every example and app matches under both compilers
 - [ ] 5.0 fixed point: plank.py builds plank.pk (stage 1), stage 1 builds it (stage 2), stage 2 builds it (stage 3), stage 2 IR == stage 3 IR. Homebrew ships the native `plank`; the only dependency is a C compiler
 - After 5.0: threads, channels, any-key dicts, fmt comments inside expressions, freestanding target
+
+## Ingested 2026-11-16
+- [ ] (Note "Plank") Make the color more of a clrs.cc brown (https://clrs.cc), not red or burgundy.
+- [ ] (Plank) Next steps? /loop to the next major semver.
+- [ ] (Plank) Needs a starter's guide, book, documentation. Use No Starch programming books as inspiration: artwork, writing style and diagrams.
