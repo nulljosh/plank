@@ -10,12 +10,7 @@ A `/loop` that keeps Plank growing one release at a time, comparing it row by ro
 
 ## Next, in order
 
-0. AI: a live Anthropic tool turn once the key has credit (the loop is stopped on this; see below).
-1. Threads: `spawn` and `join` on pthreads, with the collector stopping the world; the biggest piece left, do it first with a fresh session
-2. Joshua Tree: a freestanding target with no libc, for scripts that run on the kernel
-3. `plank fmt` for comments inside expressions, the one place it still moves them
-4. A `Map<K, V>` with any key type, on top of a hash function per type
-5. `async`-free concurrency the other way: a `channel<T>` once threads exist
+Self-hosting is 5.0; the steps are in `roadmap.md` under "5.0: its own compiler" (4.8 lexer, 4.9 parser, 4.10 to 4.12 codegen, 5.0 fixed point). It needs no new language features. Threads, channels, any-key dicts, fmt comments and the freestanding target move after 5.0.
 
 ## AI layer, where it stopped (2026-10-11)
 

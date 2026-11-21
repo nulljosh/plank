@@ -8,4 +8,11 @@
 ## Ingested 2026-11-14
 
 ## 5.0: its own compiler
-- [ ] Self-hosting: `plank.pk`, the compiler written in Plank, emitting LLVM IR as text and handing it to `llc` and `cc`. Bootstrap: `plank.py` compiles `plank.pk`, then `plank.pk` compiles itself and the two outputs must match. Start from `apps/calc.pk` (tokenizer and parser already in Plank)
+Proven 2026-11-20: Apple `cc` compiles Plank's `plank emit` IR plus the C runtime with output identical to plank.py's build (fib, closures, structs, enums, optionals, collections, results), and recursive enums work, so an AST fits in Plank. A compiler written in Plank only has to print IR text and call `cc`: no Python, uv or llvmlite.
+- [ ] 4.8 `compiler/plank.pk` lexer: tokens match plank.py's `lex` on every example (test.py diffs them)
+- [ ] 4.9 parser: an AST that prints the same as plank.py's for every example
+- [ ] 4.10 codegen subset: ints, strings, functions, if, while, for; hello, fib, fizzbuzz, primes match their `.out`
+- [ ] 4.11 structs, enums, match, optionals, lists, dicts, closures, the collector
+- [ ] 4.12 everything else, until every example and app matches under both compilers
+- [ ] 5.0 fixed point: plank.py builds plank.pk (stage 1), stage 1 builds it (stage 2), stage 2 builds it (stage 3), stage 2 IR == stage 3 IR. Homebrew ships the native `plank`; the only dependency is a C compiler
+- After 5.0: threads, channels, any-key dicts, fmt comments inside expressions, freestanding target
