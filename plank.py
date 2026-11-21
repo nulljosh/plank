@@ -1,7 +1,10 @@
 #!/usr/bin/env -S uv run --script
 # /// script
-# requires-python = ">=3.10"
-# dependencies = ["llvmlite>=0.44"]
+# requires-python = ">=3.10,<3.14"
+# dependencies = [
+#   "llvmlite>=0.44; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+#   "llvmlite>=0.44,<0.46; sys_platform == 'darwin' and platform_machine == 'x86_64'",  # Intel Macs: last wheels
+# ]
 # ///
 """Plank: a small compiled language. Lexer, parser, codegen, one file.
 
@@ -18,7 +21,7 @@ from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "4.6.1"
+VERSION = "4.7.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -5207,7 +5210,7 @@ def build(path, out=None, static=False):
         flags = ["-static"] if static and sys.platform != "darwin" else []
         link = subprocess.run(["cc", "-O2", "-w"] + flags + [obj, rt, "-o", out, "-lm"] + libs, capture_output=True, text=True)
         if link.returncode:
-            missing = [a or b for a, b in re.findall(r'"_?(\w+)", referenced from|undefined reference to [`\x27]_?(\w+)', link.stderr)]
+            missing = [a or b or c for a, b, c in re.findall(r'"_?(\w+)", referenced from|undefined reference to [`\x27]_?(\w+)|^\s+_(\w+), referenced from', link.stderr, re.M)]
             if missing:
                 raise PlankError(0, f"the C library has no function called {missing[0]}; check the extern fn name, or set PLANK_LIBS=\"-lsomething\" for another library")
             raise PlankError(0, "linking failed, this is a Plank bug, please report it:\n" + link.stderr.strip())

@@ -170,6 +170,12 @@ print(("ok   " if ok else "FAIL ") + "landing keeps side padding and clip-proof 
 if not ok:
     sys.exit(1)
 
+# every program in the book compiles, prints what the book says, and is formatted; the book page is current
+book = subprocess.run([sys.executable, "tools/gen-book.py", "--check"], capture_output=True, text=True)
+print(("ok   " if book.returncode == 0 else "FAIL ") + "the book: " + book.stdout.strip().splitlines()[-1])
+if book.returncode:
+    print(book.stdout); sys.exit(1)
+
 # the landing demo must match the compiler's real output
 fresh = subprocess.run([sys.executable, "tools/gen-demo.py", "--check"], capture_output=True, text=True)
 print(("ok   " if fresh.returncode == 0 else "FAIL ") + "site/demo.js is current")

@@ -1,17 +1,77 @@
-/* Hero: Plank's own examples behind the copy. One full-bleed editor types a real program from demo.js, runs it
-   and shows the compiler's real output; blended into the page, parallax in hero.js. */
-.hero { position: relative; isolation: isolate; overflow: hidden; min-height: calc(100svh - 56px); display: grid; align-items: center; padding: var(--sp-8) 0; }
-.hero-copy { position: relative; z-index: 2; }
-.hero::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(ellipse 58% 52% at 50% 50%, var(--bg) 50%, transparent 100%); }
-.hero::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 28%; z-index: 1; pointer-events: none; background: linear-gradient(transparent, var(--bg)); }
-.hero-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; transform: translate3d(0, var(--py, 0), 0); will-change: transform; }
-.kwall { height: 100%; opacity: .8; text-align: left; }
-.pk { height: 100%; background: var(--bg2); display: grid; grid-template-rows: auto auto 1fr; }
-.pk h3 { margin: 0; padding: 18px 40px; font: 600 13px/18px var(--font, -apple-system, sans-serif); letter-spacing: .1em; text-transform: uppercase; color: var(--text2); border-bottom: 1px solid var(--border); }
-.pk pre { margin: 0; padding: 28px 40px; font: 22px/34px ui-monospace, "SF Mono", Menlo, monospace; color: var(--text); white-space: pre; overflow: hidden; }
-.pk .out { color: var(--text2); padding-top: 0; }
-.pk .out b { color: var(--accent); font-weight: 600; }
-@media (max-width: 560px) { .pk h3 { padding: 14px 16px; } .pk pre { padding: 16px; font-size: 13px; line-height: 21px; } .kwall { opacity: .5; } .hero::before { background: radial-gradient(ellipse 120% 46% at 50% 50%, var(--bg) 62%, transparent 100%); } }
-@media (max-width: 600px) { .nav { grid-template-columns: auto 1fr; } .nav-brand { grid-column: 1; } .nav-end { grid-column: 2; justify-self: end; } }
+/* Hero, after Keyrate: one scene in Plank's own objects. An editor lies tilted on the desk under the title and types
+   real programs from demo.js; when a program is typed, the compiler's four stages light in turn and the real output
+   prints in the gutter strip. Loose tokens (fn, let, match, =>) drift around it at three depths. hero.js moves every
+   layer at its own scroll speed and leans the scene away from the pointer. */
+.hero { position: relative; isolation: isolate; overflow: hidden; min-height: calc(100svh - 56px); display: flex; flex-direction: column; align-items: center;
+        padding: clamp(72px, 13vh, 144px) 0 calc(var(--line) * 11); --line: clamp(18px, 2.4vw, 30px); --rust: var(--accent); }
+.hero-copy { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; }
+.hero .hero-h1 { font-size: clamp(44px, 7vw, 92px); letter-spacing: -.035em; line-height: 1.02; max-width: 12.5em; }
+.hero .lead { font-size: clamp(17px, 1.6vw, 20px); line-height: 1.5; margin-top: 20px; }
+.hero .cta { margin-top: 32px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.hero .btn { height: 46px; padding: 0 22px; font-size: 16px; }
+
+/* the ground: an editor tilted onto the desk, feathered at the edges, a soft clearing behind the title */
+.backdrop { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+            -webkit-mask-image: linear-gradient(#000 80%, transparent); mask-image: linear-gradient(#000 80%, transparent); }
+.backdrop::after { content: ""; position: absolute; inset: 0;
+            background: radial-gradient(ellipse 46% 40% at 50% 30%, color-mix(in srgb, var(--bg) 94%, transparent),
+                        color-mix(in srgb, var(--bg) 55%, transparent) 70%, color-mix(in srgb, var(--bg) 10%, transparent)); }
+.ground { position: absolute; left: 0; right: 0; bottom: calc(var(--line) * -1.5); display: flex; justify-content: center; will-change: transform;
+          -webkit-mask-image: radial-gradient(ellipse 62% 80% at 50% 40%, #000 55%, transparent 100%);
+          mask-image: radial-gradient(ellipse 62% 80% at 50% 40%, #000 55%, transparent 100%); }
+.ed { width: min(1180px, 120vw); transform: perspective(1500px) rotateX(38deg); transform-origin: 50% 100%;
+      background: var(--bg2); border: 1px solid var(--border); border-radius: calc(var(--line) * .6);
+      box-shadow: 0 calc(var(--line) * .4) 0 var(--border), 0 40px 80px -30px rgba(0, 0, 0, .25); overflow: hidden; }
+.ed-bar { display: flex; align-items: center; gap: calc(var(--line) * .5); padding: calc(var(--line) * .5) calc(var(--line) * .9); border-bottom: 1px solid var(--border);
+          font: 600 calc(var(--line) * .5)/1 var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--text2); }
+.ed-bar i { width: calc(var(--line) * .42); height: calc(var(--line) * .42); border-radius: 50%; background: var(--border); }
+.ed-bar b { margin-left: calc(var(--line) * .3); font-weight: 600; text-transform: none; letter-spacing: 0; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+.stages { margin-left: auto; display: flex; gap: calc(var(--line) * .25); }
+.stages span { padding: calc(var(--line) * .16) calc(var(--line) * .4); border-radius: 999px; border: 1px solid var(--border); transition: background-color .25s, color .25s, border-color .25s; }
+.stages span.on { background: var(--rust); border-color: var(--rust); color: #fff; }
+.stages span.done { color: var(--rust); border-color: color-mix(in srgb, var(--rust) 50%, transparent); }
+.code { margin: 0; padding: calc(var(--line) * .6) 0; font: calc(var(--line) * .62)/var(--line) ui-monospace, "SF Mono", Menlo, monospace;
+        color: var(--text); white-space: pre; min-height: calc(var(--line) * 13.2); counter-reset: ln; }
+.code div { padding: 0 calc(var(--line) * .9) 0 0; transition: background-color .3s; }
+.code div::before { counter-increment: ln; content: counter(ln); display: inline-block; width: calc(var(--line) * 2.2); padding-right: calc(var(--line) * .7);
+                    text-align: right; color: color-mix(in srgb, var(--text2) 55%, transparent); }
+.code div.hot { background: color-mix(in srgb, var(--rust) 12%, transparent); }
+.code .k { color: var(--rust); font-weight: 600; } .code .s { color: #2f6f3e; } .code .c { color: var(--text2); font-style: italic; }
+.code .caret::after { content: ""; display: inline-block; width: 2px; height: 1.05em; vertical-align: -.18em; background: var(--rust); animation: blink 1s steps(1) infinite; }
+.term { margin: 0; padding: calc(var(--line) * .45) calc(var(--line) * .9) calc(var(--line) * .6); border-top: 1px solid var(--border);
+        font: calc(var(--line) * .56)/calc(var(--line) * .86) ui-monospace, "SF Mono", Menlo, monospace; color: var(--text2); white-space: pre; min-height: calc(var(--line) * 3.4); }
+.term b { color: var(--rust); font-weight: 600; }
+@media (prefers-color-scheme: dark) { .code .s { color: #8fd19e; } .ed { box-shadow: 0 calc(var(--line) * .4) 0 var(--border), 0 40px 80px -30px rgba(0, 0, 0, .7); } }
+
+/* the sky: loose tokens at three depths, each a keycap of syntax */
+.sky { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden;
+       -webkit-mask-image: linear-gradient(#000 58%, transparent); mask-image: linear-gradient(#000 58%, transparent); }
+.sky .layer { position: absolute; inset: 0; will-change: transform; }
+.tok { position: absolute; display: grid; place-items: center; height: var(--s); min-width: var(--s); padding: 0 calc(var(--s) * .3);
+       border-radius: calc(var(--s) * .22); background: var(--bg2); border: 1px solid var(--border); box-shadow: 0 calc(var(--s) * .06) 0 var(--border);
+       font: 600 calc(var(--s) * .4)/1 ui-monospace, "SF Mono", Menlo, monospace; color: var(--text2); white-space: nowrap; user-select: none;
+       animation: drift ease-in-out infinite alternate; }
+.tok.hot { color: var(--rust); outline: 2px solid color-mix(in srgb, var(--rust) 55%, transparent); outline-offset: 2px; }
+.sky .far .tok { filter: blur(.8px); }
+.sky .near .tok { filter: drop-shadow(0 10px 14px rgba(0, 0, 0, .14)); }
+@keyframes drift { from { transform: translateY(-10px) rotate(var(--r)); } to { transform: translateY(10px) rotate(calc(var(--r) + 6deg)); } }
+
+/* the readout under the buttons: the command, the stage it is on, the line it printed */
+.readout { margin-top: 28px; display: flex; align-items: center; gap: 12px; max-width: min(92vw, 620px); font: 15px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+           color: var(--text2); white-space: nowrap; }
+.readout .cmd { flex: none; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 600;
+                background: color-mix(in srgb, var(--rust) 12%, transparent); color: var(--rust); }
+.readout .said { overflow: hidden; text-overflow: ellipsis; min-height: 1.4em; }
+.readout .said::after { content: ""; display: inline-block; width: 2px; height: 1.05em; margin-left: 2px; vertical-align: -.18em; background: var(--rust); animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+@media (max-width: 560px) {
+  .hero { --line: 4.6vw; padding-bottom: calc(var(--line) * 12); }
+  .ed { width: 150vw; transform: perspective(900px) rotateX(32deg); }
+  .stages span:nth-child(n+3) { display: none; }
+  .readout { font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) { .tok { animation: none; } .readout .said::after, .code .caret::after { animation: none; } }
+@media (max-width: 600px) { .nav { grid-template-columns: auto 1fr; } .nav-brand { grid-column: 1; } .nav-end { grid-column: 2; justify-self: end; } .nav-links { display: none; } }
 .try { padding: 0 0 var(--sp-8); }
 .try .demo-wrap { margin-top: 0; }

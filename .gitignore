@@ -4,3 +4,4 @@ examples/*[!k]
 !examples/lib/
 apps/*[!k]
 !apps/*.out
+.book-*

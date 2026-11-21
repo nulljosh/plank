@@ -1,0 +1,56 @@
+/* The Plank Book: one long page, a chapter list on the left on wide screens, a reading column, code that looks like
+   the editor on the landing. Colours come from ../tokens.css. */
+:root { --code-bg: #f3f3f2; --code-k: #a33d18; --code-s: #2f6f3e; --code-c: #8a8a86; --code-t: #24569c; --code-n: #8a4b9a; --rule: var(--border); }
+@media (prefers-color-scheme: dark) { :root { --code-bg: #1a1917; --code-k: #ff8a5c; --code-s: #8fd19e; --code-c: #77756f; --code-t: #8cb8f2; --code-n: #d6a3e3; } }
+* { box-sizing: border-box; margin: 0; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+body { background: var(--bg); color: var(--text); font: 18px/1.65 var(--font); -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); text-underline-offset: 3px; }
+code, pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+.bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 16px; height: 56px; padding: 0 clamp(16px, 3vw, 32px);
+       background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid var(--rule); }
+.brand { display: flex; align-items: center; gap: 8px; color: var(--text); text-decoration: none; font-weight: 700; letter-spacing: -.01em; }
+.brand img { border-radius: 22.5%; }
+.crumb { color: var(--text2); font-size: 15px; }
+.crumb small { font: 12px ui-monospace, Menlo, monospace; margin-left: 4px; }
+.src { margin-left: auto; font-size: 15px; color: var(--text2); text-decoration: none; white-space: nowrap; }
+.src:hover { color: var(--text); }
+
+.layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); max-width: 1120px; margin: 0 auto; }
+.toc { position: sticky; top: 56px; align-self: start; max-height: calc(100vh - 56px); overflow: auto; padding: 40px 24px; font-size: 15px; line-height: 1.4; }
+.toc ol { list-style: none; padding: 0; display: grid; gap: 2px; }
+.toc a { display: block; padding: 6px 10px; border-radius: 6px; color: var(--text2); text-decoration: none; }
+.toc a:hover { color: var(--text); background: var(--bg2); }
+.label { font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); margin-bottom: 12px; }
+
+.book { max-width: 720px; padding: 56px clamp(16px, 4vw, 48px) 120px; }
+.cover { padding-bottom: 48px; margin-bottom: 8px; border-bottom: 1px solid var(--rule); }
+.cover-h { font-size: clamp(40px, 6vw, 64px); line-height: 1.02; font-weight: 700; letter-spacing: -.035em; text-wrap: balance; }
+.cover-sub { margin-top: 20px; color: var(--text2); max-width: 560px; }
+.chapter { padding-top: 56px; }
+.chapter + .chapter { border-top: 1px solid var(--rule); margin-top: 56px; }
+.chapter h1 { font-size: clamp(32px, 4.4vw, 44px); line-height: 1.08; letter-spacing: -.03em; margin-bottom: 24px; text-wrap: balance; }
+.chapter h2 { font-size: 26px; line-height: 1.2; letter-spacing: -.02em; margin: 44px 0 12px; }
+.chapter h3 { font-size: 20px; margin: 32px 0 8px; }
+.chapter p, .chapter ul, .chapter ol { margin: 0 0 18px; }
+.chapter ul, .chapter ol { padding-left: 1.3em; }
+.chapter li { margin-bottom: 6px; }
+.chapter p code, .chapter li code { font-size: .86em; background: var(--bg2); border: 1px solid var(--rule); border-radius: 4px; padding: .05em .3em; }
+
+pre { margin: 0 0 18px; padding: 18px 20px; border-radius: 10px; overflow-x: auto; font-size: 15px; line-height: 1.6; tab-size: 2; }
+pre.code { background: var(--code-bg); border: 1px solid var(--rule); }
+pre.output { background: transparent; border: 1px dashed var(--rule); color: var(--text2); margin-top: -8px; position: relative; padding-top: 28px; }
+pre.output::before { content: "output"; position: absolute; top: 8px; left: 20px; font: 600 11px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--text2); }
+pre.shell { background: var(--text); color: var(--bg); }
+.k { color: var(--code-k); font-weight: 600; } .s { color: var(--code-s); } .c { color: var(--code-c); font-style: italic; } .t { color: var(--code-t); } .n { color: var(--code-n); }
+
+@media (max-width: 860px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .toc { position: static; max-height: none; padding: 24px 16px 0; }
+  .toc ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .book { padding: 32px 16px 96px; }
+  pre { font-size: 13.5px; padding: 14px 16px; }
+  .crumb { display: none; }
+}
+:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 40%, transparent); outline-offset: 2px; }
