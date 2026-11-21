@@ -16,13 +16,14 @@
     plank doc [name]        every built-in in one line each, or one of them in full
     plank fmt [--check] [files]   lay out .pk files the house way; --check only reports
     plank tokens files...   the tokens the lexer sees, one per line (compiler/plank.pk prints the same)
+    plank ast files...      the tree the parser builds, one top-level item per line (compiler/plank.pk prints the same)
 """
 import json, os, platform, re, subprocess, sys, tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 
 from llvmlite import binding, ir
 
-VERSION = "4.8.0"
+VERSION = "4.9.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -5395,6 +5396,40 @@ def show_tokens(paths):
     return 0
 
 
+def dump_ast(x):
+    """A parsed tree as one line: (Kind line field ...) for nodes, [..] lists, <..> tuples, {..} dicts."""
+    if isinstance(x, Num):
+        v = (getattr(x, "text", None) or repr(x.val)) if x.ty == "float" else str(x.val)
+        return f"(Num {x.line} {v} {show_text(x.ty)})"
+    if isinstance(x, Node):
+        return "(" + " ".join([type(x).__name__, str(x.line)] + [dump_ast(getattr(x, f.name)) for f in fields(x) if f.name != "line"]) + ")"
+    if isinstance(x, bool):
+        return "true" if x else "false"
+    if isinstance(x, list):
+        return "[" + " ".join(map(dump_ast, x)) + "]"
+    if isinstance(x, tuple):
+        return "<" + " ".join(map(dump_ast, x)) + ">"
+    if isinstance(x, dict):
+        return "{" + " ".join(f"{show_text(k)}: {dump_ast(v)}" for k, v in x.items()) + "}"
+    if isinstance(x, str):
+        return show_text(x)
+    return "nil" if x is None else str(x)
+
+
+def show_ast(paths):
+    """plank ast: what the parser made of each file, the format compiler/plank.pk prints, so test.py can diff them."""
+    for path in paths:
+        print("== " + path)
+        try:
+            items = Parser(lex(open(path).read())).program()
+        except PlankError as err:
+            print(f"{path}:{err.line}: {err}", file=sys.stderr)
+            return 1
+        for item in items:
+            print(dump_ast(item))
+    return 0
+
+
 def main(argv=sys.argv[1:]):
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__.strip())
@@ -5410,6 +5445,8 @@ def main(argv=sys.argv[1:]):
         return show_docs(argv[1:])
     if argv[0] == "tokens":
         return show_tokens(argv[1:])
+    if argv[0] == "ast":
+        return show_ast(argv[1:])
     cmd, rest = (argv[0], argv[1:]) if argv[0] in ("run", "build", "emit", "test") else ("run", argv)
     if cmd == "test":
         return run_tests(rest[0] if rest else "tests")

@@ -10,7 +10,7 @@ A `/loop` that keeps Plank growing one release at a time, comparing it row by ro
 
 ## Next, in order
 
-Self-hosting is 5.0; the steps are in `roadmap.md` under "5.0: its own compiler" (4.8 lexer done: `compiler/plank.pk` matches plank.py token for token on all 64 files; next 4.9 parser, 4.10 to 4.12 codegen, 5.0 fixed point). It needs no new language features. Threads, channels, any-key dicts, fmt comments and the freestanding target move after 5.0.
+Self-hosting is 5.0; the steps are in `roadmap.md` under "5.0: its own compiler" (4.8 lexer and 4.9 parser done: `compiler/plank.pk` matches plank.py token for token and tree for tree on all 64 files; next 4.10 codegen subset, 4.10 to 4.12 codegen, 5.0 fixed point). It needs no new language features. Threads, channels, any-key dicts, fmt comments and the freestanding target move after 5.0.
 
 ## AI layer, where it stopped (2026-10-11)
 

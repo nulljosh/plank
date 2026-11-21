@@ -1,7 +1,8 @@
 # Plank, written in Plank. The road to 5.0 (roadmap.md): this file grows into a whole compiler that prints LLVM IR
-# and hands it to cc, until it can compile itself. Step one is the lexer, a line-for-line port of `lex` in plank.py.
+# and hands it to cc, until it can compile itself. So far: the lexer and the parser, ports of `lex` and `Parser` in plank.py.
 #
 #   plank run compiler/plank.pk tokens file.pk ...   the tokens, one per line, exactly as `plank tokens` prints them
+#   plank run compiler/plank.pk ast file.pk ...      the parse tree, one item per line, exactly as `plank ast` prints it
 #
 # test.py runs both on every .pk in the repo and diffs them, so the two lexers can never drift apart.
 struct Tok {
@@ -267,6 +268,953 @@ fn lex(src: str) -> [Tok] {
   return toks
 }
 
+# ---------------------------------------------------------------- the tree
+# One shape for every node, like a Lisp list: a kind, a line and children. The kinds and the order of the children
+# are plank.py's dataclasses and their fields, so `ast` here and `plank ast` print the same tree. Leaves: "s" is text,
+# "r" is printed as is (numbers, true, nil); "[" a list, "<" a tuple, "{" a dict of key, value, key, value.
+struct Ast {
+  kind: str
+  line: int = 0
+  text: str = ""
+  kids: [Ast] = []
+}
+
+fn node(kind: str, line: int, kids: [Ast]) -> Ast {
+  return Ast(kind, line, kids: kids)
+}
+
+fn s(text: str) -> Ast {
+  return Ast("s", text: text)
+}
+
+fn r(text: str) -> Ast {
+  return Ast("r", text: text)
+}
+
+fn nada() -> Ast {
+  return r("nil")
+}
+
+fn flag(b: bool) -> Ast {
+  return r(if b { "true" } else { "false" })
+}
+
+fn seq(kids: [Ast]) -> Ast {
+  return Ast("[", kids: kids)
+}
+
+fn pair(a: Ast, b: Ast) -> Ast {
+  return Ast("<", kids: [a, b])
+}
+
+fn table(kv: [Ast]) -> Ast {
+  return Ast("{", kids: kv)
+}
+
+fn noasts() -> [Ast] {
+  let xs: [Ast] = []
+  return xs
+}
+
+fn upper(name: str) -> bool {
+  let c = name[0]
+  return c >= "A" and c <= "Z"
+}
+
+# binding power of each infix operator, plank.py's PREC doubled so ?? (4.5 there) is a whole number
+fn prec_of(k: str) -> int {
+  if k == "or" {
+    return 2
+  }
+  if k == "and" {
+    return 4
+  }
+  if k in ["in", "==", "!=", "<", ">", "<=", ">="] {
+    return 8
+  }
+  if k == "??" {
+    return 9
+  }
+  if k == "+" or k == "-" {
+    return 10
+  }
+  if k == "*" or k == "/" or k == "%" {
+    return 12
+  }
+  return 0
+}
+
+# ---------------------------------------------------------------- parser, a port of plank.py's Parser
+struct Parser {
+  toks: [Tok]
+  i: int = 0
+  aliases: [str] = []
+
+  fn tok() -> Tok {
+    return self.toks[self.i]
+  }
+
+  fn sees(k: str) -> bool {
+    return self.toks[self.i].kind == k
+  }
+
+  fn among(ks: [str]) -> bool {
+    return self.toks[self.i].kind in ks
+  }
+
+  fn take() -> Tok {
+    let t = self.toks[self.i]
+    self.i += 1
+    return t
+  }
+
+  fn expect(k: str) -> Tok {
+    if not self.sees(k) {
+      let t = self.tok()
+      throw "\(t.line): expected '\(k)', got \(t.kind)"
+    }
+    return self.take()
+  }
+
+  fn skip_nl() {
+    while self.sees("nl") {
+      self.take()
+    }
+  }
+
+  fn program() -> [Ast] {
+    let items = noasts()
+    self.skip_nl()
+    while not self.sees("eof") {
+      if self.sees("import") {
+        let line = self.take().line
+        let p = self.expect("str")
+        if len(p.holes) > 0 {
+          throw "\(line): an import path is plain text, no \\( )"
+        }
+        var alias = nada()
+        if self.sees("name") and self.tok().text == "as" {
+          self.take()
+          let a = self.expect("name").text
+          self.aliases.append(a)
+          alias = s(a)
+        }
+        items.append(node("Import", line, [s(p.parts[0]), alias]))
+      } else if self.sees("extern") {
+        self.take()
+        items.append(self.fn_(true, false, ""))
+      } else if self.sees("name") and self.tok().text == "tool" and self.toks[self.i + 1].kind == "fn" {
+        let doc = self.take().doc  # the comment lines above become the model's description
+        items.append(self.fn_(false, true, doc))
+      } else if self.sees("struct") {
+        items.append(self.struct_())
+      } else if self.sees("enum") {
+        items.append(self.enum_())
+      } else {
+        items.append(self.fn_(false, false, ""))
+      }
+      self.skip_nl()
+    }
+    return items
+  }
+
+  fn type_name() -> str {
+    let t = self.expect("name")
+    if not upper(t.text) {
+      throw "\(t.line): type names start with a capital letter: \(t.text)"
+    }
+    return t.text
+  }
+
+  fn enum_() -> Ast {
+    let line = self.expect("enum").line
+    let name = self.type_name()
+    let tparams = self.type_params()
+    self.expect("{")
+    let cases = noasts()
+    let methods = noasts()
+    self.skip_nl()
+    while not self.sees("}") {
+      if self.sees("fn") {
+        methods.append(self.fn_(false, false, ""))
+      } else {
+        let case = self.expect("name").text
+        let fields = noasts()
+        if self.sees("(") {
+          self.take()
+          while not self.sees(")") {
+            let fname = self.expect("name").text
+            self.expect(":")
+            fields.append(pair(s(fname), s(self.type_())))
+            if not self.sees(")") {
+              self.expect(",")
+            }
+          }
+          self.expect(")")
+        }
+        cases.append(pair(s(case), seq(fields)))
+        if self.sees(",") {
+          self.take()
+        }
+      }
+      self.skip_nl()
+    }
+    self.expect("}")
+    return node("Enum", line, [s(name), seq(cases), seq(methods), tparams])
+  }
+
+  fn arms(as_value: bool, line: int) -> (Ast, Ast) {
+    let arms = noasts()
+    var other = nada()
+    self.skip_nl()
+    while not self.sees("}") {
+      if self.sees("else") {
+        let else_line = self.take().line
+        other = if as_value { seq([node("Return", else_line, [self.braced_expr()])]) } else { self.block() }
+      } else {
+        let pats = [self.pattern()]
+        while self.sees(",") {
+          self.take()
+          pats.append(self.pattern())
+        }
+        let body = if as_value { seq([node("Return", line, [self.braced_expr()])]) } else { self.block() }
+        arms.append(pair(seq(pats), body))
+      }
+      self.skip_nl()
+    }
+    self.expect("}")
+    return (seq(arms), other)
+  }
+
+  fn match_() -> Ast {
+    let line = self.expect("match").line
+    let subject = self.expr(0)
+    self.expect("{")
+    let (arms, other) = self.arms(false, line)
+    return node("Match", line, [subject, arms, other])
+  }
+
+  # match as a value: each arm is one expression, built as a closure that returns from a match statement
+  fn match_expr(line: int) -> Ast {
+    let subject = self.expr(0)
+    self.expect("{")
+    let (arms, other) = self.arms(true, line)
+    let m = node("Match", line, [subject, arms, other])
+    return node("CallValue", line, [node("Lambda", line, [seq(noasts()), nada(), seq([m])]), seq(noasts())])
+  }
+
+  # .case, .case(a, b) or a constant like 3 or "hi"
+  fn pattern() -> Ast {
+    if not self.sees(".") {
+      return self.expr(0)
+    }
+    self.take()
+    let case = self.expect("name").text
+    let names = noasts()
+    if self.sees("(") {
+      self.take()
+      while not self.sees(")") {
+        names.append(s(self.expect("name").text))
+        if not self.sees(")") {
+          self.expect(",")
+        }
+      }
+      self.expect(")")
+    }
+    return pair(s(case), seq(names))
+  }
+
+  fn struct_() -> Ast {
+    let line = self.expect("struct").line
+    let name = self.type_name()
+    let tparams = self.type_params()
+    self.expect("{")
+    let fields = noasts()
+    let defaults = noasts()
+    let methods = noasts()
+    self.skip_nl()
+    while not self.sees("}") {
+      if self.sees("fn") {
+        methods.append(self.fn_(false, false, ""))
+      } else {
+        let fname = self.expect("name").text
+        self.expect(":")
+        fields.append(pair(s(fname), s(self.type_())))
+        if self.sees("=") {
+          self.take()
+          defaults.append(s(fname))
+          defaults.append(self.expr(0))
+        }
+        if self.sees(",") {
+          self.take()
+        }
+      }
+      self.skip_nl()
+    }
+    self.expect("}")
+    return node("Struct", line, [s(name), seq(fields), table(defaults), seq(methods), tparams])
+  }
+
+  fn fn_(is_extern: bool, tool: bool, doc: str) -> Ast {
+    let line = self.expect("fn").line
+    let name = self.expect("name").text
+    let tparams = self.type_params()
+    self.expect("(")
+    let params = noasts()
+    let defaults = noasts()
+    while not self.sees(")") {
+      let pname = self.expect("name").text
+      self.expect(":")
+      params.append(pair(s(pname), s(self.type_())))
+      if self.sees("=") {
+        self.take()
+        defaults.append(s(pname))
+        defaults.append(self.expr(0))
+      }
+      if not self.sees(")") {
+        self.expect(",")
+      }
+    }
+    self.expect(")")
+    var ret = "void"
+    if self.sees("->") {
+      self.take()
+      ret = self.type_()
+    }
+    if is_extern {  # a C function: a signature and no body
+      if len(tparams.kids) > 0 or len(defaults) > 0 {
+        throw "\(line): an extern fn takes no type parameters or defaults"
+      }
+      return node("Fn", line, [s(name), seq(params), s(ret), seq(noasts()), table(noasts()), seq(noasts()), flag(true), flag(false), s("")])
+    }
+    let body = self.block()
+    return node("Fn", line, [s(name), seq(params), s(ret), body, table(defaults), tparams, flag(false), flag(tool), s(doc)])
+  }
+
+  # <T, U> after a name, or nothing
+  fn type_params() -> Ast {
+    let out = noasts()
+    if self.sees("<") {
+      self.take()
+      while not self.sees(">") {
+        out.append(s(self.type_name()))
+        if not self.sees(">") {
+          self.expect(",")
+        }
+      }
+      self.expect(">")
+    }
+    return seq(out)
+  }
+
+  # <int, [str]> after a type name, as text: "int, [str]"
+  fn type_args() -> str {
+    self.expect("<")
+    let args = none()
+    while not self.sees(">") {
+      args.append(self.type_())
+      if not self.sees(">") {
+        self.expect(",")
+      }
+    }
+    self.expect(">")
+    return args.join(", ")
+  }
+
+  fn type_() -> str {
+    if self.sees("(") {
+      let line = self.take().line
+      let parts = [self.type_()]
+      while self.sees(",") {
+        self.take()
+        parts.append(self.type_())
+      }
+      self.expect(")")
+      if len(parts) < 2 {
+        throw "\(line): a tuple type has at least two parts: (int, str)"
+      }
+      return self.optional("(" + parts.join(", ") + ")")
+    }
+    if self.sees("fn") {
+      self.take()
+      self.expect("(")
+      let params = none()
+      while not self.sees(")") {
+        params.append(self.type_())
+        if not self.sees(")") {
+          self.expect(",")
+        }
+      }
+      self.expect(")")
+      var ret = "void"
+      if self.sees("->") {
+        self.take()
+        ret = self.type_()
+      }
+      return self.optional("fn(" + params.join(", ") + ") -> " + ret)
+    }
+    if self.sees("[") {
+      self.take()
+      var inner = self.type_()
+      if self.sees(":") {
+        self.take()
+        inner = inner + ": " + self.type_()
+      }
+      self.expect("]")
+      return self.optional("[" + inner + "]")
+    }
+    let t = self.expect("name")
+    if t.text in self.aliases and self.sees(".") {  # money.Ledger
+      self.take()
+      let inner = self.expect("name")
+      if not upper(inner.text) {
+        throw "\(inner.line): type names start with a capital letter: \(t.text).\(inner.text)"
+      }
+      var full = t.text + "." + inner.text
+      if self.sees("<") {
+        full += "<" + self.type_args() + ">"
+      }
+      return self.optional(full)
+    }
+    if not (t.text in ["int", "float", "bool", "str"]) and not upper(t.text) {
+      throw "\(t.line): unknown type '\(t.text)'"
+    }
+    var name = t.text
+    if upper(name) and self.sees("<") {
+      name = name + "<" + self.type_args() + ">"
+    }
+    return self.optional(name)
+  }
+
+  fn optional(ty: str) -> str {
+    var out = ty
+    while self.sees("?") or self.sees("??") {
+      out += self.take().kind
+    }
+    return out
+  }
+
+  fn block() -> Ast {
+    self.expect("{")
+    let stmts = noasts()
+    self.skip_nl()
+    while not self.sees("}") {
+      stmts.append(self.stmt())
+      if not self.sees("}") {
+        self.expect("nl")
+      }
+      self.skip_nl()
+    }
+    self.expect("}")
+    return seq(stmts)
+  }
+
+  fn stmt() -> Ast {
+    let t = self.tok()
+    if self.sees("let") or self.sees("var") {
+      self.take()
+      let mutable = flag(t.kind == "var")
+      if self.sees("(") {  # let (q, r) = divmod(7, 2)
+        self.take()
+        let names = [s(self.expect("name").text)]
+        while self.sees(",") {
+          self.take()
+          names.append(s(self.expect("name").text))
+        }
+        self.expect(")")
+        self.expect("=")
+        return node("LetTuple", t.line, [seq(names), self.expr(0), mutable])
+      }
+      let name = self.expect("name").text
+      var ty = nada()
+      if self.sees(":") {
+        self.take()
+        ty = s(self.type_())
+      }
+      self.expect("=")
+      return node("Let", t.line, [s(name), ty, self.expr(0), mutable])
+    }
+    if self.sees("if") {
+      return self.if_()
+    }
+    if self.sees("match") {
+      return self.match_()
+    }
+    if self.sees("while") {
+      self.take()
+      if self.sees("let") {
+        self.take()
+        let name = self.expect("name").text
+        self.expect("=")
+        let opt = self.expr(0)
+        return node("WhileLet", t.line, [s(name), opt, self.block()])
+      }
+      let cond = self.expr(0)
+      return node("While", t.line, [cond, self.block()])
+    }
+    if self.sees("for") {
+      self.take()
+      let name = self.expect("name").text
+      var second = nada()
+      if self.sees(",") {  # for i, x in xs / for k, v in d
+        self.take()
+        second = s(self.expect("name").text)
+      }
+      self.expect("in")
+      let start = self.expr(0)
+      if not self.sees("..") {
+        return node("ForIn", t.line, [s(name), start, self.block(), second])
+      }
+      if second.kind == "s" {
+        throw "\(t.line): a range gives one number at a time: for i in 0..n"
+      }
+      self.take()
+      let stop = self.expr(0)
+      return node("For", t.line, [s(name), start, stop, self.block()])
+    }
+    if self.sees("return") {
+      self.take()
+      if self.sees("nl") or self.sees("}") {
+        return node("Return", t.line, [nada()])
+      }
+      return node("Return", t.line, [self.expr(0)])
+    }
+    if self.sees("try") {
+      self.take()
+      let body = self.block()
+      self.skip_nl()
+      self.expect("catch")
+      let name = self.expect("name").text
+      return node("Try", t.line, [body, s(name), self.block()])
+    }
+    if self.sees("throw") {
+      self.take()
+      return node("Throw", t.line, [self.expr(0)])
+    }
+    if self.sees("break") {
+      self.take()
+      return node("Break", t.line, noasts())
+    }
+    if self.sees("continue") {
+      self.take()
+      return node("Continue", t.line, noasts())
+    }
+    let e = self.expr(0)
+    if self.among(["=", "+=", "-=", "*=", "/=", "%="]) {
+      if not (e.kind == "Name" or e.kind == "Index" or e.kind == "Field") {
+        throw "\(t.line): only a variable, xs[i] or p.x can go left of ="
+      }
+      let op = self.take().kind
+      let val = self.expr(0)
+      if op == "=" {
+        return node("Assign", t.line, [e, val])
+      }
+      return node("Assign", t.line, [e, node("Binary", t.line, [s(op[0]), e, val])])
+    }
+    return node("ExprStmt", t.line, [e])
+  }
+
+  fn if_() -> Ast {
+    let line = self.expect("if").line
+    if self.sees("let") {
+      self.take()
+      let name = self.expect("name").text
+      self.expect("=")
+      let cond = self.expr(0)
+      let then = self.block()
+      return node("IfLet", line, [s(name), cond, then, self.else_()])
+    }
+    let cond = self.expr(0)
+    let then = self.block()
+    return node("If", line, [cond, then, self.else_()])
+  }
+
+  # if c { a } else { b } used as a value: each branch is one expression; if let works here too
+  fn if_expr(line: int) -> Ast {
+    var name = ""
+    var cond = nada()
+    let binds = self.sees("let")
+    if binds {
+      self.take()
+      name = self.expect("name").text
+      self.expect("=")
+    }
+    cond = self.expr(0)
+    let then = self.braced_expr()
+    self.skip_nl()
+    if not self.sees("else") {
+      throw "\(line): an if used as a value needs an else, so it always has one"
+    }
+    self.take()
+    var other = nada()
+    if self.sees("if") {
+      other = self.if_expr(self.take().line)
+    } else {
+      other = self.braced_expr()
+    }
+    if binds {
+      return node("IfLetExpr", line, [s(name), cond, then, other])
+    }
+    return node("IfExpr", line, [cond, then, other])
+  }
+
+  fn braced_expr() -> Ast {
+    self.expect("{")
+    self.skip_nl()
+    let e = self.expr(0)
+    self.skip_nl()
+    self.expect("}")
+    return e
+  }
+
+  fn else_() -> Ast {
+    let mark = self.i
+    self.skip_nl()
+    if not self.sees("else") {
+      self.i = mark
+      return seq(noasts())
+    }
+    self.take()
+    if self.sees("if") {
+      return seq([self.if_()])
+    }
+    return self.block()
+  }
+
+  # precedence climbing: keep taking operators that bind tighter than prec
+  fn expr(prec: int) -> Ast {
+    var left = self.unary()
+    while true {
+      let p = prec_of(self.tok().kind)
+      if p == 0 or p <= prec {
+        break
+      }
+      let op = self.take()
+      left = node("Binary", op.line, [s(op.text), left, self.expr(p)])
+    }
+    return left
+  }
+
+  fn unary() -> Ast {
+    let t = self.tok()
+    if self.sees("-") {
+      self.take()
+      return node("Unary", t.line, [s("-"), self.unary()])
+    }
+    if self.sees("not") {
+      self.take()
+      return node("Unary", t.line, [s("not"), self.expr(6)])
+    }
+    return self.primary()
+  }
+
+  fn primary() -> Ast {
+    var e = self.atom()
+    while self.among(["[", ".", "!", "(", "?.", "?"]) {
+      let opener = self.take()
+      let line = opener.line
+      let k = opener.kind
+      if k == "?" {
+        e = node("ResultTry", line, [e])
+        continue
+      }
+      if k == "?." {  # p?.next?.val: nil if any link is nil
+        let name = self.expect("name").text
+        if self.sees("(") {
+          self.take()
+          let (args, labels) = self.call_args()
+          e = node("OptChain", line, [e, s(name), args, labels])
+        } else {
+          e = node("OptChain", line, [e, s(name), nada(), nada()])
+        }
+        continue
+      }
+      if k == "(" {
+        e = node("CallValue", line, [e, self.args(")")])
+        continue
+      }
+      if k == "!" {
+        e = node("Unwrap", line, [e])
+        continue
+      }
+      if k == "[" {
+        var start = nada()
+        if not self.sees("..") {
+          start = self.expr(0)
+        }
+        if self.sees("..") {
+          self.take()
+          var stop = nada()
+          if not self.sees("]") {
+            stop = self.expr(0)
+          }
+          e = node("Slice", line, [e, start, stop])
+        } else {
+          e = node("Index", line, [e, start])
+        }
+        self.expect("]")
+        continue
+      }
+      let t = self.take()
+      var name = ""
+      if t.kind == "int" {  # t.0, a tuple part
+        name = "_" + t.text
+      } else if t.kind == "name" {
+        name = t.text
+      } else {
+        throw "\(t.line): expected a field or method name after ."
+      }
+      if self.sees("(") {
+        self.take()
+        let (args, labels) = self.call_args()
+        e = node("Method", line, [e, s(name), args, labels])
+      } else {
+        e = node("Field", line, [e, s(name)])
+      }
+    }
+    return e
+  }
+
+  # fn(x: int) -> int { ... }, or fn(x) => x * 2
+  fn lambda_(line: int) -> Ast {
+    self.expect("(")
+    let params = noasts()
+    while not self.sees(")") {
+      let name = self.expect("name").text
+      var ty = nada()
+      if self.sees(":") {
+        self.take()
+        ty = s(self.type_())
+      }
+      params.append(pair(s(name), ty))
+      if not self.sees(")") {
+        self.expect(",")
+      }
+    }
+    self.expect(")")
+    if self.sees("=>") {
+      let arrow = self.take()
+      return node("Lambda", line, [seq(params), nada(), seq([node("Return", arrow.line, [self.expr(0)])])])
+    }
+    var ret = nada()
+    if self.sees("->") {
+      self.take()
+      ret = s(self.type_())
+    }
+    return node("Lambda", line, [seq(params), ret, self.block()])
+  }
+
+  # arguments up to ), each optionally labeled: f(1, by: 2)
+  fn call_args() -> (Ast, Ast) {
+    let args = noasts()
+    let labels = noasts()
+    var labeled = false
+    let opened = self.toks[self.i - 1].line
+    while not self.sees(")") {
+      var label = nada()
+      if self.sees("name") and self.toks[self.i + 1].kind == ":" {
+        label = s(self.take().text)
+        self.take()
+        labeled = true
+      } else if labeled {
+        throw "\(self.tok().line): once one argument has a label, the rest need one too"
+      }
+      args.append(self.expr(0))
+      labels.append(label)
+      self.sep(")", opened)
+    }
+    self.expect(")")
+    return (seq(args), seq(labels))
+  }
+
+  fn args(close: str) -> Ast {
+    let out = noasts()
+    let opened = self.toks[self.i - 1].line
+    while not self.sees(close) {
+      out.append(self.expr(0))
+      self.sep(close, opened)
+    }
+    self.expect(close)
+    return seq(out)
+  }
+
+  # after an item in (...) or [...]: a comma, the closer, or a clear error
+  fn sep(close: str, opened: int) {
+    if self.sees(",") {
+      self.take()
+    } else if not self.sees(close) {
+      if self.sees("}") or self.sees("eof") or self.sees("nl") {
+        let o = if close == ")" { "(" } else { "[" }
+        throw "\(self.tok().line): missing \(close) for the \(o) opened on line \(opened)"
+      }
+      throw "\(self.tok().line): expected , or \(close) here, got \(self.tok().kind)"
+    }
+  }
+
+  fn atom() -> Ast {
+    let t = self.take()
+    let k = t.kind
+    if k == "int" {
+      return node("Num", t.line, [r(t.text), s("int")])
+    }
+    if k == "float" {
+      return node("Num", t.line, [r(t.text), s("float")])
+    }
+    if k == "str" {
+      if len(t.holes) == 0 {
+        return node("Str", t.line, [s(t.parts[0])])
+      }
+      let bits = noasts()
+      for i, p in t.parts {
+        if i > 0 {
+          bits.append(hole(t.holes[i - 1], t.line))
+        }
+        bits.append(node("Str", t.line, [s(p)]))
+      }
+      return node("Interp", t.line, [seq(bits)])
+    }
+    if k == "nil" {
+      return node("Nil", t.line, noasts())
+    }
+    if k == "fn" {
+      return self.lambda_(t.line)
+    }
+    if k == "true" or k == "false" {
+      return node("Bool", t.line, [flag(k == "true")])
+    }
+    if k == "(" {
+      let e = self.expr(0)
+      if self.sees(",") {  # (a, b): a tuple
+        let items = [e]
+        while self.sees(",") {
+          self.take()
+          items.append(self.expr(0))
+        }
+        self.expect(")")
+        return node("Tuple", t.line, [seq(items)])
+      }
+      self.expect(")")
+      return e
+    }
+    if k == "if" {
+      return self.if_expr(t.line)
+    }
+    if k == "match" {
+      return self.match_expr(t.line)
+    }
+    if k == "[" {
+      if self.sees(":") {
+        self.take()
+        self.expect("]")
+        return node("Dict", t.line, [seq(noasts()), seq(noasts())])
+      }
+      if self.sees("]") {
+        self.take()
+        return node("List", t.line, [seq(noasts())])
+      }
+      let first = self.expr(0)
+      if not self.sees(":") {
+        if not self.sees("]") {
+          self.expect(",")
+        }
+        let items = [first]
+        for x in self.args("]").kids {
+          items.append(x)
+        }
+        return node("List", t.line, [seq(items)])
+      }
+      let keys = [first]
+      let vals = noasts()
+      while true {
+        self.expect(":")
+        vals.append(self.expr(0))
+        if self.sees("]") {
+          break
+        }
+        self.expect(",")
+        if self.sees("]") {
+          break
+        }
+        keys.append(self.expr(0))
+      }
+      self.expect("]")
+      return node("Dict", t.line, [seq(keys), seq(vals)])
+    }
+    if k == "name" {
+      var name = t.text
+      if upper(name) and self.sees("<") {  # Stack<int>(...), as long as a ( follows the >
+        let mark = self.i
+        try {
+          let targs = self.type_args()
+          if not (self.sees("(") or self.sees(".")) {
+            throw "not a type"
+          }
+          name = name + "<" + targs + ">"
+          if self.sees(".") {  # Result<int>.ok(5)
+            return node("Name", t.line, [s(name)])
+          }
+        } catch err {
+          self.i = mark
+        }
+      }
+      if self.sees("(") {
+        self.take()
+        let (args, labels) = self.call_args()
+        return node("Call", t.line, [s(name), args, labels])
+      }
+      return node("Name", t.line, [s(t.text)])
+    }
+    if k == "nl" or k == "eof" {
+      throw "\(t.line): this line ends in the middle of an expression"
+    }
+    throw "\(t.line): unexpected \(k)"
+  }
+}
+
+# the expression inside \( ), parsed on its own; every token takes the string's line
+fn hole(src: str, line: int) -> Ast {
+  let toks = lex(src)
+  for t in toks {
+    t.line = line
+  }
+  let p = Parser(toks)
+  let e = p.expr(0)
+  if not p.sees("nl") {
+    throw "\(line): cannot read \\(\(src)) as one expression"
+  }
+  return e
+}
+
+fn dump_ast(a: Ast) -> str {
+  if a.kind == "s" {
+    return show(a.text)
+  }
+  if a.kind == "r" {
+    return a.text
+  }
+  let bits = none()
+  if a.kind == "{" {
+    var i = 0
+    while i < len(a.kids) {
+      bits.append(dump_ast(a.kids[i]) + ": " + dump_ast(a.kids[i + 1]))
+      i += 2
+    }
+    return "{" + bits.join(" ") + "}"
+  }
+  for k in a.kids {
+    bits.append(dump_ast(k))
+  }
+  if a.kind == "[" {
+    return "[" + bits.join(" ") + "]"
+  }
+  if a.kind == "<" {
+    return "<" + bits.join(" ") + ">"
+  }
+  bits.insert(0, str(a.line))
+  bits.insert(0, a.kind)
+  return "(" + bits.join(" ") + ")"
+}
+
 # ---------------------------------------------------------------- the token dump, same format as `plank tokens`
 fn show(s: str) -> str {
   return "\"" + s.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t").replace("\"", "\\\"") + "\""
@@ -296,8 +1244,8 @@ fn dump(t: Tok) -> str {
 
 fn main() {
   let a = args()
-  if len(a) < 2 or a[0] != "tokens" {
-    print("usage: plank run compiler/plank.pk tokens file.pk ...")
+  if len(a) < 2 or not (a[0] in ["tokens", "ast"]) {
+    print("usage: plank run compiler/plank.pk tokens|ast file.pk ...")
     exit(2)
   }
   for path in a[1..] {
@@ -308,8 +1256,15 @@ fn main() {
       exit(2)
     }
     try {
-      for t in lex(src!) {
-        print(dump(t))
+      let toks = lex(src!)
+      if a[0] == "tokens" {
+        for t in toks {
+          print(dump(t))
+        }
+      } else {
+        for item in Parser(toks).program() {
+          print(dump_ast(item))
+        }
       }
     } catch err {
       print(path + ":" + err)

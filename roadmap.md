@@ -10,7 +10,7 @@
 ## 5.0: its own compiler
 Proven 2026-11-20: Apple `cc` compiles Plank's `plank emit` IR plus the C runtime with output identical to plank.py's build (fib, closures, structs, enums, optionals, collections, results), and recursive enums work, so an AST fits in Plank. A compiler written in Plank only has to print IR text and call `cc`: no Python, uv or llvmlite.
 - [x] 4.8 `compiler/plank.pk` lexer: tokens match plank.py's `lex` on every example (test.py diffs them)
-- [ ] 4.9 parser: an AST that prints the same as plank.py's for every example
+- [x] 4.9 parser: an AST that prints the same as plank.py's for every example
 - [ ] 4.10 codegen subset: ints, strings, functions, if, while, for; hello, fib, fizzbuzz, primes match their `.out`
 - [ ] 4.11 structs, enums, match, optionals, lists, dicts, closures, the collector
 - [ ] 4.12 everything else, until every example and app matches under both compilers

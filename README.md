@@ -50,6 +50,7 @@ plank test [dir]             run every .pk in a folder; each passes by printing 
 plank fmt [--check]          lay out .pk files the house way
 plank doc [name]             the built-ins
 plank tokens file.pk         the tokens the lexer sees
+plank ast file.pk            the tree the parser builds
 ```
 
 ## Learn
@@ -61,7 +62,7 @@ plank tokens file.pk         the tokens the lexer sees
 
 ## Toward 5.0
 
-Plank is learning to compile itself. `compiler/plank.pk` is the compiler written in Plank; today it lexes every file in the repo exactly as `plank.py` does, and `test.py` holds it to that. When it can build itself, Plank needs nothing but a C compiler. Steps in `roadmap.md`.
+Plank is learning to compile itself. `compiler/plank.pk` is the compiler written in Plank; today it lexes and parses every file in the repo exactly as `plank.py` does, and `test.py` holds it to that. When it can build itself, Plank needs nothing but a C compiler. Steps in `roadmap.md`.
 
 ## Develop
 

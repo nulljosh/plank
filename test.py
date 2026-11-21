@@ -170,14 +170,18 @@ print(("ok   " if ok else "FAIL ") + "landing keeps side padding and clip-proof 
 if not ok:
     sys.exit(1)
 
-# self-hosting, step by step: compiler/plank.pk lexes every .pk in the repo, itself included, exactly as plank.py does
+# self-hosting, step by step: compiler/plank.pk lexes and parses every .pk in the repo, itself included, exactly as plank.py does
 selfc = os.path.join(tempfile.mkdtemp(), "plankc")
 built = subprocess.run(["./plank", "build", "compiler/plank.pk", "-o", selfc], capture_output=True, text=True)
 files = sorted(glob.glob("**/*.pk", recursive=True))
 want = subprocess.run(["./plank", "tokens"] + files, capture_output=True, text=True).stdout
 got = subprocess.run([selfc, "tokens"] + files, capture_output=True, text=True).stdout if built.returncode == 0 else built.stderr
-ok = built.returncode == 0 and got == want
-print(("ok   " if ok else "FAIL ") + f"compiler/plank.pk lexes {len(files)} files like plank.py ({want.count(chr(10)) - len(files)} tokens)")
+want_ast = subprocess.run(["./plank", "ast"] + files, capture_output=True, text=True).stdout
+got_ast = subprocess.run([selfc, "ast"] + files, capture_output=True, text=True).stdout if built.returncode == 0 else ""
+ok = built.returncode == 0 and got == want and got_ast == want_ast
+if got == want and got_ast != want_ast:
+    want, got = want_ast, got_ast  # show the tree diff
+print(("ok   " if ok else "FAIL ") + f"compiler/plank.pk lexes and parses {len(files)} files like plank.py ({want.count(chr(10)) - len(files)} tokens, same trees)")
 if not ok:
     import difflib
     print("".join(list(difflib.unified_diff(want.splitlines(True), got.splitlines(True), "plank.py", "plank.pk"))[:40]))
