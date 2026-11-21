@@ -15,13 +15,14 @@
     plank repl              type Plank a line at a time and see what it does
     plank doc [name]        every built-in in one line each, or one of them in full
     plank fmt [--check] [files]   lay out .pk files the house way; --check only reports
+    plank tokens files...   the tokens the lexer sees, one per line (compiler/plank.pk prints the same)
 """
 import json, os, platform, re, subprocess, sys, tempfile
 from dataclasses import dataclass, field
 
 from llvmlite import binding, ir
 
-VERSION = "4.7.0"
+VERSION = "4.8.0"
 TRIPLE = binding.get_default_triple()
 if sys.platform == "darwin":  # the default triple names a darwin the linker has not heard of
     TRIPLE = f"{platform.machine()}-apple-macosx{platform.mac_ver()[0]}"
@@ -5367,6 +5368,33 @@ def run_tests(folder):
     return 1 if failed else 0
 
 
+def show_text(s):
+    """A string as one quoted line, so a token dump never spans lines."""
+    return '"' + s.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t").replace('"', '\\"') + '"'
+
+
+def show_tokens(paths):
+    """plank tokens: every token as `line kind value`, the format compiler/plank.pk prints, so test.py can diff them."""
+    for path in paths:
+        print("== " + path)
+        try:
+            toks = lex(open(path).read())
+        except PlankError as err:
+            print(f"{path}:{err.line}: {err}", file=sys.stderr)
+            return 1
+        for t in toks:
+            if t.kind == "str":
+                parts = t.val if isinstance(t.val, list) else [t.val]
+                v = " ".join(show_text(p) if isinstance(p, str) else "(" + show_text(p[0]) + ")" for p in parts)
+            elif t.kind in ("nl", "eof"):
+                v = ""
+            else:
+                v = t.text if t.kind == "float" else str(t.val)
+            doc = getattr(t, "doc", "")
+            print(f"{t.line} {t.kind}" + (" " + v if v else "") + (" doc " + show_text(doc) if doc else ""))
+    return 0
+
+
 def main(argv=sys.argv[1:]):
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__.strip())
@@ -5380,6 +5408,8 @@ def main(argv=sys.argv[1:]):
         return fmt_files(argv[1:])
     if argv[0] == "doc":
         return show_docs(argv[1:])
+    if argv[0] == "tokens":
+        return show_tokens(argv[1:])
     cmd, rest = (argv[0], argv[1:]) if argv[0] in ("run", "build", "emit", "test") else ("run", argv)
     if cmd == "test":
         return run_tests(rest[0] if rest else "tests")

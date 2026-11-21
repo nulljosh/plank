@@ -1,0 +1,319 @@
+# Plank, written in Plank. The road to 5.0 (roadmap.md): this file grows into a whole compiler that prints LLVM IR
+# and hands it to cc, until it can compile itself. Step one is the lexer, a line-for-line port of `lex` in plank.py.
+#
+#   plank run compiler/plank.pk tokens file.pk ...   the tokens, one per line, exactly as `plank tokens` prints them
+#
+# test.py runs both on every .pk in the repo and diffs them, so the two lexers can never drift apart.
+struct Tok {
+  kind: str
+  text: str
+  line: int
+  doc: str = ""
+  parts: [str] = []
+  holes: [str] = []
+}
+
+fn keywords() -> [str] {
+  return ["fn", "extern", "import", "try", "catch", "throw", "struct", "enum", "match", "nil", "let", "var", "if", "else", "while", "for", "in", "return", "break", "continue", "true", "false", "and", "or", "not"]
+}
+
+fn ops2() -> [str] {
+  return ["+=", "-=", "*=", "/=", "%=", "->", "=>", "..", "==", "!=", "<=", ">=", "??", "?."]
+}
+
+fn ops1() -> [str] {
+  return ["-", "+", "*", "/", "%", "<", ">", "=", "(", ")", "{", "}", "[", "]", ":", ",", ".", "?", "!"]
+}
+
+fn none() -> [str] {
+  let xs: [str] = []
+  return xs
+}
+
+# one character, or "" past the end, so lookahead never needs a bounds check
+fn at(cs: [str], i: int) -> str {
+  if i < len(cs) {
+    return cs[i]
+  }
+  return ""
+}
+
+fn is_digit(c: str) -> bool {
+  return c >= "0" and c <= "9"
+}
+
+fn is_alpha(c: str) -> bool {
+  return (c >= "a" and c <= "z") or (c >= "A" and c <= "Z") or c == "_"
+}
+
+# Python's \w also takes letters outside ASCII; any non-ASCII character sorts after "~"
+fn is_word(c: str) -> bool {
+  return is_alpha(c) or is_digit(c) or c > "~"
+}
+
+fn text(cs: [str], a: int, b: int) -> str {
+  return cs[a..b].join("")
+}
+
+# index just past the ) that closes an interpolation opened before start
+fn close_paren(cs: [str], start: int, line: int) -> int {
+  var i = start
+  var depth = 1
+  while depth > 0 {
+    if i >= len(cs) {
+      throw "\(line): \\( in a string needs a closing )"
+    }
+    if cs[i] == "\"" {
+      i = string_end(cs, i, line)
+      continue
+    }
+    if cs[i] == "(" {
+      depth += 1
+    }
+    if cs[i] == ")" {
+      depth -= 1
+    }
+    i += 1
+  }
+  return i
+}
+
+# index just past the closing quote of the string that opens at start
+fn string_end(cs: [str], start: int, line: int) -> int {
+  var i = start + 1
+  while i < len(cs) and cs[i] != "\"" {
+    if cs[i] == "\\" and at(cs, i + 1) == "(" {
+      i = close_paren(cs, i + 2, line)
+    } else if cs[i] == "\\" {
+      i += 2
+    } else {
+      i += 1
+    }
+  }
+  if i >= len(cs) {
+    throw "\(line): this string never ends, add a closing \""
+  }
+  return i + 1
+}
+
+# decode escapes; text between holes goes in parts, the source inside each \( ) in holes
+fn unescape(body: [str], line: int) -> ([str], [str]) {
+  let parts = none()
+  let holes = none()
+  var out = ""
+  var i = 0
+  while i < len(body) {
+    var c = body[i]
+    if c == "\\" {
+      i += 1
+      let e = at(body, i)
+      if e == "(" {
+        let j = close_paren(body, i + 1, line)
+        parts.append(out)
+        holes.append(text(body, i + 1, j - 1))
+        out = ""
+        i = j
+        continue
+      }
+      if e == "n" {
+        c = "\n"
+      } else if e == "t" {
+        c = "\t"
+      } else if e == "\"" or e == "\\" {
+        c = e
+      } else {
+        throw "\(line): unknown escape \\\(e)"
+      }
+    }
+    out += c
+    i += 1
+  }
+  parts.append(out)
+  return (parts, holes)
+}
+
+fn lex(src: str) -> [Tok] {
+  let cs = src.chars()
+  let n = len(cs)
+  let toks: [Tok] = []
+  let kw = keywords()
+  let two = ops2()
+  let one = ops1()
+  var pos = 0
+  var line = 1
+  var depth = 0
+  var docs = none()  # the comment lines just above
+  var bare = true  # whether this line has had a token yet
+  while pos < n {
+    let c = cs[pos]
+    if c == "\"" {
+      docs = none()
+      bare = false
+      let end = string_end(cs, pos, line)
+      let body_start = pos + 1
+      let body_end = end - 1
+      let (parts, holes) = unescape(cs[body_start..body_end], line)
+      toks.append(Tok("str", "", line, parts: parts, holes: holes))
+      for k in pos..end {
+        if cs[k] == "\n" {
+          line += 1
+        }
+      }
+      pos = end
+      continue
+    }
+    if c == " " or (c < " " and c != "\n") {  # spaces, tabs and carriage returns; Plank has no \r escape
+      pos += 1
+      continue
+    }
+    if c == "#" {
+      var e = pos
+      while e < n and cs[e] != "\n" {
+        e += 1
+      }
+      if bare {
+        var t = text(cs, pos, e)
+        while t.starts_with("#") {
+          t = t[1..]
+        }
+        docs.append(t.trim())
+      }
+      pos = e
+      continue
+    }
+    if c == "\n" {
+      bare = true
+      if depth == 0 {
+        toks.append(Tok("nl", "", line))
+      }
+      line += 1
+      pos += 1
+      continue
+    }
+    let held = docs
+    bare = false
+    docs = none()
+    if is_digit(c) {
+      var e = pos
+      while is_digit(at(cs, e)) {
+        e += 1
+      }
+      var kind = "int"
+      if at(cs, e) == "." and is_digit(at(cs, e + 1)) {
+        e += 1
+        while is_digit(at(cs, e)) {
+          e += 1
+        }
+        kind = "float"
+      }
+      if at(cs, e) == "e" or at(cs, e) == "E" {
+        var k = e + 1
+        if at(cs, k) == "+" or at(cs, k) == "-" {
+          k += 1
+        }
+        if is_digit(at(cs, k)) {
+          while is_digit(at(cs, k)) {
+            k += 1
+          }
+          e = k
+          kind = "float"
+        }
+      }
+      let t = text(cs, pos, e)
+      let after_dot = len(toks) > 0 and toks[-1].kind == "."
+      if kind == "float" and after_dot and not ("e" in t.lower()) {
+        # t.0.1 is two tuple parts, not a float
+        let halves = t.split(".")
+        toks.append(Tok("int", str(int(halves[0])), line))
+        toks.append(Tok(".", ".", line))
+        toks.append(Tok("int", str(int(halves[1])), line))
+      } else if kind == "float" {
+        toks.append(Tok("float", t, line))
+      } else {
+        toks.append(Tok("int", str(int(t)), line))
+      }
+      pos = e
+      continue
+    }
+    if is_alpha(c) {
+      var e = pos
+      while is_word(at(cs, e)) {
+        e += 1
+      }
+      let t = text(cs, pos, e)
+      let kind = if t in kw { t } else { "name" }
+      toks.append(Tok(kind, t, line, doc: held.filter(fn(d) => d != "").join(" ")))
+      pos = e
+      continue
+    }
+    var op = c + at(cs, pos + 1)
+    if not (op in two) {
+      op = c
+      if not (c in one) {
+        throw "\(line): unexpected character \(c)"
+      }
+    }
+    if op == "(" or op == "[" {
+      depth += 1
+    }
+    if op == ")" or op == "]" {
+      depth -= 1
+    }
+    toks.append(Tok(op, op, line))
+    pos += len(op)
+  }
+  toks.append(Tok("nl", "", line))
+  toks.append(Tok("eof", "", line))
+  return toks
+}
+
+# ---------------------------------------------------------------- the token dump, same format as `plank tokens`
+fn show(s: str) -> str {
+  return "\"" + s.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t").replace("\"", "\\\"") + "\""
+}
+
+fn dump(t: Tok) -> str {
+  var v = t.text
+  if t.kind == "str" {
+    let bits = none()
+    for i, p in t.parts {
+      if i > 0 {
+        bits.append("(" + show(t.holes[i - 1]) + ")")
+      }
+      bits.append(show(p))
+    }
+    v = bits.join(" ")
+  }
+  var line = "\(t.line) \(t.kind)"
+  if v != "" {
+    line += " " + v
+  }
+  if t.doc != "" {
+    line += " doc " + show(t.doc)
+  }
+  return line
+}
+
+fn main() {
+  let a = args()
+  if len(a) < 2 or a[0] != "tokens" {
+    print("usage: plank run compiler/plank.pk tokens file.pk ...")
+    exit(2)
+  }
+  for path in a[1..] {
+    print("== " + path)
+    let src = read_file(path)
+    if src == nil {
+      print("cannot read " + path)
+      exit(2)
+    }
+    try {
+      for t in lex(src!) {
+        print(dump(t))
+      }
+    } catch err {
+      print(path + ":" + err)
+      exit(1)
+    }
+  }
+}

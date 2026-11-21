@@ -49,6 +49,7 @@ plank repl                   try it a line at a time
 plank test [dir]             run every .pk in a folder; each passes by printing ok
 plank fmt [--check]          lay out .pk files the house way
 plank doc [name]             the built-ins
+plank tokens file.pk         the tokens the lexer sees
 ```
 
 ## Learn
@@ -57,6 +58,10 @@ plank doc [name]             the built-ins
 - [`docs/SPEC.md`](docs/SPEC.md): the reference, every rule on one page.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): the compiler, file by file.
 - [`docs/COMPARE.md`](docs/COMPARE.md): how it stacks up against Python, Ruby and Swift.
+
+## Toward 5.0
+
+Plank is learning to compile itself. `compiler/plank.pk` is the compiler written in Plank; today it lexes every file in the repo exactly as `plank.py` does, and `test.py` holds it to that. When it can build itself, Plank needs nothing but a C compiler. Steps in `roadmap.md`.
 
 ## Develop
 

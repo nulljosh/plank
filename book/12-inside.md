@@ -11,6 +11,12 @@ You can now write Plank. This last chapter is about how Plank works, because the
 
 ## See it for yourself
 
+`plank tokens` prints what the lexer made of a file, one token per line with its line number:
+
+```
+plank tokens examples/fib.pk
+```
+
 `plank emit` prints the IR for any program:
 
 ```
@@ -33,6 +39,7 @@ Writing a code generator for every processor is the part of a compiler that take
 
 - `docs/SPEC.md` is the reference: every rule of the language on one page.
 - `docs/ARCHITECTURE.md` maps the file, section by section.
-- `apps/calc.pk` is a calculator with its own tokenizer and parser, written in Plank. It is the same four steps in miniature, and the first step toward a Plank compiler written in Plank.
+- `apps/calc.pk` is a calculator with its own tokenizer and parser, written in Plank. It is the same four steps in miniature.
+- `compiler/plank.pk` is Plank's compiler written in Plank. It starts with the lexer from this chapter and grows a step per release until it can compile itself.
 
 Change something. Add a built-in, make an error message friendlier, add a case to `match`. Run `python3 test.py`. That is how every feature in this book got there.

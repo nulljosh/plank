@@ -170,6 +170,19 @@ print(("ok   " if ok else "FAIL ") + "landing keeps side padding and clip-proof 
 if not ok:
     sys.exit(1)
 
+# self-hosting, step by step: compiler/plank.pk lexes every .pk in the repo, itself included, exactly as plank.py does
+selfc = os.path.join(tempfile.mkdtemp(), "plankc")
+built = subprocess.run(["./plank", "build", "compiler/plank.pk", "-o", selfc], capture_output=True, text=True)
+files = sorted(glob.glob("**/*.pk", recursive=True))
+want = subprocess.run(["./plank", "tokens"] + files, capture_output=True, text=True).stdout
+got = subprocess.run([selfc, "tokens"] + files, capture_output=True, text=True).stdout if built.returncode == 0 else built.stderr
+ok = built.returncode == 0 and got == want
+print(("ok   " if ok else "FAIL ") + f"compiler/plank.pk lexes {len(files)} files like plank.py ({want.count(chr(10)) - len(files)} tokens)")
+if not ok:
+    import difflib
+    print("".join(list(difflib.unified_diff(want.splitlines(True), got.splitlines(True), "plank.py", "plank.pk"))[:40]))
+    sys.exit(1)
+
 # every program in the book compiles, prints what the book says, and is formatted; the book page is current
 book = subprocess.run([sys.executable, "tools/gen-book.py", "--check"], capture_output=True, text=True)
 print(("ok   " if book.returncode == 0 else "FAIL ") + "the book: " + book.stdout.strip().splitlines()[-1])
