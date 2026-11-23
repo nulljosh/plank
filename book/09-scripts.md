@@ -79,3 +79,9 @@ if status() != 200 {
 ```
 
 Together these cover most of what people reach for Python to do: read some files, call a command, hit an API, write a report.
+
+> **Try it yourself**
+>
+> 1. Write a script that counts the lines in a file named on the command line.
+> 2. Run `ls` from Plank and print how many entries it found.
+> 3. Read a JSON file and print one field from it.

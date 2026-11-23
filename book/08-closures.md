@@ -85,3 +85,9 @@ fn main() {
 ```output
 ["linus", "ada", "grace"]
 ```
+
+> **Try it yourself**
+>
+> 1. Write `make_adder(n)` that returns a function adding `n` to its argument.
+> 2. Sort a list of words by their length, longest first.
+> 3. Make a counter closure that returns 1, 2, 3 on each call.

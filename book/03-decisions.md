@@ -129,3 +129,9 @@ Fizz
 14
 FizzBuzz
 ```
+
+> **Try it yourself**
+>
+> 1. Print the numbers 1 to 20, but print `even` in place of every even one.
+> 2. Write a `while` loop that halves 1000 until it drops below 1 and counts the steps.
+> 3. Change the whole program at the end of the chapter so it stops early with `break`.

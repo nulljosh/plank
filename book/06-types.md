@@ -129,3 +129,9 @@ b 2
 ```
 
 Plank compiles a separate version for each type you use, so a `Stack<str>` runs as fast as one written by hand for strings.
+
+> **Try it yourself**
+>
+> 1. Add a `withdraw` method to `Account` that refuses to go below zero.
+> 2. Add a `triangle` case to `Shape` and watch `match` refuse to compile until you handle it.
+> 3. Give `Stack` a `pop` method, push three numbers and pop them all.

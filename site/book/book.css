@@ -1,49 +1,102 @@
-/* The Plank Book: one long page, a chapter list on the left on wide screens, a reading column, code that looks like
-   the editor on the landing. Colours come from ../tokens.css. */
-:root { --code-bg: #f3f3f2; --code-k: #a33d18; --code-s: #2f6f3e; --code-c: #8a8a86; --code-t: #24569c; --code-n: #8a4b9a; --rule: var(--border); }
+/* The Plank Book, dressed like a No Starch programming book: a serif reading column, chapter openers with a big number
+   and a halftone plate, ruled Note boxes, shaded Try It Yourself boxes, numbered figures. A chapter list on the left on
+   wide screens. The same page prints to the PDF: 7 x 9.25 inches, one chapter per new page, page numbers at the foot.
+   Colours come from ../tokens.css. */
+:root { --code-bg: #f3f1ec; --code-k: #a33d18; --code-s: #2f6f3e; --code-c: #8a8a86; --code-t: #24569c; --code-n: #8a4b9a; --rule: var(--border);
+        --serif: "Iowan Old Style", "Charter", "Palatino", Georgia, serif; --mono: ui-monospace, "SF Mono", Menlo, monospace;
+        --try: color-mix(in srgb, var(--accent) 7%, var(--bg)); }
 @media (prefers-color-scheme: dark) { :root { --code-bg: #1a1917; --code-k: #ff8a5c; --code-s: #8fd19e; --code-c: #77756f; --code-t: #8cb8f2; --code-n: #d6a3e3; } }
 * { box-sizing: border-box; margin: 0; }
 html { scroll-behavior: smooth; scroll-padding-top: 72px; }
-body { background: var(--bg); color: var(--text); font: 18px/1.65 var(--font); -webkit-font-smoothing: antialiased; }
+body { background: var(--bg); color: var(--text); font: 19px/1.6 var(--serif); -webkit-font-smoothing: antialiased; }
 a { color: var(--accent); text-underline-offset: 3px; }
-code, pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+code, pre { font-family: var(--mono); }
+button { font: inherit; }
 
-.bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 16px; height: 56px; padding: 0 clamp(16px, 3vw, 32px);
+.bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 16px; height: 56px; padding: 0 clamp(16px, 3vw, 32px); font-family: var(--font);
        background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid var(--rule); }
 .brand { display: flex; align-items: center; gap: 8px; color: var(--text); text-decoration: none; font-weight: 700; letter-spacing: -.01em; }
 .brand img { border-radius: 22.5%; }
 .crumb { color: var(--text2); font-size: 15px; }
-.crumb small { font: 12px ui-monospace, Menlo, monospace; margin-left: 4px; }
-.src { margin-left: auto; font-size: 15px; color: var(--text2); text-decoration: none; white-space: nowrap; }
-.src:hover { color: var(--text); }
+.crumb small { font: 12px var(--mono); margin-left: 4px; }
+.quiz { margin-left: auto; min-height: 36px; padding: 0 14px; border: 1px solid var(--rule); border-radius: 999px; background: none; color: var(--text2); font-size: 14px; cursor: pointer; white-space: nowrap; }
+.quiz[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+.pdf { display: flex; align-items: center; min-height: 36px; padding: 0 14px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; }
+.progress { position: sticky; top: 56px; z-index: 5; height: 2px; }
+.progress i { display: block; height: 100%; background: var(--accent); transform: scaleX(0); transform-origin: 0 50%; }
 
 .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); max-width: 1120px; margin: 0 auto; }
-.toc { position: sticky; top: 56px; align-self: start; max-height: calc(100vh - 56px); overflow: auto; padding: 40px 24px; font-size: 15px; line-height: 1.4; }
+.toc { position: sticky; top: 58px; align-self: start; max-height: calc(100vh - 58px); overflow: auto; padding: 40px 24px; font: 15px/1.35 var(--font); }
 .toc ol { list-style: none; padding: 0; display: grid; gap: 2px; }
-.toc a { display: block; padding: 6px 10px; border-radius: 6px; color: var(--text2); text-decoration: none; }
+.toc a { display: grid; grid-template-columns: 22px 1fr; padding: 6px 10px; border-radius: 6px; color: var(--text2); text-decoration: none; }
+.toc a small { font: 600 12px/20px var(--mono); color: var(--text2); }
 .toc a:hover { color: var(--text); background: var(--bg2); }
-.label { font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); margin-bottom: 12px; }
+.toc a.here { color: var(--text); background: var(--bg2); font-weight: 600; }
+.label { font: 600 12px/16px var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--text2); margin-bottom: 12px; }
 
-.book { max-width: 720px; padding: 56px clamp(16px, 4vw, 48px) 120px; }
-.cover { padding-bottom: 48px; margin-bottom: 8px; border-bottom: 1px solid var(--rule); }
-.cover-h { font-size: clamp(40px, 6vw, 64px); line-height: 1.02; font-weight: 700; letter-spacing: -.035em; text-wrap: balance; }
+.book { max-width: 720px; padding: 48px clamp(16px, 4vw, 48px) 120px; }
+.plate { position: relative; overflow: hidden; background: color-mix(in srgb, var(--accent) 10%, var(--bg)); aspect-ratio: 19 / 7; border-radius: 4px; }
+.plate::before { content: ""; position: absolute; inset: 0; background: var(--text); -webkit-mask: var(--img) center / cover no-repeat; mask: var(--img) center / cover no-repeat; opacity: .82; }
+.cover { padding-bottom: 48px; border-bottom: 1px solid var(--rule); }
+.cover .plate { aspect-ratio: 19 / 10; margin-bottom: 32px; }
+.cover-h { font: 700 clamp(40px, 6vw, 60px)/1.02 var(--font); letter-spacing: -.035em; text-wrap: balance; }
 .cover-sub { margin-top: 20px; color: var(--text2); max-width: 560px; }
-.chapter { padding-top: 56px; }
-.chapter + .chapter { border-top: 1px solid var(--rule); margin-top: 56px; }
-.chapter h1 { font-size: clamp(32px, 4.4vw, 44px); line-height: 1.08; letter-spacing: -.03em; margin-bottom: 24px; text-wrap: balance; }
-.chapter h2 { font-size: 26px; line-height: 1.2; letter-spacing: -.02em; margin: 44px 0 12px; }
-.chapter h3 { font-size: 20px; margin: 32px 0 8px; }
+.cover-by { margin-top: 20px; font: 600 15px var(--font); letter-spacing: .04em; text-transform: uppercase; }
+.cover-get { margin-top: 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; font: 15px var(--font); }
+.btn { display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; border-radius: 999px; background: var(--text); color: var(--bg); font-weight: 600; text-decoration: none; }
+.print-only { display: none; }
+
+.chapter { padding-top: 64px; }
+.chapter + .chapter { border-top: 1px solid var(--rule); margin-top: 64px; }
+.opener { margin-bottom: 28px; }
+.chap-no { display: flex; align-items: flex-end; justify-content: space-between; margin-top: 20px; border-bottom: 3px solid var(--text); font-family: var(--font); }
+.chap-no span { font: 600 13px/1 var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--text2); padding-bottom: 12px; }
+.chap-no b { font-size: 88px; line-height: .8; font-weight: 800; letter-spacing: -.05em; color: var(--accent); }
+.chapter h1 { font: 700 clamp(32px, 4.4vw, 44px)/1.08 var(--font); letter-spacing: -.03em; margin-bottom: 28px; text-wrap: balance; }
+.chapter h2 { font: 700 25px/1.2 var(--font); letter-spacing: -.02em; margin: 44px 0 12px; }
+.chapter h3 { font: 700 19px var(--font); margin: 32px 0 8px; }
 .chapter p, .chapter ul, .chapter ol { margin: 0 0 18px; }
 .chapter ul, .chapter ol { padding-left: 1.3em; }
 .chapter li { margin-bottom: 6px; }
-.chapter p code, .chapter li code { font-size: .86em; background: var(--bg2); border: 1px solid var(--rule); border-radius: 4px; padding: .05em .3em; }
+.chapter :not(pre) > code { font-size: .82em; background: var(--bg2); border: 1px solid var(--rule); border-radius: 4px; padding: .05em .3em; }
+.edit { display: inline-block; margin-top: 8px; font: 14px var(--font); color: var(--text2); }
 
-pre { margin: 0 0 18px; padding: 18px 20px; border-radius: 10px; overflow-x: auto; font-size: 15px; line-height: 1.6; tab-size: 2; }
+/* boxes: a Note between two rules, a Try It Yourself on a shaded panel */
+.box { margin: 28px 0; padding: 16px 0; border-top: 2px solid var(--text); border-bottom: 1px solid var(--text); }
+.box-h { font: 800 13px/1 var(--font) !important; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 10px !important; }
+.box > :last-child { margin-bottom: 0; }
+.box.try { padding: 20px 24px; border: 0; border-left: 4px solid var(--accent); background: var(--try); border-radius: 0 6px 6px 0; }
+.box.try .box-h { color: var(--accent); }
+.box.try ol { margin-bottom: 0; }
+
+.fig { margin: 32px 0; padding: 20px; border: 1px solid var(--rule); border-radius: 6px; color: var(--text); }
+.fig svg { display: block; width: 100%; height: auto; }
+.fig .fig-sub { opacity: .7; }
+.fig .fig-ink { fill: var(--text); }
+.fig .fig-on-ink { fill: var(--bg); }
+.fig figcaption { margin-top: 16px; font: italic 15px/1.45 var(--serif); color: var(--text2); }
+.fig figcaption b { font-style: normal; color: var(--text); }
+
+.table { overflow-x: auto; margin: 0 0 20px; }
+table { border-collapse: collapse; width: 100%; font: 15px/1.45 var(--font); }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--rule); }
+th { border-bottom: 2px solid var(--text); font-weight: 700; }
+td:first-child { white-space: nowrap; }
+
+pre { margin: 0 0 18px; padding: 18px 20px; border-radius: 6px; overflow-x: auto; font-size: 15px; line-height: 1.55; tab-size: 2; position: relative; }
 pre.code { background: var(--code-bg); border: 1px solid var(--rule); }
-pre.output { background: transparent; border: 1px dashed var(--rule); color: var(--text2); margin-top: -8px; position: relative; padding-top: 28px; }
+pre.output { background: transparent; border: 1px dashed var(--rule); color: var(--text2); margin-top: -8px; padding-top: 28px; }
 pre.output::before { content: "output"; position: absolute; top: 8px; left: 20px; font: 600 11px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--text2); }
 pre.shell { background: var(--text); color: var(--bg); }
 .k { color: var(--code-k); font-weight: 600; } .s { color: var(--code-s); } .c { color: var(--code-c); font-style: italic; } .t { color: var(--code-t); } .n { color: var(--code-n); }
+.copy { position: absolute; top: 8px; right: 8px; min-height: 28px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 999px; background: var(--bg); color: var(--text2); font: 12px var(--font); cursor: pointer; opacity: 0; transition: opacity .15s; }
+pre:hover .copy, .copy:focus-visible { opacity: 1; }
+@media (hover: none) { .copy { opacity: 1; } }
+
+/* guess the output: blurred until clicked */
+.quizzing pre.output:not(.shown) { cursor: pointer; }
+.quizzing pre.output:not(.shown) code { filter: blur(6px); user-select: none; }
+.quizzing pre.output:not(.shown)::after { content: "Guess first, then tap to see"; position: absolute; inset: 28px 0 0; display: grid; place-items: center; font: 600 13px var(--font); color: var(--text); }
 
 @media (max-width: 860px) {
   .layout { grid-template-columns: minmax(0, 1fr); }
@@ -52,5 +105,44 @@ pre.shell { background: var(--text); color: var(--bg); }
   .book { padding: 32px 16px 96px; }
   pre { font-size: 13.5px; padding: 14px 16px; }
   .crumb { display: none; }
+  .chap-no b { font-size: 64px; }
+  .box.try { padding: 16px; }
 }
+@media (max-width: 420px) { .quiz { padding: 0 10px; font-size: 13px; } }
 :focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 40%, transparent); outline-offset: 2px; }
+
+/* the PDF: a trade paperback page, light ink whatever the reader's theme */
+@page { size: 7in 9.25in; margin: .8in .7in .85in; @bottom-center { content: counter(page); font: 9pt var(--serif); color: #666; } }
+@page :first { @bottom-center { content: none; } }
+@media print {
+  :root { --accent: #a33d18; --bg: #fff; --bg2: #f2f2f0; --text: #1a1a1a; --text2: #555; --border: #d8d8d4; --code-bg: #f5f4f0; --try: #f8f0ec;
+          --code-k: #a33d18; --code-s: #2f6f3e; --code-c: #8a8a86; --code-t: #24569c; --code-n: #8a4b9a; }
+  body { font-size: 10.5pt; line-height: 1.5; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .bar, .progress, .edit, .copy, .cover-get, .quiz { display: none !important; }
+  .print-only { display: inline; }
+  nav.print-only { display: block; }
+  .book { max-width: none; padding: 0; }
+  .cover { height: 7.3in; display: flex; flex-direction: column; border: 0; padding: 0; break-after: page; }
+  .cover .plate { order: 2; margin: auto 0 0; }
+  .cover-h { font-size: 34pt; }
+  .cover-sub { font-size: 11pt; }
+  .toc { display: none; }
+  .contents { display: block; break-after: page; font: 11pt var(--font); }
+  .contents .label { font-size: 20pt; letter-spacing: -.02em; text-transform: none; color: var(--text); margin-bottom: 18pt; font-weight: 700; }
+  .contents ol { list-style: none; padding: 0; }
+  .contents a { display: grid; grid-template-columns: 28pt 1fr; padding: 5pt 0; border-bottom: .5pt solid var(--border); color: var(--text); }
+  .contents small { font: 600 9pt/16pt var(--mono); color: var(--accent); }
+  .chapter { break-before: page; padding-top: 0; }
+  .chapter + .chapter { border: 0; margin-top: 0; }
+  .chap-no b { font-size: 54pt; }
+  .chapter h1 { font-size: 24pt; }
+  .chapter h2 { font-size: 15pt; margin-top: 20pt; break-after: avoid; }
+  .chapter h3 { break-after: avoid; }
+  pre { font-size: 8.5pt; padding: 8pt 10pt; white-space: pre-wrap; overflow: visible; break-inside: avoid; }
+  pre.output::before { top: 5pt; left: 10pt; }
+  pre.output { padding-top: 18pt; }
+  .fig, .box, tr { break-inside: avoid; }
+  table { font-size: 8.5pt; }
+  td:first-child { white-space: normal; }
+  a { color: inherit; text-decoration: none; }
+}

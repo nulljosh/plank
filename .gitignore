@@ -5,3 +5,4 @@ examples/*[!k]
 apps/*[!k]
 !apps/*.out
 .book-*
+site/book/plank-book.pdf

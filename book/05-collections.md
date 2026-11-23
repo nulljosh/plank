@@ -41,7 +41,9 @@ fn main() {
 ["ada"]
 ```
 
-Lists are shared. Hand one to a function and the function sees and changes the same list, not a copy. `let` stops the name from pointing at a different list; it does not freeze the list.
+Lists are shared. Hand one to a function and the function sees and changes the same list, not a copy. `let` stops the name from pointing at a different list; it does not freeze the list. Figure 5-1 shows why.
+
+![Two names, one list. The names live on the stack and hold a pointer; the list itself lives on the heap.](art/memory.svg)
 
 ## Doing something to every item
 
@@ -131,3 +133,9 @@ fn main() {
 ```output
 4 true ["a", "b", "c", "d"]
 ```
+
+> **Try it yourself**
+>
+> 1. Make a list of five names, sort it and print the first and last.
+> 2. Change the word counter so it ignores case.
+> 3. Use a set to find the letters two words have in common.

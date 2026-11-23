@@ -16,20 +16,29 @@
 <header class="bar">
   <a class="brand" href="../"><img src="../icon.svg" alt="" width="24" height="24"><span>Plank</span></a>
   <span class="crumb">The Book <small>v{{version}}</small></span>
-  <a class="src" href="https://github.com/nulljosh/plank/tree/main/book">Edit on GitHub</a>
+  <button type="button" class="quiz" id="quiz" aria-pressed="false" title="Hide every output until you have guessed it">Guess the output</button>
+  <a class="pdf" href="plank-book.pdf" download>PDF</a>
 </header>
+<div class="progress" aria-hidden="true"><i id="progress"></i></div>
 <div class="layout">
   <nav class="toc" aria-label="Chapters"><p class="label">Chapters</p><ol>
 {{toc}}
   </ol></nav>
   <main class="book">
     <div class="cover">
-      <p class="label">The Plank Book</p>
+      <div class="plate" style="--img: url(../art/babel.png)" aria-hidden="true"></div>
+      <p class="label">The Plank Book <span class="print-only">&middot; v{{version}}</span></p>
       <p class="cover-h">Write a language. Then read its compiler.</p>
-      <p class="cover-sub">Thirteen short chapters. Every program in them is compiled and run by the test suite, so what you read here is what Plank does.</p>
+      <p class="cover-sub">Thirteen short chapters and two appendices. Every program in them is compiled and run by the test suite, so what you read here is what Plank does.</p>
+      <p class="cover-by">Joshua Trommel</p>
+      <p class="cover-get"><a class="btn" href="plank-book.pdf" download>Download the PDF</a> <a href="https://github.com/nulljosh/plank/tree/main/book">Source on GitHub</a></p>
     </div>
+    <nav class="contents print-only" aria-hidden="true"><p class="label">Contents</p><ol>
+{{toc}}
+    </ol></nav>
 {{chapters}}
   </main>
 </div>
+<script src="book.js" defer></script>
 </body>
 </html>

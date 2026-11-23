@@ -1,0 +1,25 @@
+<svg viewBox="0 0 680 250" role="img" aria-label="Source text goes through lex, parse, generate and link to become a native binary" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="12">
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <rect x="4" y="20" width="112" height="52" rx="3" class="fig-paper"/>
+    <rect x="146" y="20" width="112" height="52" rx="3"/>
+    <rect x="288" y="20" width="112" height="52" rx="3"/>
+    <rect x="430" y="20" width="112" height="52" rx="3"/>
+    <rect x="572" y="20" width="104" height="52" rx="3" class="fig-ink"/>
+    <path d="M116 46H144M258 46H286M400 46H428M542 46H570" marker-end="url(#ah)"/>
+    <path d="M60 72V96M202 72V96M344 72V96M486 72V96M624 72V96" stroke-dasharray="3 3"/>
+  </g>
+  <g text-anchor="middle" font-weight="700" font-size="13" fill="currentColor">
+    <text x="60" y="51">hello.pk</text><text x="202" y="51">lex</text><text x="344" y="51">parse</text><text x="486" y="51">generate</text><text x="624" y="51" class="fig-on-ink">link</text>
+  </g>
+  <g fill="currentColor" class="fig-sub">
+    <text x="4" y="116">let x = 1 + 2</text>
+    <text x="146" y="116">let</text><text x="146" y="132">x</text><text x="146" y="148">=</text><text x="146" y="164">1</text><text x="146" y="180">+</text><text x="146" y="196">2</text>
+    <text x="300" y="116">Let x</text><text x="300" y="134">└ Binary +</text><text x="300" y="152">  ├ Int 1</text><text x="300" y="170">  └ Int 2</text>
+    <text x="430" y="116">%x = alloca i64</text><text x="430" y="134">store i64 3,</text><text x="430" y="152">  ptr %x</text>
+    <text x="572" y="116">./hello</text><text x="572" y="134">a real binary,</text><text x="572" y="152">no Python,</text><text x="572" y="170">no LLVM</text>
+  </g>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="currentColor" class="fig-sub" text-anchor="middle">
+    <text x="202" y="14">tokens</text><text x="344" y="14">a tree</text><text x="486" y="14">LLVM IR</text><text x="624" y="14">cc + runtime</text>
+  </g>
+</svg>

@@ -140,3 +140,9 @@ fn main() {
 ```
 
 Floats print with up to 15 significant digits, so `0.1 + 0.2` shows as `0.3`. `fixed` gives you exactly as many digits as you ask for.
+
+> **Try it yourself**
+>
+> 1. Make a `var` counter, add to it twice and print it. Now change `var` to `let`. What does Plank say?
+> 2. Build a sentence out of three variables with `\( )` interpolation.
+> 3. Divide 7 by 2 as ints and as floats. Explain the difference in one sentence.

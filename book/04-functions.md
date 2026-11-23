@@ -86,3 +86,9 @@ fn main() {
 ```
 
 Because Plank compiles to machine code, `fib(35)` takes a few hundredths of a second. The same function in a tree-walking interpreter takes seconds.
+
+> **Try it yourself**
+>
+> 1. Write `max3(a, b, c)` that returns the biggest of three ints.
+> 2. Give one of its parameters a default and call it both ways.
+> 3. Write a recursive `sum_to(n)` and check it against `n * (n + 1) / 2`.

@@ -1,6 +1,6 @@
 # 12. Inside the compiler
 
-You can now write Plank. This last chapter is about how Plank works, because the point of the language is that you can understand all of it. Open `plank.py` next to this chapter. It reads top to bottom in the same order as the steps below.
+You can now write Plank. This last chapter is about how Plank works, following the road from Figure 1-1 one step at a time, because the point of the language is that you can understand all of it. Open `plank.py` next to this chapter. It reads top to bottom in the same order as the steps below.
 
 ## Four steps
 
@@ -33,7 +33,7 @@ You will see `fib` as a function that compares, branches and calls itself, much 
 
 ## Where values live
 
-Ints, floats and bools live in registers and on the stack, like in C. Strings, lists, dicts, structs, enums and closures live on the heap and are passed around as pointers, which is why they are shared.
+Ints, floats and bools live in registers and on the stack, like in C. Strings, lists, dicts, structs, enums and closures live on the heap and are passed around as pointers, which is why they are shared, as Figure 5-1 showed.
 
 Nothing is ever freed by hand. A garbage collector runs now and then: it finds every object the program can still reach, starting from the stack and globals, marks them, and frees the rest. It never moves anything, which keeps it short. The test suite runs everything a second time with the collector firing every 4KB, to shake out any place that forgets to tell it about a pointer.
 
@@ -43,9 +43,15 @@ Writing a code generator for every processor is the part of a compiler that take
 
 ## Where to go next
 
-- `docs/SPEC.md` is the reference: every rule of the language on one page.
-- `docs/ARCHITECTURE.md` maps the file, section by section.
+- Appendix A is the reference: every rule of the language on one page. It is `docs/SPEC.md`, printed here.
+- Appendix B maps `plank.py`, section by section. It is `docs/ARCHITECTURE.md`, printed here.
 - `apps/calc.pk` is a calculator with its own tokenizer and parser, written in Plank. It is the same four steps in miniature.
 - `compiler/plank.pk` is Plank's compiler written in Plank. It already has the lexer and parser from this chapter and grows a step per release until it can compile itself.
 
 Change something. Add a built-in, make an error message friendlier, add a case to `match`. Run `python3 test.py`. That is how every feature in this book got there.
+
+> **Try it yourself**
+>
+> 1. Run `plank tokens`, `plank ast` and `plank emit` on the same small program and match each line of output to Figure 1-1.
+> 2. Find `def lex` in `plank.py` and read it start to finish. How long did it take?
+> 3. Make one error message in `plank.py` friendlier and run `python3 test.py`.

@@ -104,3 +104,9 @@ fn main() {
 ```
 
 A rule of thumb: throw for bugs and broken input, return a `Result` when the caller is expected to handle the failure.
+
+> **Try it yourself**
+>
+> 1. Write `find(xs, x) -> int?` that returns the index or `nil`.
+> 2. Use `??` to print `none` when it finds nothing.
+> 3. Wrap a division by zero in `try` and print the message you catch.

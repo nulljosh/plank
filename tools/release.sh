@@ -35,5 +35,6 @@ tap=../homebrew-tap
 sed -i '' -e "s|tags/v[0-9.]*\.tar\.gz|tags/v$v.tar.gz|" -e "s|sha256 \".*\"|sha256 \"$sha\"|" "$tap/Formula/plank-lang.rb"
 git -C "$tap" commit -qam "plank $v" && git -C "$tap" push -q
 
+python3 tools/gen-book.py --pdf >/dev/null
 npx wrangler deploy 2>&1 | grep -E "Deployed|rror"
 echo "released $v"

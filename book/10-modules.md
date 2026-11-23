@@ -59,3 +59,9 @@ ok
 ## Shipping
 
 `plank build app.pk` makes a native binary. On Linux, `plank build app.pk --static` makes one with no shared libraries at all, which you can copy to any Linux machine and run.
+
+> **Try it yourself**
+>
+> 1. Move a struct into its own file and import it.
+> 2. Import the same file `as` a module and call one function through the module name.
+> 3. Write a test file with three `assert`s and run `plank test` on its folder.

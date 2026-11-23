@@ -16,37 +16,63 @@
 <header class="bar">
   <a class="brand" href="../"><img src="../icon.svg" alt="" width="24" height="24"><span>Plank</span></a>
   <span class="crumb">The Book <small>v4.9.0</small></span>
-  <a class="src" href="https://github.com/nulljosh/plank/tree/main/book">Edit on GitHub</a>
+  <button type="button" class="quiz" id="quiz" aria-pressed="false" title="Hide every output until you have guessed it">Guess the output</button>
+  <a class="pdf" href="plank-book.pdf" download>PDF</a>
 </header>
+<div class="progress" aria-hidden="true"><i id="progress"></i></div>
 <div class="layout">
   <nav class="toc" aria-label="Chapters"><p class="label">Chapters</p><ol>
-<li><a href="#00-preface">Preface</a></li>
-<li><a href="#01-first-program">1. Your first program</a></li>
-<li><a href="#02-values">2. Values and names</a></li>
-<li><a href="#03-decisions">3. Making decisions and repeating</a></li>
-<li><a href="#04-functions">4. Functions</a></li>
-<li><a href="#05-collections">5. Lists, dicts and sets</a></li>
-<li><a href="#06-types">6. Your own types</a></li>
-<li><a href="#07-missing-and-wrong">7. When things are missing or wrong</a></li>
-<li><a href="#08-closures">8. Functions as values</a></li>
-<li><a href="#09-scripts">9. Talking to the world</a></li>
-<li><a href="#10-modules">10. Programs in more than one file</a></li>
-<li><a href="#11-ai">11. Scripting intelligence</a></li>
-<li><a href="#12-inside">12. Inside the compiler</a></li>
+<li><a href="#00-preface"><small></small>Preface</a></li>
+<li><a href="#01-first-program"><small>1</small>Your first program</a></li>
+<li><a href="#02-values"><small>2</small>Values and names</a></li>
+<li><a href="#03-decisions"><small>3</small>Making decisions and repeating</a></li>
+<li><a href="#04-functions"><small>4</small>Functions</a></li>
+<li><a href="#05-collections"><small>5</small>Lists, dicts and sets</a></li>
+<li><a href="#06-types"><small>6</small>Your own types</a></li>
+<li><a href="#07-missing-and-wrong"><small>7</small>When things are missing or wrong</a></li>
+<li><a href="#08-closures"><small>8</small>Functions as values</a></li>
+<li><a href="#09-scripts"><small>9</small>Talking to the world</a></li>
+<li><a href="#10-modules"><small>10</small>Programs in more than one file</a></li>
+<li><a href="#11-ai"><small>11</small>Scripting intelligence</a></li>
+<li><a href="#12-inside"><small>12</small>Inside the compiler</a></li>
+<li><a href="#appendix-a"><small>A</small>The language reference</a></li>
+<li><a href="#appendix-b"><small>B</small>A map of plank.py</a></li>
   </ol></nav>
   <main class="book">
     <div class="cover">
-      <p class="label">The Plank Book</p>
+      <div class="plate" style="--img: url(../art/babel.png)" aria-hidden="true"></div>
+      <p class="label">The Plank Book <span class="print-only">&middot; v4.9.0</span></p>
       <p class="cover-h">Write a language. Then read its compiler.</p>
-      <p class="cover-sub">Thirteen short chapters. Every program in them is compiled and run by the test suite, so what you read here is what Plank does.</p>
+      <p class="cover-sub">Thirteen short chapters and two appendices. Every program in them is compiled and run by the test suite, so what you read here is what Plank does.</p>
+      <p class="cover-by">Joshua Trommel</p>
+      <p class="cover-get"><a class="btn" href="plank-book.pdf" download>Download the PDF</a> <a href="https://github.com/nulljosh/plank/tree/main/book">Source on GitHub</a></p>
     </div>
-<section class="chapter">
+    <nav class="contents print-only" aria-hidden="true"><p class="label">Contents</p><ol>
+<li><a href="#00-preface"><small></small>Preface</a></li>
+<li><a href="#01-first-program"><small>1</small>Your first program</a></li>
+<li><a href="#02-values"><small>2</small>Values and names</a></li>
+<li><a href="#03-decisions"><small>3</small>Making decisions and repeating</a></li>
+<li><a href="#04-functions"><small>4</small>Functions</a></li>
+<li><a href="#05-collections"><small>5</small>Lists, dicts and sets</a></li>
+<li><a href="#06-types"><small>6</small>Your own types</a></li>
+<li><a href="#07-missing-and-wrong"><small>7</small>When things are missing or wrong</a></li>
+<li><a href="#08-closures"><small>8</small>Functions as values</a></li>
+<li><a href="#09-scripts"><small>9</small>Talking to the world</a></li>
+<li><a href="#10-modules"><small>10</small>Programs in more than one file</a></li>
+<li><a href="#11-ai"><small>11</small>Scripting intelligence</a></li>
+<li><a href="#12-inside"><small>12</small>Inside the compiler</a></li>
+<li><a href="#appendix-a"><small>A</small>The language reference</a></li>
+<li><a href="#appendix-b"><small>B</small>A map of plank.py</a></li>
+    </ol></nav>
+<section class="chapter" data-src="book/00-preface.md">
+<header class="opener"><div class="plate" style="--img: url(../art/babel.png)" aria-hidden="true"></div></header>
 <h1 id="00-preface">Preface</h1>
 <p>This book teaches Plank from the first line to the last stage of the compiler. You do not need to have written a compiler before. You need to have written a little code in something, Python or JavaScript or Swift, and to be curious about what happens after you press run.</p>
 <p>Plank is a small language that compiles to real machine code. Its whole compiler is one Python file, <code>plank.py</code>. That fact shapes the book. The first half teaches you to write Plank. The second half opens the compiler and shows you how it turns your programs into binaries, so that by the end there is nothing about the language you have to take on trust.</p>
 <p>Every program in this book is real. The test suite pulls each one out, compiles it, runs it and checks that it prints exactly what the book says it prints. If a page and the compiler ever disagree, the build goes red.</p>
 <h2 id="00-preface-how-to-read-it">How to read it</h2>
 <p>Read the chapters in order the first time. Each one builds on the last and ends with something you can run. Type the programs in yourself rather than copying them; you learn a language through your fingers.</p>
+<aside class="box note"><p class="box-h">Note</p><p>The book is built from the same files as the docs. Appendix A is the language reference and Appendix B is the map of the compiler, pulled in fresh every time the book is built, so neither can fall behind.</p></aside>
 <p>When you see a block like this one, it is a program:</p>
 <pre class="code"><code><span class="k">fn</span> main() {
   print(<span class="s">"hello, reader"</span>)
@@ -59,9 +85,11 @@
 <p>Or clone the repository and run <code>./plank</code> from inside it. Either way you need a C compiler on the machine, because Plank hands its object files to your system linker. On a Mac that comes with the Xcode command line tools; on Linux, install <code>gcc</code> or <code>clang</code>. The first run fetches LLVM's Python bindings by itself.</p>
 <p>Check it worked:</p>
 <pre class="shell"><code>plank --version</code></pre>
+<a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/00-preface.md">Edit this page</a>
 </section>
-<section class="chapter">
-<h1 id="01-first-program">1. Your first program</h1>
+<section class="chapter" data-src="book/01-first-program.md">
+<header class="opener"><div class="plate" style="--img: url(../art/masons.png)" aria-hidden="true"></div><p class="chap-no"><span>Chapter 1</span><b>1</b></p></header>
+<h1 id="01-first-program">Your first program</h1>
 <p>Make a file called <code>hello.pk</code>:</p>
 <pre class="code"><code><span class="k">fn</span> main() {
   print(<span class="s">"hello, plank"</span>)
@@ -69,7 +97,33 @@
 <p>Run it:</p>
 <pre class="shell"><code>plank run hello.pk</code></pre>
 <pre class="output" aria-label="Output"><code>hello, plank</code></pre>
-<p>That one command did a lot. Plank read the file, checked it, turned it into LLVM's intermediate language, asked LLVM to optimize that into machine code, and asked your C compiler to link it into a program. Then it ran the program. If you want to keep the program, build it instead:</p>
+<p>That one command did a lot. Plank read the file, checked it, turned it into LLVM's intermediate language, asked LLVM to optimize that into machine code, and asked your C compiler to link it into a program. Then it ran the program. Figure 1-1 shows the trip your one line of code takes.</p>
+<figure class="fig"><svg viewBox="0 0 680 250" role="img" aria-label="Source text goes through lex, parse, generate and link to become a native binary" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="12">
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <rect x="4" y="20" width="112" height="52" rx="3" class="fig-paper"/>
+    <rect x="146" y="20" width="112" height="52" rx="3"/>
+    <rect x="288" y="20" width="112" height="52" rx="3"/>
+    <rect x="430" y="20" width="112" height="52" rx="3"/>
+    <rect x="572" y="20" width="104" height="52" rx="3" class="fig-ink"/>
+    <path d="M116 46H144M258 46H286M400 46H428M542 46H570" marker-end="url(#ah)"/>
+    <path d="M60 72V96M202 72V96M344 72V96M486 72V96M624 72V96" stroke-dasharray="3 3"/>
+  </g>
+  <g text-anchor="middle" font-weight="700" font-size="13" fill="currentColor">
+    <text x="60" y="51">hello.pk</text><text x="202" y="51">lex</text><text x="344" y="51">parse</text><text x="486" y="51">generate</text><text x="624" y="51" class="fig-on-ink">link</text>
+  </g>
+  <g fill="currentColor" class="fig-sub">
+    <text x="4" y="116">let x = 1 + 2</text>
+    <text x="146" y="116">let</text><text x="146" y="132">x</text><text x="146" y="148">=</text><text x="146" y="164">1</text><text x="146" y="180">+</text><text x="146" y="196">2</text>
+    <text x="300" y="116">Let x</text><text x="300" y="134">└ Binary +</text><text x="300" y="152">  ├ Int 1</text><text x="300" y="170">  └ Int 2</text>
+    <text x="430" y="116">%x = alloca i64</text><text x="430" y="134">store i64 3,</text><text x="430" y="152">  ptr %x</text>
+    <text x="572" y="116">./hello</text><text x="572" y="134">a real binary,</text><text x="572" y="152">no Python,</text><text x="572" y="170">no LLVM</text>
+  </g>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="currentColor" class="fig-sub" text-anchor="middle">
+    <text x="202" y="14">tokens</text><text x="344" y="14">a tree</text><text x="486" y="14">LLVM IR</text><text x="624" y="14">cc + runtime</text>
+  </g>
+</svg><figcaption><b>Figure 1-1:</b> The four steps from a source file to a binary. Every Plank program takes this road.</figcaption></figure>
+<p>If you want to keep the program, build it instead:</p>
 <pre class="shell"><code>plank build hello.pk
 ./hello</code></pre>
 <p>Now there is a file called <code>hello</code> next to your source. It is a native binary. It does not need Plank, Python or LLVM to run. You can copy it to another machine of the same kind and it will work.</p>
@@ -96,10 +150,14 @@ after a blank line</code></pre>
 }</code></pre>
 <p>Plank refuses to compile it and tells you where and why:</p>
 <pre class="shell"><code>hello.pk:2: int + str: types must match, use str()</code></pre>
+<aside class="box note"><p class="box-h">Note</p><p>Plank checks types before anything runs. A mistake like this one never becomes a crash at 3 a.m.; it is a message at your desk.</p></aside>
 <p>Every error in Plank names the file and the line. Most of them also tell you what to do next. Read them; they were written to be read.</p>
+<aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Make <code>print</code> say your name, then build the program and run the binary without <code>plank</code>.</li><li>Print three values of different kinds on one line. What separates them?</li><li>Open the REPL and type <code>2 + 3 * 4</code>. Is the answer what you expected?</li><li>Break the program on purpose three different ways and read each error. Which one helps the most?</li></ol></aside>
+<a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/01-first-program.md">Edit this page</a>
 </section>
-<section class="chapter">
-<h1 id="02-values">2. Values and names</h1>
+<section class="chapter" data-src="book/02-values.md">
+<header class="opener"><div class="plate" style="--img: url(../art/littlebabel.png)" aria-hidden="true"></div><p class="chap-no"><span>Chapter 2</span><b>2</b></p></header>
+<h1 id="02-values">Values and names</h1>
 <h2 id="02-values-numbers-text-and-truth">Numbers, text and truth</h2>
 <p>Plank has four simple kinds of value:</p>
 <ul><li><code>int</code>, a whole number: <code>42</code>, <code>-7</code>, <code>0</code></li><li><code>float</code>, a number with a fractional part: <code>3.14</code>, <code>2.0</code>, <code>1.5e3</code></li><li><code>bool</code>, <code>true</code> or <code>false</code></li><li><code>str</code>, a piece of text: <code>"hello"</code>, <code>"世界"</code></li></ul>
@@ -178,9 +236,12 @@ p la k</code></pre>
 1.4142135623731 1024 4
 3.14</code></pre>
 <p>Floats print with up to 15 significant digits, so <code>0.1 + 0.2</code> shows as <code>0.3</code>. <code>fixed</code> gives you exactly as many digits as you ask for.</p>
+<aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Make a <code>var</code> counter, add to it twice and print it. Now change <code>var</code> to <code>let</code>. What does Plank say?</li><li>Build a sentence out of three variables with <code>\( )</code> interpolation.</li><li>Divide 7 by 2 as ints and as floats. Explain the difference in one sentence.</li></ol></aside>
+<a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/02-values.md">Edit this page</a>
 </section>
-<section class="chapter">
-<h1 id="03-decisions">3. Making decisions and repeating</h1>
+<section class="chapter" data-src="book/03-decisions.md">
+<header class="opener"><div class="plate" style="--img: url(../art/jacquard.png)" aria-hidden="true"></div><p class="chap-no"><span>Chapter 3</span><b>3</b></p></header>
+<h1 id="03-decisions">Making decisions and repeating</h1>
 <h2 id="03-decisions-if">if</h2>
 <pre class="code"><code><span class="k">fn</span> main() {
   <span class="k">let</span> temp = <span class="n">18</span>
@@ -270,9 +331,12 @@ Fizz
 13
 14
 FizzBuzz</code></pre>
+<aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Print the numbers 1 to 20, but print <code>even</code> in place of every even one.</li><li>Write a <code>while</code> loop that halves 1000 until it drops below 1 and counts the steps.</li><li>Change the whole program at the end of the chapter so it stops early with <code>break</code>.</li></ol></aside>
+<a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/03-decisions.md">Edit this page</a>
 </section>
-<section class="chapter">
-<h1 id="04-functions">4. Functions</h1>
+<section class="chapter" data-src="book/04-functions.md">
+<header class="opener"><div class="plate" style="--img: url(../art/babel.png)" aria-hidden="true"></div><p class="chap-no"><span>Chapter 4</span><b>4</b></p></header>
+<h1 id="04-functions">Functions</h1>
 <p>A function takes values in and may hand one back. Every parameter has a type, and so does the result:</p>
 <pre class="code"><code><span class="k">fn</span> area(w: <span class="t">float</span>, h: <span class="t">float</span>) -&gt; <span class="t">float</span> {
   <span class="k">return</span> w * h
@@ -325,9 +389,12 @@ hi, grace</code></pre>
 }</code></pre>
 <pre class="output" aria-label="Output"><code>6765</code></pre>
 <p>Because Plank compiles to machine code, <code>fib(35)</code> takes a few hundredths of a second. The same function in a tree-walking interpreter takes seconds.</p>
+<aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Write <code>max3(a, b, c)</code> that returns the biggest of three ints.</li><li>Give one of its parameters a default and call it both ways.</li><li>Write a recursive <code>sum_to(n)</code> and check it against <code>n * (n + 1) / 2</code>.</li></ol></aside>
+<a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/04-functions.md">Edit this page</a>
 </section>
-<section class="chapter">
-<h1 id="05-collections">5. Lists, dicts and sets</h1>
+<section class="chapter" data-src="book/05-collections.md">
+<header class="opener"><div class="plate" style="--img: url(../art/masons.png)" aria-hidden="true"></div><p class="chap-no"><span>Chapter 5</span><b>5</b></p></header>
+<h1 id="05-collections">Lists, dicts and sets</h1>
 <h2 id="05-collections-lists">Lists</h2>
 <p>A list holds any number of values of one type, in order:</p>
 <pre class="code"><code><span class="k">fn</span> main() {
@@ -353,7 +420,30 @@ hi, grace</code></pre>
   print(names)
 }</code></pre>
 <pre class="output" aria-label="Output"><code>["ada"]</code></pre>
-<p>Lists are shared. Hand one to a function and the function sees and changes the same list, not a copy. <code>let</code> stops the name from pointing at a different list; it does not freeze the list.</p>
+<p>Lists are shared. Hand one to a function and the function sees and changes the same list, not a copy. <code>let</code> stops the name from pointing at a different list; it does not freeze the list. Figure 5-1 shows why.</p>
+<figure class="fig"><svg viewBox="0 0 680 230" role="img" aria-label="Ints live in the stack frame; a list lives on the heap and two names point at the same one" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="13">
+  <defs><marker id="am" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1" fill="currentColor" class="fig-sub">
+    <text x="4" y="14">STACK (main)</text><text x="330" y="14">HEAP</text>
+  </g>
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <rect x="4" y="24" width="220" height="196" rx="3"/>
+    <path d="M4 88H224M4 152H224"/>
+    <rect x="330" y="70" width="346" height="80" rx="3" stroke-dasharray="5 4"/>
+    <path d="M160 120C240 120 260 110 328 110M160 184C250 184 270 130 328 124" marker-end="url(#am)"/>
+  </g>
+  <g fill="currentColor">
+    <text x="20" y="62">n</text><text x="120" y="62" font-weight="700">3</text>
+    <text x="20" y="126">xs</text><circle cx="150" cy="120" r="5"/>
+    <text x="20" y="190">ys</text><circle cx="150" cy="184" r="5"/>
+    <text x="346" y="96" class="fig-sub">len 3  cap 4</text>
+    <text x="346" y="128" font-weight="700">[10, 20, 30]</text>
+  </g>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="currentColor" class="fig-sub">
+    <text x="330" y="182">let ys = xs copies the pointer, not the list.</text>
+    <text x="330" y="200">ys.append(40) changes what xs sees too.</text>
+  </g>
+</svg><figcaption><b>Figure 5-1:</b> Two names, one list. The names live on the stack and hold a pointer; the list itself lives on the heap.</figcaption></figure>
 <h2 id="05-collections-doing-something-to-every-item">Doing something to every item</h2>
 <p><code>map</code> makes a new list by running a function on each item. <code>filter</code> keeps the items a function says yes to. <code>reduce</code> folds them into one value:</p>
 <pre class="code"><code><span class="k">fn</span> main() {
@@ -408,9 +498,12 @@ and 2</code></pre>
   print(len(seen), <span class="s">"a"</span> <span class="k">in</span> seen, seen.items())
 }</code></pre>
 <pre class="output" aria-label="Output"><code>4 true ["a", "b", "c", "d"]</code></pre>
+<aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Make a list of five names, sort it and print the first and last.</li><li>Change the word counter so it ignores case.</li><li>Use a set to find the letters two words have in common.</li></ol></aside>
+<a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/05-collections.md">Edit this page</a>
 </section>
-<section class="chapter">
-<h1 id="06-types">6. Your own types</h1>
+<section class="chapter" data-src="book/06-types.md">
+<header class="opener"><div class="plate" style="--img: url(../art/littlebabel.png)" aria-hidden="true"></div><p class="chap-no"><span>Chapter 6</span><b>6</b></p></header>
+<h1 id="06-types">Your own types</h1>
 <h2 id="06-types-structs">Structs</h2>
 <p>A struct gives a name to a group of fields, and can carry the functions that work on them. Struct names start with a capital letter:</p>
 <pre class="code"><code><span class="k">struct</span> <span class="t">Account</span> {
@@ -501,9 +594,12 @@ dot 0</code></pre>
 }</code></pre>
 <pre class="output" aria-label="Output"><code>b 2</code></pre>
 <p>Plank compiles a separate version for each type you use, so a <code>Stack&lt;str&gt;</code> runs as fast as one written by hand for strings.</p>
+<aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Add a <code>withdraw</code> method to <code>Account</code> that refuses to go below zero.</li><li>Add a <code>triangle</code> case to <code>Shape</code> and watch <code>match</code> refuse to compile until you handle it.</li><li>Give <code>Stack</code> a <code>pop</code> method, push three numbers and pop them all.</li></ol></aside>
+<a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/06-types.md">Edit this page</a>
 </section>
-<section class="chapter">
-<h1 id="07-missing-and-wrong">7. When things are missing or wrong</h1>
+<section class="chapter" data-src="book/07-missing-and-wrong.md">
+<header class="opener"><div class="plate" style="--img: url(../art/jacquard.png)" aria-hidden="true"></div><p class="chap-no"><span>Chapter 7</span><b>7</b></p></header>
+<h1 id="07-missing-and-wrong">When things are missing or wrong</h1>
 <h2 id="07-missing-and-wrong-optionals">Optionals</h2>
 <p>Some answers might not exist: the position of a word that is not in a list, the value of a key that is not in a dict. Plank writes that as an optional. <code>int?</code> means an int or <code>nil</code>.</p>
 <pre class="code"><code><span class="k">fn</span> find(xs: [<span class="t">str</span>], want: <span class="t">str</span>) -&gt; <span class="t">int</span>? {
@@ -574,9 +670,12 @@ no good: int() got text that is not a whole number</code></pre>
 3 is odd
 0</code></pre>
 <p>A rule of thumb: throw for bugs and broken input, return a <code>Result</code> when the caller is expected to handle the failure.</p>
+<aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Write <code>find(xs, x) -&gt; int?</code> that returns the index or <code>nil</code>.</li><li>Use <code>??</code> to print <code>none</code> when it finds nothing.</li><li>Wrap a division by zero in <code>try</code> and print the message you catch.</li></ol></aside>
+<a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/07-missing-and-wrong.md">Edit this page</a>
 </section>
-<section class="chapter">
-<h1 id="08-closures">8. Functions as values</h1>
+<section class="chapter" data-src="book/08-closures.md">
+<header class="opener"><div class="plate" style="--img: url(../art/babel.png)" aria-hidden="true"></div><p class="chap-no"><span>Chapter 8</span><b>8</b></p></header>
+<h1 id="08-closures">Functions as values</h1>
 <p>A function is a value like a number or a string. You can store one in a name, pass it to another function, or return it:</p>
 <pre class="code"><code><span class="k">fn</span> twice(f: <span class="k">fn</span>(<span class="t">int</span>) -&gt; <span class="t">int</span>, x: <span class="t">int</span>) -&gt; <span class="t">int</span> {
   <span class="k">return</span> f(f(x))
@@ -632,9 +731,12 @@ no good: int() got text that is not a whole number</code></pre>
   print(people.map(<span class="k">fn</span>(p) =&gt; p.name))
 }</code></pre>
 <pre class="output" aria-label="Output"><code>["linus", "ada", "grace"]</code></pre>
+<aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Write <code>make_adder(n)</code> that returns a function adding <code>n</code> to its argument.</li><li>Sort a list of words by their length, longest first.</li><li>Make a counter closure that returns 1, 2, 3 on each call.</li></ol></aside>
+<a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/08-closures.md">Edit this page</a>
 </section>
-<section class="chapter">
-<h1 id="09-scripts">9. Talking to the world</h1>
+<section class="chapter" data-src="book/09-scripts.md">
+<header class="opener"><div class="plate" style="--img: url(../art/masons.png)" aria-hidden="true"></div><p class="chap-no"><span>Chapter 9</span><b>9</b></p></header>
+<h1 id="09-scripts">Talking to the world</h1>
 <p>Plank is meant for real scripts, so files, folders, the shell, JSON and HTTP are built in.</p>
 <h2 id="09-scripts-files">Files</h2>
 <pre class="code"><code><span class="k">fn</span> main() {
@@ -682,9 +784,12 @@ if status() != 200 {
   print("failed:", status())
 }</code></pre>
 <p>Together these cover most of what people reach for Python to do: read some files, call a command, hit an API, write a report.</p>
+<aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Write a script that counts the lines in a file named on the command line.</li><li>Run <code>ls</code> from Plank and print how many entries it found.</li><li>Read a JSON file and print one field from it.</li></ol></aside>
+<a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/09-scripts.md">Edit this page</a>
 </section>
-<section class="chapter">
-<h1 id="10-modules">10. Programs in more than one file</h1>
+<section class="chapter" data-src="book/10-modules.md">
+<header class="opener"><div class="plate" style="--img: url(../art/littlebabel.png)" aria-hidden="true"></div><p class="chap-no"><span>Chapter 10</span><b>10</b></p></header>
+<h1 id="10-modules">Programs in more than one file</h1>
 <h2 id="10-modules-import">import</h2>
 <p><code>import</code> pulls in everything another file defines. Paths are relative to the file doing the importing:</p>
 <pre class="shell"><code>import "lib/money.pk"</code></pre>
@@ -716,9 +821,12 @@ fn main() {
 <p><code>plank fmt</code> lays out your files the house way: two-space indents, one statement per line, blocks opened on the same line. <code>plank fmt --check</code> only reports, which is what you want in CI. Every program in this book passes it.</p>
 <h2 id="10-modules-shipping">Shipping</h2>
 <p><code>plank build app.pk</code> makes a native binary. On Linux, <code>plank build app.pk --static</code> makes one with no shared libraries at all, which you can copy to any Linux machine and run.</p>
+<aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Move a struct into its own file and import it.</li><li>Import the same file <code>as</code> a module and call one function through the module name.</li><li>Write a test file with three <code>assert</code>s and run <code>plank test</code> on its folder.</li></ol></aside>
+<a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/10-modules.md">Edit this page</a>
 </section>
-<section class="chapter">
-<h1 id="11-ai">11. Scripting intelligence</h1>
+<section class="chapter" data-src="book/11-ai.md">
+<header class="opener"><div class="plate" style="--img: url(../art/jacquard.png)" aria-hidden="true"></div><p class="chap-no"><span>Chapter 11</span><b>11</b></p></header>
+<h1 id="11-ai">Scripting intelligence</h1>
 <p>Python scripts computers. Plank is built to script models too. Everything here lives in <code>lib/ai.pk</code>, an ordinary Plank file you can read.</p>
 <h2 id="11-ai-asking-a-model">Asking a model</h2>
 <pre class="shell"><code>import "lib/ai.pk" as ai
@@ -749,10 +857,13 @@ tool fn add(a: int, b: int) -&gt; int {
 print(bot.run("What is 20 + 22?"))</code></pre>
 <p>The third argument is a file. The agent saves the conversation there after each run and reads it back at the start of the next, so it remembers. <code>keep: 20</code> caps how much it keeps.</p>
 <p>One piece of advice that matters more than any code: the tool's comment is the only thing telling the model when to use it. "Adds two whole numbers" works. "math" does not.</p>
+<aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Turn one of your earlier functions into a <code>tool fn</code> with a comment above it.</li><li>Run the agent with the mock model and change what the mock says.</li><li>Point the program at a local model and ask it to use your tool.</li></ol></aside>
+<a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/11-ai.md">Edit this page</a>
 </section>
-<section class="chapter">
-<h1 id="12-inside">12. Inside the compiler</h1>
-<p>You can now write Plank. This last chapter is about how Plank works, because the point of the language is that you can understand all of it. Open <code>plank.py</code> next to this chapter. It reads top to bottom in the same order as the steps below.</p>
+<section class="chapter" data-src="book/12-inside.md">
+<header class="opener"><div class="plate" style="--img: url(../art/babel.png)" aria-hidden="true"></div><p class="chap-no"><span>Chapter 12</span><b>12</b></p></header>
+<h1 id="12-inside">Inside the compiler</h1>
+<p>You can now write Plank. This last chapter is about how Plank works, following the road from Figure 1-1 one step at a time, because the point of the language is that you can understand all of it. Open <code>plank.py</code> next to this chapter. It reads top to bottom in the same order as the steps below.</p>
 <h2 id="12-inside-four-steps">Four steps</h2>
 <ol><li><b>Lex.</b> One regular expression and a small loop cut your text into tokens: names, numbers, strings, symbols. <code>let x = 1 + 2</code> becomes <code>let</code>, <code>x</code>, <code>=</code>, <code>1</code>, <code>+</code>, <code>2</code>. String interpolation is handled here too, by lexing what is inside <code>\( )</code> as code.</li><li><b>Parse.</b> A recursive-descent parser turns tokens into a tree. Each piece of syntax has a small method on <code>Parser</code>: <code>stmt</code>, <code>if_</code>, <code>match</code>, <code>struct</code>, <code>fn</code> and so on. Expressions use a Pratt parser, which gets operator precedence right with one small table instead of a function per level.</li><li><b>Generate.</b> One walk over the tree emits LLVM IR, a portable assembly language, and checks types as it goes. This is the biggest part of the file. When it sees <code>a + b</code>, it looks at the types of both sides, refuses if they differ, and emits an integer add, a float add or a call to the string joiner.</li><li><b>Link.</b> LLVM optimizes the IR and turns it into machine code for your processor. Your system's C compiler links that with a small runtime and the C library into a binary.</li></ol>
 <h2 id="12-inside-see-it-for-yourself">See it for yourself</h2>
@@ -764,15 +875,305 @@ print(bot.run("What is 20 + 22?"))</code></pre>
 <pre class="shell"><code>plank emit examples/fib.pk</code></pre>
 <p>You will see <code>fib</code> as a function that compares, branches and calls itself, much like the source. Run it on a program with a list or a closure to see how those are built out of plain memory and function pointers.</p>
 <h2 id="12-inside-where-values-live">Where values live</h2>
-<p>Ints, floats and bools live in registers and on the stack, like in C. Strings, lists, dicts, structs, enums and closures live on the heap and are passed around as pointers, which is why they are shared.</p>
+<p>Ints, floats and bools live in registers and on the stack, like in C. Strings, lists, dicts, structs, enums and closures live on the heap and are passed around as pointers, which is why they are shared, as Figure 5-1 showed.</p>
 <p>Nothing is ever freed by hand. A garbage collector runs now and then: it finds every object the program can still reach, starting from the stack and globals, marks them, and frees the rest. It never moves anything, which keeps it short. The test suite runs everything a second time with the collector firing every 4KB, to shake out any place that forgets to tell it about a pointer.</p>
 <h2 id="12-inside-why-llvm">Why LLVM</h2>
 <p>Writing a code generator for every processor is the part of a compiler that takes years. LLVM already did it, and does register allocation and optimization better than a small project could. Plank's job ends at producing correct IR, which is a job one file can do. That is the whole trick: pick the one piece you can borrow without hiding how anything works.</p>
 <h2 id="12-inside-where-to-go-next">Where to go next</h2>
-<ul><li><code>docs/SPEC.md</code> is the reference: every rule of the language on one page.</li><li><code>docs/ARCHITECTURE.md</code> maps the file, section by section.</li><li><code>apps/calc.pk</code> is a calculator with its own tokenizer and parser, written in Plank. It is the same four steps in miniature.</li><li><code>compiler/plank.pk</code> is Plank's compiler written in Plank. It already has the lexer and parser from this chapter and grows a step per release until it can compile itself.</li></ul>
+<ul><li>Appendix A is the reference: every rule of the language on one page. It is <code>docs/SPEC.md</code>, printed here.</li><li>Appendix B maps <code>plank.py</code>, section by section. It is <code>docs/ARCHITECTURE.md</code>, printed here.</li><li><code>apps/calc.pk</code> is a calculator with its own tokenizer and parser, written in Plank. It is the same four steps in miniature.</li><li><code>compiler/plank.pk</code> is Plank's compiler written in Plank. It already has the lexer and parser from this chapter and grows a step per release until it can compile itself.</li></ul>
 <p>Change something. Add a built-in, make an error message friendlier, add a case to <code>match</code>. Run <code>python3 test.py</code>. That is how every feature in this book got there.</p>
+<aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Run <code>plank tokens</code>, <code>plank ast</code> and <code>plank emit</code> on the same small program and match each line of output to Figure 1-1.</li><li>Find <code>def lex</code> in <code>plank.py</code> and read it start to finish. How long did it take?</li><li>Make one error message in <code>plank.py</code> friendlier and run <code>python3 test.py</code>.</li></ol></aside>
+<a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/12-inside.md">Edit this page</a>
+</section>
+<section class="chapter" data-src="docs/SPEC.md">
+<header class="opener"><div class="plate" style="--img: url(../art/masons.png)" aria-hidden="true"></div><p class="chap-no"><span>Appendix A</span><b>A</b></p></header>
+<h1 id="appendix-a">The language reference</h1>
+<p>Everything the compiler accepts, in one page.</p>
+<h2 id="appendix-a-program">Program</h2>
+<p>A program is a list of functions, structs and enums, and any number of <code>import "other.pk"</code> lines, which pull in everything another file defines. Paths are relative to the importing file, and a file is only read once however many times it is imported. Errors and runtime messages name the file they come from.</p>
+<p><code>import "lib/shapes.pk" as shapes</code> keeps the file's names under its own name instead: <code>shapes.area_of(k)</code>, <code>shapes.Shape("box", shapes.Kind.square(3.0))</code>, a type written <code>shapes.Shape</code>, and <code>shapes.area_of</code> as a value. Inside the module nothing changes; it refers to its own names plainly. Two files can then both define <code>parse</code>.</p>
+<p>A path that starts with <code>github.com/</code> is a package: <code>import "github.com/nulljosh/plank@v3.1.0/examples/lib/money.pk" as money</code> fetches that file from GitHub the first time, keeps it under <code>~/.plank/pkg</code>, and from then on reads it from there. <code>@tag</code> pins a tag or branch; without one it is <code>main</code>. A file a package imports relatively comes from the same repo. Delete <code>~/.plank/pkg</code> to fetch everything again.</p>
+<p>A program's top level is a list of functions. It needs a <code>fn main()</code> with no parameters and no return type. Statements end at the newline. Comments start with <code>#</code>.</p>
+<pre class="code"><code><span class="k">fn</span> add(a: <span class="t">int</span>, b: <span class="t">int</span>) -&gt; <span class="t">int</span> {
+  <span class="k">return</span> a + b
+}
+
+<span class="k">fn</span> main() {
+  print(add(<span class="n">2</span>, <span class="n">3</span>))
+}</code></pre>
+<p>Parameters can have defaults, and any call can name its arguments. Once one argument has a label, the ones after it need labels too.</p>
+<pre class="code"><code><span class="k">fn</span> greet(name: <span class="t">str</span>, greeting: <span class="t">str</span> = <span class="s">"hello"</span>, times: <span class="t">int</span> = <span class="n">1</span>) { ... }
+
+greet(<span class="s">"plank"</span>)
+greet(<span class="s">"swift"</span>, times: <span class="n">2</span>, greeting: <span class="s">"hi"</span>)</code></pre>
+<p>A default is worked out fresh at every call, so <code>xs: [int] = []</code> gives each call its own list. It cannot use the caller's variables.</p>
+<p>A function can take type parameters in angle brackets and use them anywhere a type goes. Plank works out what they are from the arguments at each call and compiles that version once.</p>
+<pre class="code"><code><span class="k">fn</span> first&lt;<span class="t">T</span>&gt;(xs: [<span class="t">T</span>]) -&gt; <span class="t">T</span> {
+  <span class="k">return</span> xs[<span class="n">0</span>]
+}
+<span class="k">fn</span> largest&lt;<span class="t">T</span>&gt;(xs: [<span class="t">T</span>], before: <span class="k">fn</span>(<span class="t">T</span>, <span class="t">T</span>) -&gt; <span class="t">bool</span>) -&gt; <span class="t">T</span> { ... }
+
+first([<span class="n">7</span>, <span class="n">8</span>])            <span class="c"># T is int</span>
+first([<span class="s">"x"</span>])             <span class="c"># T is str</span>
+largest(xs, <span class="k">fn</span>(a, b) =&gt; a &lt; b)   <span class="c"># the closure's types come from T</span></code></pre>
+<p>A type parameter has to appear in some parameter, so the call can pin it down; <code>fn make&lt;T&gt;() -&gt; T</code> is an error at the call.</p>
+<p>Functions and structs can be declared in any order. A function with a return type must return on every path; the compiler refuses one that can fall off the end.</p>
+<h2 id="appendix-a-types">Types</h2>
+<div class="table"><table><thead><tr><th>Type</th><th>Machine</th><th>Literals</th></tr></thead><tbody><tr><td><code>int</code></td><td>signed 64-bit</td><td><code>42</code>, <code>0</code></td></tr><tr><td><code>float</code></td><td>64-bit double</td><td><code>3.14</code>, <code>2.0</code>, <code>1.5e3</code></td></tr><tr><td><code>bool</code></td><td>1 bit</td><td><code>true</code>, <code>false</code></td></tr><tr><td><code>[T]</code></td><td>list of any type, shared</td><td><code>[1, 2, 3]</code>, <code>["a"]</code>, <code>[[1], [2, 3]]</code></td></tr><tr><td><code>[K: V]</code></td><td>dict, int or str keys, shared</td><td><code>["a": 1]</code>, <code>[1: "one"]</code>, <code>[:]</code></td></tr><tr><td><code>T?</code></td><td>a <code>T</code> or <code>nil</code></td><td><code>nil</code>, or any <code>T</code></td></tr><tr><td><code>fn(A, B) -&gt; R</code></td><td>a function or closure</td><td><code>fn(x: int) =&gt; x * 2</code>, <code>double</code></td></tr><tr><td><code>(A, B)</code></td><td>a tuple, two or more values of any types</td><td><code>(1, "one")</code>, <code>("ada", 36, true)</code></td></tr><tr><td><code>str</code></td><td>C string, UTF-8</td><td><code>"hello\n"</code>, <code>"世界"</code>, <code>"n is \(n)"</code></td></tr></tbody></table></div>
+<p>String escapes are <code>\n</code>, <code>\t</code>, <code>\"</code>, <code>\\</code> and <code>\0</code>. Anything else after a backslash is an error, except <code>\(</code>, which starts an interpolation: <code>"\(name) has \(len(name)) letters"</code> drops the value of any expression into the string. Ints, floats and bools turn into text the same way <code>print</code> shows them. The expression inside can hold its own strings. A float literal needs digits on both sides of the dot.</p>
+<p>There are no implicit conversions. <code>1 + 2.0</code> is an error. Use <code>int(x)</code>, <code>float(x)</code> and <code>str(x)</code>: float to int truncates, bool to int gives 0 or 1. <code>int("42")</code> and <code>float(" 2.5 ")</code> read numbers out of text and stop the program with the line number if the text is not one.</p>
+<h2 id="appendix-a-variables">Variables</h2>
+<p><code>let</code> binds once. <code>var</code> can be reassigned. Both infer the type from the value; you can state it with a colon.</p>
+<pre class="code"><code><span class="k">let</span> name = <span class="s">"plank"</span>
+<span class="k">var</span> count: <span class="t">int</span> = <span class="n">0</span>
+count = count + <span class="n">1</span></code></pre>
+<p><code>x += 1</code> is <code>x = x + 1</code>. The same goes for <code>-=</code>, <code>*=</code>, <code>/=</code> and <code>%=</code>, and <code>+=</code> joins strings.</p>
+<p>Blocks open a scope. A name cannot be declared twice in the same scope, but an inner block can shadow an outer one.</p>
+<h2 id="appendix-a-tuples">Tuples</h2>
+<p>A tuple groups a few values without naming a struct. Read parts with <code>.0</code>, <code>.1</code>; take it apart with <code>let (a, b) = ...</code>; a function returns several values by returning one.</p>
+<pre class="code"><code><span class="k">fn</span> divmod(a: <span class="t">int</span>, b: <span class="t">int</span>) -&gt; (<span class="t">int</span>, <span class="t">int</span>) {
+  <span class="k">return</span> (a / b, a % b)
+}
+<span class="k">let</span> (q, r) = divmod(<span class="n">17</span>, <span class="n">5</span>)   <span class="c"># 3 and 2</span>
+<span class="k">let</span> pair = (<span class="s">"ada"</span>, <span class="n">36</span>)
+print(pair.<span class="n">0</span>, pair, ((<span class="n">1</span>, <span class="n">2</span>), <span class="n">3</span>).<span class="n">0.1</span>)   <span class="c"># ada ("ada", 36) 2</span></code></pre>
+<p>Tuples print the way you write them and work in lists, dicts, closures and generics. <code>d.items()</code> is a dict as <code>[(K, V)]</code> in order, <code>xs.enumerate()</code> is <code>[(int, T)]</code>, and <code>zip(xs, ys)</code> pairs two lists as far as the shorter one goes.</p>
+<h2 id="appendix-a-string-tools">String tools</h2>
+<pre class="code"><code><span class="s">"a, b ,c"</span>.split(<span class="s">","</span>)          <span class="c"># ["a", " b ", "c"]</span>
+<span class="s">"the  quick fox"</span>.split()      <span class="c"># ["the", "quick", "fox"], on runs of whitespace</span>
+[<span class="s">"a"</span>, <span class="s">"b"</span>].join(<span class="s">" &amp; "</span>)        <span class="c"># "a &amp; b"</span>
+<span class="s">"  hi  "</span>.trim()               <span class="c"># "hi"</span>
+<span class="s">"Plank"</span>.upper(), <span class="s">"Plank"</span>.lower()
+<span class="s">"plank lang"</span>.replace(<span class="s">"lang"</span>, <span class="s">"compiler"</span>)
+<span class="s">"plank"</span>.find(<span class="s">"an"</span>)            <span class="c"># 2, an int?, nil when it is not there</span>
+<span class="s">"plank"</span>.starts_with(<span class="s">"pl"</span>), <span class="s">"plank"</span>.ends_with(<span class="s">"nk"</span>)
+<span class="s">"héllo"</span>[<span class="n">1</span>]                    <span class="c"># "é", a one-character string</span>
+<span class="s">"héllo"</span>[<span class="n">1</span>..<span class="n">3</span>], <span class="s">"héllo"</span>[..<span class="n">2</span>], <span class="s">"héllo"</span>[-<span class="n">2</span>..]
+<span class="k">for</span> c <span class="k">in</span> <span class="s">"héllo"</span> { ... }      <span class="c"># one character at a time</span>
+<span class="s">"héllo"</span>.chars()               <span class="c"># ["h", "é", "l", "l", "o"]</span>
+fixed(<span class="n">3.14159</span>, <span class="n">2</span>)             <span class="c"># "3.14"</span></code></pre>
+<p>Regular expressions are POSIX extended, straight from the C library, so <code>[0-9]+</code> and <code>([a-z]+)=([a-z]+)</code> work and <code>\d</code> does not:</p>
+<pre class="code"><code><span class="s">"plank 1.8"</span>.matches(<span class="s">"[0-9]+\\.[0-9]+"</span>)        <span class="c"># true</span>
+<span class="s">"a1b22"</span>.find_all(<span class="s">"[0-9]+"</span>)                  <span class="c"># ["1", "22"]</span>
+<span class="s">"key=value"</span>.captures(<span class="s">"([a-z]+)=([a-z]+)"</span>)   <span class="c"># ["key=value", "key", "value"], a [str]?, nil when nothing matches</span>
+<span class="s">"a-b_c"</span>.replace_all(<span class="s">"[-_]"</span>, <span class="s">" "</span>)            <span class="c"># "a b c"</span></code></pre>
+<p>A pattern that does not compile throws <code>bad pattern ...</code>. Indexes and lengths count characters, not bytes. Strings never change in place; every tool returns a new one. <code>upper</code> and <code>lower</code> change ASCII letters and leave the rest alone.</p>
+<h2 id="appendix-a-lists">Lists</h2>
+<p>A list holds one type. Write the type as <code>[int]</code>, <code>[str]</code>, <code>[[float]]</code>. An empty list needs its type spelled out once: <code>let xs: [int] = []</code>.</p>
+<pre class="code"><code><span class="k">let</span> xs = [<span class="n">3</span>, <span class="n">1</span>, <span class="n">4</span>]
+xs.append(<span class="n">1</span>)        <span class="c"># [3, 1, 4, 1]</span>
+print(xs[<span class="n">0</span>], xs[-<span class="n">1</span>]) <span class="c"># 3 1, negative counts from the end</span>
+xs[<span class="n">1</span>] += <span class="n">10</span>         <span class="c"># [3, 11, 4, 1]</span>
+<span class="k">let</span> last = xs.pop() <span class="c"># 1</span>
+print(len(xs), xs)  <span class="c"># 3 [3, 11, 4]</span>
+<span class="k">for</span> x <span class="k">in</span> xs {
+  print(x)
+}</code></pre>
+<p>Lists are shared, like Python's: pass one to a function and the function sees and changes the same list. <code>let</code> stops the name from pointing at a new list, not the list from changing. An index past either end stops the program with the line number. <code>print</code> and <code>str</code> show lists the way you would type them, strings in quotes. Lines can break freely inside <code>[ ]</code>. <code>xs[1..3]</code> is a new list of items 1 and 2; either end can be left off, negative ends count from the back, and ends past the list are clamped, so a slice never stops the program.</p>
+<h2 id="appendix-a-dicts">Dicts</h2>
+<p>A dict maps int or str keys to values of one type, and remembers the order keys went in, like Python's.</p>
+<pre class="code"><code><span class="k">let</span> ages = [<span class="s">"ada"</span>: <span class="n">36</span>, <span class="s">"linus"</span>: <span class="n">28</span>]
+ages[<span class="s">"grace"</span>] = <span class="n">85</span>              <span class="c"># add or replace</span>
+ages[<span class="s">"linus"</span>] += <span class="n">1</span>
+print(ages[<span class="s">"ada"</span>])              <span class="c"># 36</span>
+print(<span class="s">"bob"</span> <span class="k">in</span> ages)            <span class="c"># false</span>
+print(ages.get(<span class="s">"bob"</span>, <span class="n">0</span>))       <span class="c"># 0, the default when the key is missing</span>
+ages.remove(<span class="s">"ada"</span>)
+<span class="k">for</span> name <span class="k">in</span> ages {              <span class="c"># keys, in the order they went in</span>
+  print(name, ages[name])
+}
+print(ages.keys(), ages.values(), len(ages))</code></pre>
+<p>Reading a key that is not there stops the program and names the key; use <code>in</code> or <code>get</code> when it might be missing. An empty dict is <code>[:]</code> and needs its type once: <code>let d: [str: int] = [:]</code>. Dicts are shared like lists.</p>
+<p><code>in</code> also works on lists, <code>3 in [1, 2, 3]</code>, and strings, <code>"lan" in "plank"</code>.</p>
+<h2 id="appendix-a-sets">Sets</h2>
+<p><code>Set&lt;T&gt;</code> holds each int or str once, in the order it first arrived. It is written in Plank itself and compiled in when a program mentions it.</p>
+<pre class="code"><code><span class="k">let</span> a = set_of([<span class="n">3</span>, <span class="n">1</span>, <span class="n">2</span>, <span class="n">3</span>])     <span class="c"># Set[3, 1, 2]</span>
+a.add(<span class="n">9</span>)
+a.remove(<span class="n">1</span>)
+print(<span class="n">2</span> <span class="k">in</span> a, len(a), a.items())  <span class="c"># true 3 [3, 2, 9]</span>
+<span class="k">for</span> x <span class="k">in</span> a { ... }
+a.union(b), a.intersect(b), a.minus(b), a.text()</code></pre>
+<h2 id="appendix-a-structs">Structs</h2>
+<p>A struct groups named fields and the functions that work on them. Names start with a capital letter.</p>
+<pre class="code"><code><span class="k">struct</span> <span class="t">Account</span> {
+  owner: <span class="t">str</span>
+  balance: <span class="t">int</span> = <span class="n">0</span>
+
+  <span class="k">fn</span> deposit(amount: <span class="t">int</span>) {
+    <span class="k">self</span>.balance += amount
+  }
+}
+
+<span class="k">let</span> a = <span class="t">Account</span>(owner: <span class="s">"josh"</span>)  <span class="c"># or Account("josh", 0)</span>
+a.deposit(<span class="n">50</span>)
+print(a.balance, a)  <span class="c"># 50 Account(owner: "josh", balance: 50)</span></code></pre>
+<p>A struct can take type parameters too: <code>struct Stack&lt;T&gt; { items: [T] = [] ... }</code>. Use it as <code>Stack&lt;int&gt;()</code>, or let the fields say what <code>T</code> is: <code>Stack(items: [1, 2])</code>. Methods see <code>T</code> like any type, and a method can return another instance, <code>fn flipped() -&gt; Pair&lt;B, A&gt;</code>. Each distinct <code>Stack&lt;...&gt;</code> is its own type and prints with its parameters.</p>
+<p>Build one by calling its name with the fields in order or by label; fields with a default can be left out. Methods get <code>self</code> without asking for it and reach fields through <code>self.x</code>. Like lists, structs are shared: a function that changes <code>p.x</code> changes it for everyone holding <code>p</code>, and <code>let</code> only fixes which struct the name points at. <code>print</code> and <code>str</code> show a struct the way you would build it.</p>
+<h2 id="appendix-a-enums-and-match">Enums and match</h2>
+<p>An enum is one of a fixed set of cases, and a case can carry values. Methods work the same as on structs.</p>
+<pre class="code"><code><span class="k">enum</span> <span class="t">Shape</span> {
+  circle(r: <span class="t">float</span>)
+  rect(w: <span class="t">float</span>, h: <span class="t">float</span>)
+  dot
+
+  <span class="k">fn</span> area() -&gt; <span class="t">float</span> {
+    <span class="k">match</span> <span class="k">self</span> {
+      .circle(r) { <span class="k">return</span> <span class="n">3.14159</span> * r * r }
+      .rect(w, h) { <span class="k">return</span> w * h }
+      .dot { <span class="k">return</span> <span class="n">0.0</span> }
+    }
+  }
+}
+
+<span class="k">let</span> s = <span class="t">Shape</span>.rect(w: <span class="n">2.0</span>, h: <span class="n">3.0</span>)   <span class="c"># a case with values is built like a struct</span>
+print(s, s.area())                    <span class="c"># rect(w: 2, h: 3) 6</span>
+<span class="k">let</span> d = <span class="t">Shape</span>.dot                     <span class="c"># a case without values needs no ()</span></code></pre>
+<p><code>match</code> picks the first arm that fits. On an enum, each arm names cases with a leading dot and can bind the carried values to new names. The compiler refuses a match that forgets a case, and one with an <code>else</code> that can never run. On ints, floats, bools and strings, arms list constants, several to an arm with commas, and <code>else</code> catches the rest. <code>==</code> compares enums whose cases carry nothing; for the rest, use <code>match</code>. Enums are shared and print as their case.</p>
+<h2 id="appendix-a-optionals">Optionals</h2>
+<p><code>int?</code> is an int or <code>nil</code>. Any type can be optional, and a plain value goes wherever its optional is expected. Nothing else can be <code>nil</code>, so a plain <code>int</code> is always there.</p>
+<pre class="code"><code><span class="k">fn</span> find(xs: [<span class="t">str</span>], want: <span class="t">str</span>) -&gt; <span class="t">int</span>? {
+  <span class="k">for</span> i <span class="k">in</span> <span class="n">0</span>..len(xs) {
+    <span class="k">if</span> xs[i] == want { <span class="k">return</span> i }
+  }
+  <span class="k">return</span> <span class="k">nil</span>
+}
+
+<span class="k">if</span> <span class="k">let</span> i = find(names, <span class="s">"ada"</span>) {   <span class="c"># i is a plain int in here</span>
+  print(i)
+} <span class="k">else</span> {
+  print(<span class="s">"not found"</span>)
+}
+<span class="k">let</span> i = find(names, <span class="s">"bob"</span>) ?? -<span class="n">1</span>  <span class="c"># the value, or the fallback</span>
+<span class="k">let</span> j = find(names, <span class="s">"ada"</span>)!       <span class="c"># the value, or stop the program with the line number</span>
+print(find(names, <span class="s">"x"</span>) == <span class="k">nil</span>)    <span class="c"># true</span></code></pre>
+<p><code>p?.next?.val</code> reads through optionals: the result is <code>nil</code> as soon as any link is, and otherwise the value as an optional. It works on methods too, <code>p?.describe()</code>. You cannot do math on an <code>int?</code> until you take the value out, and the error says how. The fallback after <code>??</code> only runs when it is needed. <code>d.get(k)</code> with one argument gives a <code>V?</code>. Optionals print as their value or <code>nil</code>. A struct field like <code>next: Node? = nil</code> is how you build a linked list.</p>
+<h2 id="appendix-a-functions-as-values">Functions as values</h2>
+<p>A function is a value like any other. Write one inline with <code>fn</code>, with a block body, or with <code>=&gt;</code> and a single expression whose type Plank works out.</p>
+<pre class="code"><code><span class="k">let</span> add = <span class="k">fn</span>(a: <span class="t">int</span>, b: <span class="t">int</span>) =&gt; a + b
+<span class="k">let</span> shout = <span class="k">fn</span>(s: <span class="t">str</span>) -&gt; <span class="t">str</span> {
+  <span class="k">return</span> s + <span class="s">"!"</span>
+}
+<span class="k">fn</span> twice(f: <span class="k">fn</span>(<span class="t">int</span>) -&gt; <span class="t">int</span>, x: <span class="t">int</span>) -&gt; <span class="t">int</span> {
+  <span class="k">return</span> f(f(x))
+}
+print(twice(<span class="k">fn</span>(x) =&gt; x + <span class="n">3</span>, <span class="n">1</span>))   <span class="c"># 7; x is an int because twice says so</span>
+print(twice(double, <span class="n">5</span>))            <span class="c"># a named function works too</span></code></pre>
+<p>A block body needs no <code>-&gt;</code>: Plank reads the return type from the first <code>return</code>, and a body with no <code>return</code> is void. Parameter types can be left off whenever the place the function goes already says them: arguments, <code>let</code> with a type, <code>return</code>, and the list methods below. A closure keeps the variables it uses, shared, not copied: change the variable later and the closure sees it, and a closure returned from a function keeps its variables alive.</p>
+<pre class="code"><code><span class="k">fn</span> make_counter() -&gt; <span class="k">fn</span>() -&gt; <span class="t">int</span> {
+  <span class="k">var</span> n = <span class="n">0</span>
+  <span class="k">return</span> <span class="k">fn</span>() -&gt; <span class="t">int</span> {
+    n += <span class="n">1</span>
+    <span class="k">return</span> n
+  }
+}</code></pre>
+<p>Lists also have <code>first()</code> and <code>last()</code> (a <code>T?</code>, <code>nil</code> when empty), <code>index_of(x)</code> (an <code>int?</code>), <code>insert(i, x)</code>, <code>remove_at(i)</code>, <code>reverse()</code> in place and <code>reversed()</code> as a copy, <code>sum()</code> for numbers, and <code>min()</code> and <code>max()</code> for numbers and strings, a <code>T?</code>.</p>
+<p>Lists take functions: <code>xs.map(fn(x) =&gt; x * 2)</code>, <code>xs.filter(fn(x) =&gt; x &gt; 0)</code>, <code>xs.reduce(0, fn(acc, x) =&gt; acc + x)</code>. <code>xs.sort()</code> sorts ints, floats and strings in place and <code>xs.sorted()</code> returns a sorted copy; both take <code>by: fn(a, b) =&gt; a.age &lt; b.age</code> for anything else, where the function says whether <code>a</code> goes first. Sorting is stable.</p>
+<h2 id="appendix-a-operators">Operators</h2>
+<p><code>==</code> and <code>!=</code> look inside: two lists are equal when their items are, dicts when they hold the same keys and values in any order, tuples and structs part by part, enums when the case and its values match, optionals when both are <code>nil</code> or both hold equal values. <code>xs == []</code> asks whether a list is empty. <code>in</code> and <code>index_of</code> use the same rule. Closures compare by identity.</p>
+<p>From loosest to tightest: <code>or</code>, <code>and</code>, <code>not</code>, comparisons (<code>== != &lt; &gt; &lt;= &gt;=</code> and <code>in</code>), <code>??</code>, <code>+ -</code>, <code>* / %</code>, unary <code>-</code>. <code>and</code> and <code>or</code> short-circuit. Integer <code>/</code> and <code>%</code> by zero stop the program with the line number, or land in the nearest <code>catch</code>; floats follow IEEE and give infinity. Integer <code>/</code> truncates toward zero and <code>%</code> follows the sign of the left operand. Floats support all of these too. Strings join with <code>+</code> and compare with all six comparisons, alphabetically by byte. Bools compare with <code>==</code> and <code>!=</code> only.</p>
+<h2 id="appendix-a-control-flow">Control flow</h2>
+<pre class="code"><code><span class="k">if</span> x &lt; <span class="n">0</span> {
+  print(<span class="s">"negative"</span>)
+} <span class="k">else</span> <span class="k">if</span> x == <span class="n">0</span> {
+  print(<span class="s">"zero"</span>)
+} <span class="k">else</span> {
+  print(<span class="s">"positive"</span>)
+}
+
+<span class="k">while</span> running {
+  <span class="k">if</span> done { <span class="k">break</span> }
+  <span class="k">if</span> skip { <span class="k">continue</span> }
+}
+
+<span class="k">for</span> i <span class="k">in</span> <span class="n">0</span>..<span class="n">10</span> {   <span class="c"># 0 through 9, the bounds are evaluated once</span>
+  print(i)
+}</code></pre>
+<p><code>for x in xs</code> walks a list from the front; <code>for i, x in xs</code> gives the index too, <code>for k, v in d</code> the key and value of a dict, <code>for i, c in s</code> the characters of a string with their positions. <code>while let top = stack.last() { ... }</code> keeps going while the optional has a value, with the value bound inside. <code>if</code> is also a value: <code>let size = if n &gt; 100 { "big" } else if n &gt; 5 { "medium" } else { "small" }</code>. Each branch holds one expression, both sides need the same type, and <code>nil</code> on one side makes the result an optional. <code>if let</code> works there too: <code>let label = if let top = s.peek() { "top is \(top)" } else { "empty" }</code>. So does <code>match</code>, with one expression per arm: <code>let word = match light { .red { "stop" } .green, .yellow { "go" } }</code>, and the same rule that every case is covered.</p>
+<p>Conditions must be <code>bool</code>. The <code>for</code> variable is an <code>int</code> and is a <code>let</code> inside the body. <code>else</code> can sit on the same line as the closing brace or on the next one. A <code>while true</code> with no <code>break</code> counts as never finishing, so a function can end with one and still satisfy the return check.</p>
+<h2 id="appendix-a-built-ins">Built-ins</h2>
+<div class="table"><table><thead><tr><th>Call</th><th>Does</th></tr></thead><tbody><tr><td><code>print(a, b, ...)</code></td><td>Prints its arguments separated by spaces, then a newline. <code>print()</code> is a blank line.</td></tr><tr><td><code>str(x)</code>, <code>int(x)</code>, <code>float(x)</code></td><td>Convert, see Types.</td></tr><tr><td><code>len(x)</code></td><td>Items in a list, or characters in a string, so <code>len("世界")</code> is 2.</td></tr><tr><td><code>input(prompt)</code></td><td>Prints the optional prompt, reads one line, drops the newline. Empty at end of input.</td></tr><tr><td><code>min(a, b)</code>, <code>max(a, b)</code>, <code>abs(x)</code></td><td>Two ints or two floats in, the same type out.</td></tr><tr><td><code>sqrt</code>, <code>floor</code>, <code>ceil</code>, <code>round</code>, <code>pow(x, y)</code></td><td>Float math from libm.</td></tr><tr><td><code>fixed(x, digits)</code></td><td>A float as text with that many digits after the point.</td></tr><tr><td><code>args()</code></td><td>The command-line arguments after the program: <code>plank run tool.pk a b</code> gives <code>["a", "b"]</code>.</td></tr><tr><td><code>read_file(path)</code></td><td>The whole file as a <code>str?</code>, <code>nil</code> if it cannot be read.</td></tr><tr><td><code>write_file(path, text)</code></td><td>Writes the file, <code>true</code> if it worked.</td></tr><tr><td><code>read_stdin()</code></td><td>Everything on standard input, as one string.</td></tr><tr><td><code>env(name)</code></td><td>An environment variable as a <code>str?</code>.</td></tr><tr><td><code>random(lo, hi)</code>, <code>random()</code></td><td>An int from <code>lo</code> to <code>hi</code> inclusive, or a float from 0 up to 1.</td></tr><tr><td><code>time()</code></td><td>Seconds since 1970 as a float, good for timing.</td></tr><tr><td><code>sleep(seconds)</code></td><td>Waits that long, a float.</td></tr><tr><td><code>clock()</code>, <code>clock(fmt)</code>, <code>clock(fmt, at)</code></td><td>The local time as text, <code>2026-10-01 18:30:00</code>, in any <code>strftime</code> layout, or for another moment <code>at</code> in seconds since 1970.</td></tr><tr><td><code>parse_time(text)</code>, <code>parse_time(text, layout)</code></td><td>Text to seconds since 1970 as a <code>float?</code>, by <code>%Y-%m-%d</code> or any <code>strptime</code> layout; <code>nil</code> when it does not fit. A day is <code>86400.0</code>, so dates add and subtract.</td></tr><tr><td><code>exists(path)</code>, <code>is_dir(path)</code></td><td>Whether something is there, and whether it is a folder.</td></tr><tr><td><code>list_dir(path)</code></td><td>The names inside a folder, sorted; empty when it cannot be read.</td></tr><tr><td><code>mkdir(path)</code>, <code>remove_file(path)</code></td><td>Make a folder, or delete a file; <code>true</code> when it worked.</td></tr><tr><td><code>append_file(path, text)</code></td><td>Adds to the end of a file, creating it if needed.</td></tr><tr><td><code>cwd()</code></td><td>The current folder.</td></tr><tr><td><code>url_encode(s)</code></td><td><code>a b/c</code> as <code>a%20b%2Fc</code>, for building URLs.</td></tr><tr><td><code>exit(code)</code></td><td>Stops the program with that exit code.</td></tr><tr><td><code>run(cmd)</code></td><td>Runs a shell command, returns its output; <code>status()</code> has the exit code right after.</td></tr><tr><td><code>quote(s)</code></td><td>Shell-quotes one argument, so <code>run("ls " + quote(name))</code> is safe with any name.</td></tr><tr><td><code>http(method, url, body?, headers?)</code></td><td>Sends the request (through curl), returns the body; <code>status()</code> has the HTTP code, or a non-zero curl code if it never connected.</td></tr><tr><td><code>json_parse(text)</code></td><td>Text to a <code>Json</code> value, or a throw naming what was wrong.</td></tr><tr><td><code>json_quote(s)</code></td><td>A string as a JSON string literal.</td></tr><tr><td><code>assert(cond, message)</code></td><td>Stops the program, or lands in the nearest <code>catch</code>, when <code>cond</code> is false. The message is optional.</td></tr></tbody></table></div>
+<p>Floats print with 15 significant digits, so <code>0.1 + 0.2</code> shows <code>0.3</code> and <code>1.0 / 3.0</code> shows <code>0.333333333333333</code>. <code>print</code>, <code>str</code>, <code>int</code>, <code>float</code>, <code>len</code> and <code>input</code> are reserved. The math names are not: define your own <code>sqrt</code> and yours wins.</p>
+<h2 id="appendix-a-c-functions">C functions</h2>
+<p><code>extern fn</code> names a C function and its types; Plank calls it directly. <code>int</code> is a C <code>long long</code>, <code>float</code> a <code>double</code>, <code>bool</code> an <code>int</code>, <code>str</code> a <code>char *</code>. Anything in libc or libm is there already; for another library set <code>PLANK_LIBS="-lfoo"</code> when you build.</p>
+<pre class="code"><code><span class="k">extern</span> <span class="k">fn</span> strlen(s: <span class="t">str</span>) -&gt; <span class="t">int</span>
+<span class="k">extern</span> <span class="k">fn</span> getpid() -&gt; <span class="t">int</span>
+print(strlen(<span class="s">"héllo"</span>), getpid() &gt; <span class="n">0</span>)   <span class="c"># 6 true</span></code></pre>
+<p>A name the linker cannot find is an error that says so.</p>
+<h2 id="appendix-a-catching-errors">Catching errors</h2>
+<p>Anything that would stop the program at run time can be caught: an index out of range, a missing dict key, <code>int("x")</code>, <code>nil!</code>, <code>pop()</code> on an empty list, and your own <code>throw</code>.</p>
+<pre class="code"><code><span class="k">fn</span> parse_age(text: <span class="t">str</span>) -&gt; <span class="t">int</span> {
+  <span class="k">let</span> n = <span class="t">int</span>(text)
+  <span class="k">if</span> n &lt; <span class="n">0</span> { <span class="k">throw</span> <span class="s">"\(n) is not an age"</span> }
+  <span class="k">return</span> n
+}
+
+<span class="k">try</span> {
+  print(parse_age(input(<span class="s">"age? "</span>)))
+} <span class="k">catch</span> err {
+  print(<span class="s">"no good:"</span>, err)   <span class="c"># err is the message, a str</span>
+}</code></pre>
+<p><code>throw</code> takes a str. A <code>try</code> can hold <code>return</code>, <code>break</code> and <code>continue</code>, and tries nest: a throw inside a <code>catch</code> goes to the next <code>try</code> out. An error nobody catches stops the program with the file, line and message, exit code 1.</p>
+<h2 id="appendix-a-json">JSON</h2>
+<p>Every program has the <code>Json</code> enum: <code>null</code>, <code>bool(b)</code>, <code>number(n)</code>, <code>string(s)</code>, <code>array(items)</code>, <code>object(fields)</code>. Build one by hand or with <code>json_parse</code>, read it with <code>match</code> or with the helpers, and turn it back into text with <code>.text()</code>.</p>
+<pre class="code"><code><span class="k">let</span> doc = json_parse(<span class="s">"{\"name\": \"plank\", \"tags\": [\"small\"], \"stars\": 42}"</span>)
+doc.get(<span class="s">"name"</span>).<span class="t">str</span>()        <span class="c"># "plank"; get throws if the key is missing</span>
+doc.get(<span class="s">"stars"</span>).<span class="t">int</span>()       <span class="c"># 42; also .num() for a float, .truth() for a bool</span>
+doc.get(<span class="s">"tags"</span>).at(<span class="n">0</span>).<span class="t">str</span>()  <span class="c"># "small"; .items() is the list, .keys() the object's keys</span>
+<span class="t">Json</span>.object([<span class="s">"ok"</span>: <span class="t">Json</span>.<span class="t">bool</span>(<span class="k">true</span>)]).text()   <span class="c"># {"ok":true}</span></code></pre>
+<p>Numbers are floats, as in JSON itself. Object keys keep the order they came in. Bad input throws <code>bad JSON: ...</code> with a reason.</p>
+<h2 id="appendix-a-memory">Memory</h2>
+<p>You never free anything. A collector runs now and then, finds every list, dict, string, struct, enum and closure the program can still reach, and frees the rest. It never moves anything. Set <code>PLANK_GC=4000</code> in the environment to collect every 4,000 bytes instead, which is how the test suite shakes out bugs.</p>
+<h2 id="appendix-a-results">Results</h2>
+<p>When an error is part of the answer rather than a surprise, return a <code>Result&lt;T&gt;</code>: <code>ok(value)</code> or <code>err(message)</code>. <code>?</code> after a <code>Result</code> takes the value out, or returns that error from the function you are in, which must return a <code>Result</code> too. <code>attempt(fn() =&gt; ...)</code> runs a closure and turns a throw into an <code>err</code>.</p>
+<pre class="code"><code><span class="k">fn</span> half(n: <span class="t">int</span>) -&gt; <span class="t">Result</span>&lt;<span class="t">int</span>&gt; {
+  <span class="k">if</span> n % <span class="n">2</span> != <span class="n">0</span> { <span class="k">return</span> <span class="t">Result</span>.err(<span class="s">"\(n) is odd"</span>) }
+  <span class="k">return</span> <span class="t">Result</span>.ok(n / <span class="n">2</span>)
+}
+<span class="k">fn</span> quarter(n: <span class="t">int</span>) -&gt; <span class="t">Result</span>&lt;<span class="t">int</span>&gt; {
+  <span class="k">return</span> <span class="t">Result</span>.ok(half(half(n)?)?)   <span class="c"># the first err comes straight back</span>
+}
+quarter(<span class="n">8</span>).value()      <span class="c"># 2; value() throws the message on an err</span>
+quarter(<span class="n">6</span>).error()      <span class="c"># "3 is odd", a str?</span>
+quarter(<span class="n">6</span>).or_else(<span class="n">0</span>)   <span class="c"># 0</span>
+quarter(<span class="n">8</span>).is_ok()      <span class="c"># true</span>
+<span class="k">match</span> quarter(<span class="n">6</span>) { .ok(v) { ... } .err(m) { ... } }</code></pre>
+<p><code>Result</code> is an enum written in Plank with a type parameter, and you can write your own: <code>enum Maybe&lt;T&gt; { some(v: T) none }</code>, used as <code>Maybe&lt;int&gt;.none</code> or <code>Maybe.some(5)</code>, with methods like any enum.</p>
+<h2 id="appendix-a-errors">Errors</h2>
+<p>Every error names the file and line:</p>
+<pre class="code"><code>fib.pk:<span class="n">3</span>: 'x' is a <span class="k">let</span>, use <span class="k">var</span> to reassign it</code></pre>
+<p>Exit code 1 is a Plank error, at compile time or a runtime one like a bad <code>int("x")</code>, 2 is a missing file, anything else is what your program returned.</p>
+<h2 id="appendix-a-ai-lib-ai-pk">AI (lib/ai.pk)</h2>
+<p><code>import "lib/ai.pk" as ai</code> makes a model scriptable. It is a plain Plank module, so there is no new syntax yet.</p>
+<pre class="code"><code><span class="k">let</span> m = ai.model(<span class="s">"claude-haiku-5-5"</span>, <span class="s">"Answer in one line."</span>)   <span class="c"># Anthropic; key in ANTHROPIC_API_KEY</span>
+<span class="k">let</span> q = ai.prompt(<span class="s">"Summarize {topic}"</span>, [<span class="s">"topic"</span>: <span class="s">"plank"</span>])    <span class="c"># fills {holes} in a template</span>
+print(m.ask(q))                                               <span class="c"># the text, or a throw with the server's words</span></code></pre>
+<p><code>m.ask_json(question)</code> returns a <code>Json</code> value instead of text: it asks for only JSON, strips a code fence if the model adds one, and if the reply still does not parse it shows the model the error and tries once more before throwing.</p>
+<p>Models: <code>ai.model(name, system = "")</code> is Anthropic, <code>ai.local(name, url, system = "")</code> is any OpenAI-compatible server (oMLX, Ollama, Turing), <code>ai.turing(system = "")</code> is Turing on this Mac (<code>localhost:8127</code>, answers questions through its own fixed pipeline and tools; it does not take a tool list, so use it with <code>ask</code>, not <code>ai.agent</code>), and <code>ai.mock()</code> needs no network: it answers <code>echo: &lt;question&gt;</code>, <code>json X</code> answers X (for <code>ask_json</code>), and <code>use NAME {json}</code> makes it call that tool, so tests stay byte-stable.</p>
+<p><code>tool fn</code> writes the tool for you. Put <code>tool</code> before a top-level <code>fn</code> whose parameters and result are <code>str</code>, <code>int</code>, <code>float</code> or <code>bool</code>, and the comment lines right above it become the model's description:</p>
+<pre class="code"><code><span class="c"># Adds two whole numbers</span>
+<span class="k">tool</span> <span class="k">fn</span> add(a: <span class="t">int</span>, b: <span class="t">int</span>) -&gt; <span class="t">int</span> {
+  <span class="k">return</span> a + b
+}
+<span class="k">let</span> bot = ai.agent(m, [add_tool()])</code></pre>
+<p>Besides <code>add</code>, the compiler defines <code>add_tool()</code>, which returns the <code>ai.Tool</code> with its schema read off the signature, so the schema cannot drift from the code. It needs <code>import "lib/ai.pk"</code> in the same file (with or without <code>as</code>), and a tool fn takes no defaults or type parameters. Without a comment the name is the description.</p>
+<p>Tools and agents: <code>ai.tool(name, about, params, run)</code> is a function the model may call; <code>params</code> maps each argument name to <code>"str"</code>, <code>"int"</code>, <code>"float"</code> or <code>"bool"</code>, <code>run</code> takes the arguments as <code>Json</code> and returns text, and <code>t.schema()</code> is the JSON schema the model is shown. <code>ai.agent(m, [tools], memory = "", keep = 0)</code> returns an <code>Agent</code>; <code>a.run(task)</code> asks, runs the tools the model called, hands back the results, and repeats until the model answers in plain text, or throws after <code>max_steps</code> (10). A tool that throws, or a name the agent does not have, goes back to the model as an error result instead of stopping the run. <code>memory</code> is a file: the whole conversation is saved there after each run and loaded at the start of the next. <code>keep = 20</code> caps it at about the last 20 messages, cutting only where a turn starts so a tool result never loses the call that asked for it; 0 keeps everything. Tools and agents work with all three kinds of model: Anthropic, the mock, and a local OpenAI-compatible server (the conversation is converted to its <code>tool_calls</code> format and back). The tool's comment is the only thing that tells the model when to use it, so make it specific: "Adds two whole numbers" beats "math", and rewording it changes what the model does.</p>
+<a class="edit" href="https://github.com/nulljosh/plank/edit/main/docs/SPEC.md">Edit this page</a>
+</section>
+<section class="chapter" data-src="docs/ARCHITECTURE.md">
+<header class="opener"><div class="plate" style="--img: url(../art/littlebabel.png)" aria-hidden="true"></div><p class="chap-no"><span>Appendix B</span><b>B</b></p></header>
+<h1 id="appendix-b">A map of plank.py</h1>
+<p>One file does the work. Everything else is examples, tests and docs.</p>
+<div class="table"><table><thead><tr><th>File</th><th>What it does</th></tr></thead><tbody><tr><td><code>plank.py</code></td><td>The compiler. <code>lex</code> turns source into tokens (<code>string_end</code> and <code>unescape</code> handle strings and <code>\(...)</code> interpolation), <code>Parser</code> builds the AST (dataclasses near the top), <code>Codegen</code> walks the AST once and emits LLVM IR through llvmlite, <code>optimize</code> runs the O2 pipeline, <code>build</code> links the object with <code>cc</code>. <code>extern fn</code> registers a <code>Sig</code> whose LLVM function carries the C name itself, with bools widened to C <code>int</code> at the call; a link failure naming an unknown symbol is turned into a plain error. <code>RESULT_SRC</code> is <code>Result&lt;T&gt;</code> and <code>attempt</code> written in Plank; generic enums instantiate like generic structs through <code>instantiate_enum</code>, and <code>Result.ok(5)</code> infers <code>T</code> from the value or, for <code>Result.err</code>, from the function's return type. <code>r?</code> is one branch: an err returns from the function, an ok yields its value. <code>SET_SRC</code> is <code>Set&lt;T&gt;</code> written in Plank, a generic struct over a <code>[T: bool]</code> dict, spliced in when a program mentions <code>Set</code>; <code>in</code>, <code>for</code> and <code>len</code> on a set call its methods. <code>JSON_SRC</code> is the <code>Json</code> enum written in Plank, parsed in front of every program; <code>json_reader</code> emits the parser for it in IR against a cursor the runtime keeps. <code>RUNTIME</code> is a C string, compiled next to every program, holding what libc does not: joining strings, counting characters, number to text and back, reading a line, string tools (split, join, trim, replace, slices, all counting UTF-8 characters), <code>popen</code> for <code>run</code>, curl for <code>http</code>, a JSON lexer, <code>stat</code>, <code>opendir</code>, <code>strftime</code> and <code>strptime</code> for the file, clock and date builtins, POSIX <code>regcomp</code> with a one-pattern cache for <code>matches</code>, <code>captures</code>, <code>find_all</code> and <code>replace_all</code>, growing lists, a stable merge sort that calls back into compiled code, and dicts: insertion-ordered entry arrays under an open-addressing index, keys stored as 8 bytes (an int or a string pointer). Every list is one C struct of length, capacity and bytes; the compiler knows the element type, the runtime only its size. Bounds checks are inline IR, so the hot path never calls out. <code>main</code> is the CLI.</td></tr><tr><td><code>plank</code></td><td>Symlink to <code>plank.py</code> so <code>./plank file.pk</code> works. The <code>uv run --script</code> shebang installs llvmlite on first use.</td></tr><tr><td><code>examples/lib/*.pk</code></td><td>Files that get imported, plainly or as a module.</td></tr><tr><td><code>examples/*.pk</code></td><td>One program per feature: hello, fib, fizzbuzz, primes, sqrt, strings, text, lists, structs, dicts, enums, optionals, closures, textkit, world, errors, scripting, generics, containers, collections, tuples, interop, loops. Each has a <code>.out</code> with its expected output.</td></tr><tr><td><code>apps/*.pk</code></td><td>Seven real programs: a tool-using agent loop that talks to Ollama over HTTP and JSON, a calculator with its own parser, a to-do CLI that saves to a file, word frequency, a budget ledger, a maze solver, Game of Life. Each has a <code>.out</code>; <code>test.py</code> runs them like the examples and the landing shows their output.</td></tr><tr><td><code>tests/*.pk</code></td><td>The language testing itself: strings, lists, dicts, types, control. Each is a Plank program full of <code>assert</code> that prints <code>ok</code>.</td></tr><tr><td><code>list_helper</code> in <code>plank.py</code></td><td>first, last, index_of, insert, remove_at, reverse, sum, min, max on lists, mostly inline IR; min and max sort a copy and take an end.</td></tr><tr><td><code>plank fmt</code></td><td><code>Fmt</code> prints the AST back out in the layout the examples use: two-space indent, one-line <code>if</code> and <code>match</code> arms where the source had them, lists and calls spread over lines where the source did. Comments are kept by the lexer with their line numbers and put back by line; a blank line survives where the source had one. <code>test.py</code> runs <code>plank fmt --check</code> over the repo, and <code>fmt</code> refuses any file it cannot format twice to the same text.</td></tr><tr><td><code>plank doc</code></td><td><code>DOCS</code> in <code>plank.py</code> holds one signature and one line per built-in; <code>test.py</code> checks the table names exactly the built-ins the compiler has.</td></tr><tr><td><code>plank repl</code></td><td>Keeps the definitions and statements typed so far, rebuilds and reruns the whole program after each entry, and prints only the output past what was shown before. A bare expression is tried as <code>print(...)</code> first. A line that fails to compile or run is dropped.</td></tr><tr><td><code>nulljosh/homebrew-plank</code></td><td>The Homebrew tap: <code>brew install nulljosh/tap/plank-lang</code> installs <code>plank.py</code> as <code>plank</code> with <code>uv</code> as a dependency. Bump the formula's url and sha256 at each release.</td></tr><tr><td><code>plank test [dir]</code></td><td>Built into the CLI: compiles every <code>.pk</code> in the folder and passes it when it exits 0 printing <code>ok</code>. <code>test.py</code> is the repo's own suite; <code>plank test</code> is for programs written in Plank.</td></tr><tr><td><code>test.py</code></td><td>Compiles every example, diffs the output, and runs every <code>tests/*.pk</code>, checks 27 error messages at compile time and run time, then runs everything again with the collector firing every 4KB. CI runs it on macOS and Ubuntu.</td></tr><tr><td><code>docs/SPEC.md</code></td><td>The language reference.</td></tr><tr><td><code>docs/HACKERS-AND-PAINTERS.md</code></td><td>Paul Graham's book summarized, and the eight design rules Plank takes from it.</td></tr><tr><td><code>docs/LOOP-HANDOFF.md</code></td><td>Where the build loop stands and the prompt that restarts it.</td></tr><tr><td><code>docs/COMPARE.md</code></td><td>The scorecard against Python, Ruby and Swift. The roadmap works down it.</td></tr><tr><td><code>site/index.html</code>, <code>site/icon.svg</code>, <code>wrangler.toml</code></td><td>The landing page at plank.heyitsmejosh.com, deployed as Cloudflare static assets. Drifting-plank canvas, hero, and a demo window that plays the real examples.</td></tr><tr><td><code>compiler/plank.pk</code>, <code>plank tokens</code></td><td>The compiler written in Plank, growing toward 5.0 (self-hosting). Today: the lexer and parser, ports of <code>lex</code> and <code>Parser</code>. Its tree is one generic <code>Ast</code> struct (kind, line, children) in the shape of plank.py's dataclasses. <code>plank tokens</code> and <code>plank ast</code> print plank.py's tokens and tree in the same formats, and <code>test.py</code> diffs both over every <code>.pk</code> in the repo.</td></tr><tr><td><code>book/*.md</code>, <code>tools/gen-book.py</code>, <code>site/book/</code></td><td>The Plank Book, thirteen chapters in plain Markdown. <code>gen-book.py</code> turns them into one page with highlighted code at <code>/book/</code>; It also prints <code>docs/SPEC.md</code> and this file as Appendices A and B, so the book never drifts from the docs, and inlines the diagrams in <code>book/art/</code>. <code>--pdf</code> prints <code>site/book/plank-book.pdf</code> (7 x 9.25 in, gitignored) through headless Chrome; <code>release.sh</code> makes it before deploying. <code>--check</code> compiles every ``<code>plank block with a </code>fn main<code>, diffs it against the </code>`<code>output block under it, runs </code>plank fmt --check<code> on it, and fails if the page is stale. </code>test.py` runs the check.</td></tr><tr><td><code>tools/gen-demo.py</code>, <code>site/demo.js</code></td><td>The generator reads every example, its <code>.out</code>, and <code>plank emit</code> output into <code>demo.js</code>. <code>test.py</code> fails if <code>demo.js</code> is stale, so the landing can never show output the compiler did not produce.</td></tr><tr><td><code>roadmap.md</code>, <code>MONEY.md</code>, <code>CLAUDE.md</code></td><td>What is next, what it earns (nothing, on purpose), and notes for the agent.</td></tr></tbody></table></div>
+<h2 id="appendix-b-the-pipeline">The pipeline</h2>
+<p>Source goes through four steps, each a plain function or class:</p>
+<ol><li><b>Lex.</b> One regex, a loop, a list of tokens. Strings get a small hand scanner instead, because <code>\(...)</code> can hold strings of its own. <code>unescape</code> decodes escapes, keeps UTF-8 intact, and hands interpolations back as source for the parser. Newlines are tokens so statements can end without semicolons; inside parentheses they are dropped.</li><li><b>Parse.</b> <code>load</code> parses the main file and every file it imports, once each. An import path starting with <code>github.com/</code> maps to <code>~/.plank/pkg/github.com/user/repo@ref/...</code> and is fetched with curl from raw.githubusercontent.com the first time, including files the package imports relatively. An import with <code>as x</code> goes through <code>qualify</code>, which renames every top-level name in that file to <code>x.name</code> and rewrites the module's own references to match, so the rest of the compiler sees one flat program with no clashes; <code>x.f(...)</code> in the importer is a method call on a name the codegen knows is a module. Lines in the k-th file are numbered from k million, so a single line number carries the file too, and <code>locate</code> turns it back into a path and a line for every error, compile time or run time. Recursive descent for statements, Pratt for expressions. Precedence lives in one dict.</li><li><b>Codegen.</b> <code>program</code> names every struct first, so fields can mention structs declared later, then declares every function and method (<code>Point.length</code> becomes <code>pk_Point.length</code> with <code>self</code> as its first argument), then fills in the bodies. A struct value is a pointer to a heap LLVM struct. An enum value is a pointer to a tag and enough 8-byte slots for its biggest case; <code>match</code> on an enum is one LLVM <code>switch</code> on the tag, and the compiler counts the cases it saw to refuse a match that misses one. <code>arrange</code> lines up positional and labeled arguments and fills defaults, for calls and struct building alike. A generic function is kept as its AST; <code>call_generic</code> evaluates the non-closure arguments, <code>unify</code> matches their types against the parameter types to bind each type parameter, <code>specialize</code> deep-copies the AST with the names substituted, and the copy is compiled once per distinct binding under a name like <code>first&lt;int&gt;</code>. A tuple type like <code>(int, str)</code> is a struct named exactly that with fields <code>_0</code> and <code>_1</code>, made by <code>tuple_struct</code> the first time it is named, so <code>t.0</code> is a field read and the formatter prints the field back as <code>.0</code>. Generic structs work the same way through <code>instantiate_struct</code>: <code>Stack&lt;int&gt;</code> becomes a real struct, with its methods compiled as <code>Stack&lt;int&gt;.push</code>, the first time the name is used in a type or a call; <code>Stack(items: [1])</code> binds <code>T</code> from the fields with the same <code>unify</code>. An optional <code>T?</code> is a pointer to a boxed <code>T</code>, null for <code>nil</code>; <code>coerce</code> does the boxing wherever a value lands in an optional slot (let, assignment, return, arguments, append). A closure is a pointer to two words, code and environment; the environment is an array of pointers to the variables it uses. <code>captures</code> scans each function for names any lambda mentions, and <code>declare</code> puts exactly those variables on the heap so a closure can outlive the call. A top-level function used as a value gets a constant closure around a small wrapper. A closure with no <code>-&gt;</code> is compiled once as a probe, where the first <code>return</code> sets the type, then thrown away and compiled for real. <code>match</code> as a value is parsed into a closure around a <code>match</code> statement whose arms <code>return</code>, so one code path handles both, at the price of a closure call. <code>try</code> calls <code>setjmp</code> through the runtime's stack of handlers; <code>pk_panic</code>, which every runtime error goes through, <code>longjmp</code>s to the newest one instead of exiting. A function that contains a <code>try</code> keeps all its variables in memory rather than registers, so values set before a throw are still there after it, and <code>return</code>, <code>break</code> and <code>continue</code> pop the handlers they jump out of. <code>==</code> on a list, dict, tuple, struct, enum or optional calls a private <code>eq.&lt;type&gt;</code> function generated once per type and registered before its body, so a struct that holds itself through an optional compares fine. There is no separate type checker. Every expression returns a pair of LLVM value and Plank type, and the operator and call rules check the types as they go. Variables are <code>alloca</code> slots; LLVM's mem2reg turns them into registers at O2.</li><li><b>Optimize and link.</b> llvmlite's new pass manager at O2, then the target machine emits a Mach-O or ELF object, and the system <code>cc</code> links it with <code>RUNTIME</code>, libc and libm. <code>RUNTIME</code> opens with the collector: every allocation carries a header naming its slot in a table; a collection sorts the table by address, scans the stack, the registers (spilled with <code>setjmp</code>) and the open <code>try</code> frames for words that point into a block, follows those through every non-string block, and frees what was never reached. Strings are marked atomic and never scanned. Runtime helpers that hold a caller's pointer only in a C local bump <code>pk_hold</code> so no collection can run under them; the stress mode in <code>test.py</code> is what found that this was needed. A collection runs once as many bytes have been allocated as survived the last one, so a steady program keeps a steady footprint. The generated C <code>main</code> hands <code>argc</code> and <code>argv</code> to the runtime for <code>args()</code>. <code>--static</code> adds <code>-static</code> to the link on Linux, so the binary carries libc with it; macOS cannot do that and says so. Nothing is freed yet: programs run and exit, and the OS takes the memory back.</li></ol>
+<p>User functions are named <code>pk.name</code> in the IR, methods <code>pk.Type.name</code>. The dot cannot appear in a C name, so nothing you call a function can collide with libc or the runtime's <code>pk_</code> helpers. A generated C <code>main</code> calls <code>pk.main</code> and returns 0.</p>
+<h2 id="appendix-b-the-ai-library">The AI library</h2>
+<p><code>lib/ai.pk</code> is ordinary Plank on top of <code>http</code>, <code>json_quote</code> and <code>json_parse</code>. A <code>Model</code> has one method that matters, <code>step(history, tools)</code>: the conversation so far goes in as <code>[Json]</code> messages in Anthropic's shape, the model's next content blocks come out. <code>ask</code> is one step; <code>Agent.run</code> loops steps, runs the <code>tool_use</code> blocks through each <code>Tool</code>'s closure inside <code>attempt</code>, and appends a <code>tool_result</code> message until a reply has no tool calls. Memory is that history written to a file as a JSON array; <code>trim</code> bounds it by dropping the oldest messages and cutting only at a turn start (a user message that is plain text), falling back to the nearest earlier one. The mock model is a function of the last message, which is what keeps the examples byte-stable in CI. Requests go through <code>pk_http</code> (curl on argv), so a prompt is limited by ARG_MAX; sending the body from a file is the upgrade when that bites. <code>tool fn</code> is a parse-time rewrite in <code>expand_tools</code> (run per file, before <code>qualify</code>): the parser marks the <code>Fn</code>, the lexer hands it the comment block above as <code>doc</code>, and the loader appends a generated <code>name_tool()</code> that calls <code>ai.tool</code> with a params dict taken from the signature and a closure that unpacks the <code>Json</code> arguments by type. The formatter prints the marked <code>Fn</code> back as <code>tool fn</code>, so the generated function never shows up in <code>plank fmt</code>. <code>tool</code> is a contextual keyword (only before <code>fn</code> at the top level), so <code>ai.tool(...)</code> and variables called tool keep working. Local models speak OpenAI's tool format: <code>step_openai</code> runs <code>to_openai</code> on the history (tool_use blocks become <code>tool_calls</code>, tool_result blocks become <code>tool</code> messages) and <code>from_openai</code> on the reply, so the agent loop never knows which provider it is talking to. <code>ask_json</code> is <code>ask</code> plus <code>unfence</code> and <code>json_parse</code> with one corrective retry; it needs no provider support for a JSON mode, so it works on every model. <code>ai.turing()</code> is just <code>ai.local</code> pointed at Turing's server on port 8127. <code>to_openai</code> and <code>from_openai</code> are pure functions, which is how <code>tests/local.pk</code> covers them without a server.</p>
+<a class="edit" href="https://github.com/nulljosh/plank/edit/main/docs/ARCHITECTURE.md">Edit this page</a>
 </section>
   </main>
 </div>
+<script src="book.js" defer></script>
 </body>
 </html>

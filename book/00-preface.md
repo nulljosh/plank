@@ -10,6 +10,8 @@ Every program in this book is real. The test suite pulls each one out, compiles 
 
 Read the chapters in order the first time. Each one builds on the last and ends with something you can run. Type the programs in yourself rather than copying them; you learn a language through your fingers.
 
+> **Note** The book is built from the same files as the docs. Appendix A is the language reference and Appendix B is the map of the compiler, pulled in fresh every time the book is built, so neither can fall behind.
+
 When you see a block like this one, it is a program:
 
 ```plank

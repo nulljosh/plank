@@ -1,0 +1,23 @@
+<svg viewBox="0 0 680 230" role="img" aria-label="Ints live in the stack frame; a list lives on the heap and two names point at the same one" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="13">
+  <defs><marker id="am" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1" fill="currentColor" class="fig-sub">
+    <text x="4" y="14">STACK (main)</text><text x="330" y="14">HEAP</text>
+  </g>
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <rect x="4" y="24" width="220" height="196" rx="3"/>
+    <path d="M4 88H224M4 152H224"/>
+    <rect x="330" y="70" width="346" height="80" rx="3" stroke-dasharray="5 4"/>
+    <path d="M160 120C240 120 260 110 328 110M160 184C250 184 270 130 328 124" marker-end="url(#am)"/>
+  </g>
+  <g fill="currentColor">
+    <text x="20" y="62">n</text><text x="120" y="62" font-weight="700">3</text>
+    <text x="20" y="126">xs</text><circle cx="150" cy="120" r="5"/>
+    <text x="20" y="190">ys</text><circle cx="150" cy="184" r="5"/>
+    <text x="346" y="96" class="fig-sub">len 3  cap 4</text>
+    <text x="346" y="128" font-weight="700">[10, 20, 30]</text>
+  </g>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="currentColor" class="fig-sub">
+    <text x="330" y="182">let ys = xs copies the pointer, not the list.</text>
+    <text x="330" y="200">ys.append(40) changes what xs sees too.</text>
+  </g>
+</svg>
