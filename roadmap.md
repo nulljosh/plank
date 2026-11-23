@@ -20,7 +20,7 @@ Proven 2026-11-20: Apple `cc` compiles Plank's `plank emit` IR plus the C runtim
 ## Ingested 2026-11-16
 - [ ] (Note "Plank") Make the color more of a clrs.cc brown (https://clrs.cc), not red or burgundy.
 - [ ] (Plank) Next steps? /loop to the next major semver.
-- [ ] (Plank) Needs a starter's guide, book, documentation. Use No Starch programming books as inspiration: artwork, writing style and diagrams.
+- [x] (Plank) Needs a starter's guide, book, documentation. Use No Starch programming books as inspiration: artwork, writing style and diagrams.
 
 ## Ingested 2026-11-23
 
