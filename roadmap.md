@@ -2,6 +2,7 @@
 
 ## Next
 - [ ] AI: a live Anthropic tool turn (run examples/toolfn.pk) once the API key has credit
+- [ ] Landing: the hero headline clips off the right edge on phone width (pre-existing)
 
 ## Ingested 2026-10-30
 
