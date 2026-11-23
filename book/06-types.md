@@ -68,6 +68,10 @@ rect(w: 2, h: 3) 6
 dot 0
 ```
 
+Under the hood every `Shape` is the same size: a number saying which case it is, called the tag, and enough room for the biggest case's values. Figure 6-1 shows the three shapes from this program.
+
+![An enum value is a tag and a row of slots. match looks at the tag and jumps straight to the right arm.](art/enum.svg)
+
 ## match
 
 `match` picks the arm that fits the value and can pull out what a case carries. The part that matters most: Plank checks that you covered every case. Add a `triangle` to `Shape` and forget to handle it, and the program will not compile:
@@ -129,6 +133,10 @@ b 2
 ```
 
 Plank compiles a separate version for each type you use, so a `Stack<str>` runs as fast as one written by hand for strings.
+
+## Summary
+
+Structs group named fields and carry methods. Enums are exactly one of a set of cases, and `match` refuses to compile if you forget one. Type parameters let one struct or function work for any type at full speed. Next you will handle values that might not be there.
 
 > **Try it yourself**
 >

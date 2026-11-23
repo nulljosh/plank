@@ -83,6 +83,10 @@ hello.pk:2: int + str: types must match, use str()
 
 Every error in Plank names the file and the line. Most of them also tell you what to do next. Read them; they were written to be read.
 
+## Summary
+
+You wrote, ran and built your first Plank program, and saw the road it takes from text to a native binary. You met `print`, comments and the REPL, and you saw that Plank's errors name the file and line and usually say what to do. Next you will give values names.
+
 > **Try it yourself**
 >
 > 1. Make `print` say your name, then build the program and run the binary without `plank`.

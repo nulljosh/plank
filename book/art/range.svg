@@ -1,0 +1,19 @@
+<svg viewBox="0 0 680 150" role="img" aria-label="The range 0..3 visits 0, 1 and 2, and stops before 3" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="14">
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <rect x="110" y="30" width="80" height="48" rx="3"/>
+    <rect x="200" y="30" width="80" height="48" rx="3"/>
+    <rect x="290" y="30" width="80" height="48" rx="3"/>
+    <rect x="380" y="30" width="80" height="48" rx="3" stroke-dasharray="5 4" class="fig-sub"/>
+    <path d="M110 92V100H370V92"/>
+  </g>
+  <g text-anchor="middle" font-weight="700" font-size="18" fill="currentColor">
+    <text x="150" y="60">0</text><text x="240" y="60">1</text><text x="330" y="60">2</text><text x="420" y="60" class="fig-sub">3</text>
+  </g>
+  <g fill="currentColor">
+    <text x="4" y="60" font-weight="700">0..3</text>
+    <text x="240" y="126" text-anchor="middle">for i in 0..3 visits these</text>
+  </g>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="currentColor" class="fig-sub">
+    <text x="476" y="50">the end is never visited,</text><text x="476" y="68">so 0..len(xs) is every index</text>
+  </g>
+</svg>

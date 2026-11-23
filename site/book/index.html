@@ -152,6 +152,8 @@ after a blank line</code></pre>
 <pre class="shell"><code>hello.pk:2: int + str: types must match, use str()</code></pre>
 <aside class="box note"><p class="box-h">Note</p><p>Plank checks types before anything runs. A mistake like this one never becomes a crash at 3 a.m.; it is a message at your desk.</p></aside>
 <p>Every error in Plank names the file and the line. Most of them also tell you what to do next. Read them; they were written to be read.</p>
+<h2 id="01-first-program-summary">Summary</h2>
+<p>You wrote, ran and built your first Plank program, and saw the road it takes from text to a native binary. You met <code>print</code>, comments and the REPL, and you saw that Plank's errors name the file and line and usually say what to do. Next you will give values names.</p>
 <aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Make <code>print</code> say your name, then build the program and run the binary without <code>plank</code>.</li><li>Print three values of different kinds on one line. What separates them?</li><li>Open the REPL and type <code>2 + 3 * 4</code>. Is the answer what you expected?</li><li>Break the program on purpose three different ways and read each error. Which one helps the most?</li></ol></aside>
 <a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/01-first-program.md">Edit this page</a>
 </section>
@@ -222,7 +224,7 @@ x and y
 true true
 p la k</code></pre>
 <p>Indexes count characters, not bytes, so <code>"héllo"[1]</code> is <code>"é"</code>. A slice like <code>[1..3]</code> takes characters 1 and 2: the start is included, the end is not. Negative numbers count from the end.</p>
-<p>Strings never change in place. Every tool hands back a new string and leaves the old one alone.</p>
+<aside class="box note"><p class="box-h">Note</p><p>Strings never change in place. Every tool hands back a new string and leaves the old one alone.</p></aside>
 <h2 id="02-values-doing-arithmetic">Doing arithmetic</h2>
 <p><code>+ - * / %</code> work on ints and floats. Integer division drops the remainder, and <code>%</code> gives it to you:</p>
 <pre class="code"><code><span class="k">fn</span> main() {
@@ -236,6 +238,8 @@ p la k</code></pre>
 1.4142135623731 1024 4
 3.14</code></pre>
 <p>Floats print with up to 15 significant digits, so <code>0.1 + 0.2</code> shows as <code>0.3</code>. <code>fixed</code> gives you exactly as many digits as you ask for.</p>
+<h2 id="02-values-summary">Summary</h2>
+<p>Plank has four simple kinds of value, and it never converts one into another unless you ask. <code>let</code> names a value for good; <code>var</code> names one you can change. Strings interpolate with <code>\( )</code>, count characters rather than bytes, and never change in place. Next you will make your programs choose and repeat.</p>
 <aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Make a <code>var</code> counter, add to it twice and print it. Now change <code>var</code> to <code>let</code>. What does Plank say?</li><li>Build a sentence out of three variables with <code>\( )</code> interpolation.</li><li>Divide 7 by 2 as ints and as floats. Explain the difference in one sentence.</li></ol></aside>
 <a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/02-values.md">Edit this page</a>
 </section>
@@ -284,7 +288,26 @@ hi grace
 0 a
 1 b
 2 c</code></pre>
-<p><code>0..3</code> counts 0, 1 and 2. It stops before the end, the same as a slice, so <code>0..len(xs)</code> visits every index of <code>xs</code>.</p>
+<p><code>0..3</code> counts 0, 1 and 2. It stops before the end, the same as a slice, so <code>0..len(xs)</code> visits every index of <code>xs</code>. Figure 3-1 draws it.</p>
+<figure class="fig"><svg viewBox="0 0 680 150" role="img" aria-label="The range 0..3 visits 0, 1 and 2, and stops before 3" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="14">
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <rect x="110" y="30" width="80" height="48" rx="3"/>
+    <rect x="200" y="30" width="80" height="48" rx="3"/>
+    <rect x="290" y="30" width="80" height="48" rx="3"/>
+    <rect x="380" y="30" width="80" height="48" rx="3" stroke-dasharray="5 4" class="fig-sub"/>
+    <path d="M110 92V100H370V92"/>
+  </g>
+  <g text-anchor="middle" font-weight="700" font-size="18" fill="currentColor">
+    <text x="150" y="60">0</text><text x="240" y="60">1</text><text x="330" y="60">2</text><text x="420" y="60" class="fig-sub">3</text>
+  </g>
+  <g fill="currentColor">
+    <text x="4" y="60" font-weight="700">0..3</text>
+    <text x="240" y="126" text-anchor="middle">for i in 0..3 visits these</text>
+  </g>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="currentColor" class="fig-sub">
+    <text x="476" y="50">the end is never visited,</text><text x="476" y="68">so 0..len(xs) is every index</text>
+  </g>
+</svg><figcaption><b>Figure 3-1:</b> A range includes its start and stops just before its end.</figcaption></figure>
 <h2 id="03-decisions-while">while</h2>
 <p><code>while</code> repeats as long as its condition holds. <code>break</code> leaves the loop early, <code>continue</code> skips to the next time round:</p>
 <pre class="code"><code><span class="k">fn</span> main() {
@@ -331,6 +354,8 @@ Fizz
 13
 14
 FizzBuzz</code></pre>
+<h2 id="03-decisions-summary">Summary</h2>
+<p><code>if</code> takes a real <code>bool</code> and can produce a value. <code>for</code> walks ranges, lists, dict keys and strings, and a range stops just before its end. <code>while</code> repeats with <code>break</code> and <code>continue</code> for the exits. That was enough to write FizzBuzz. Next you will package code into functions.</p>
 <aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Print the numbers 1 to 20, but print <code>even</code> in place of every even one.</li><li>Write a <code>while</code> loop that halves 1000 until it drops below 1 and counts the steps.</li><li>Change the whole program at the end of the chapter so it stops early with <code>break</code>.</li></ol></aside>
 <a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/03-decisions.md">Edit this page</a>
 </section>
@@ -388,7 +413,34 @@ hi, grace</code></pre>
   print(fib(<span class="n">20</span>))
 }</code></pre>
 <pre class="output" aria-label="Output"><code>6765</code></pre>
-<p>Because Plank compiles to machine code, <code>fib(35)</code> takes a few hundredths of a second. The same function in a tree-walking interpreter takes seconds.</p>
+<p>Every call that is not a base case makes two more. Figure 4-1 shows the whole tree for <code>fib(4)</code>.</p>
+<figure class="fig"><svg viewBox="0 0 680 270" role="img" aria-label="The calls fib(4) makes: a tree of nine calls, with fib(2) worked out twice" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="12">
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <path d="M340 44L200 81M340 44L500 81M200 109L120 146M200 109L280 146M500 109L440 146M500 109L560 146M120 174L60 211M120 174L180 211"/>
+    <rect x="302" y="16" width="76" height="28" rx="3"/>
+    <rect x="162" y="81" width="76" height="28" rx="3"/>
+    <rect x="462" y="81" width="76" height="28" rx="3" stroke-dasharray="5 4"/>
+    <rect x="82" y="146" width="76" height="28" rx="3" stroke-dasharray="5 4"/>
+  </g>
+  <g class="fig-ink">
+    <rect x="242" y="146" width="76" height="28" rx="3"/><rect x="402" y="146" width="76" height="28" rx="3"/><rect x="522" y="146" width="76" height="28" rx="3"/>
+    <rect x="22" y="211" width="76" height="28" rx="3"/><rect x="142" y="211" width="76" height="28" rx="3"/>
+  </g>
+  <g text-anchor="middle" fill="currentColor" font-weight="700">
+    <text x="340" y="34">fib(4)</text><text x="200" y="99">fib(3)</text><text x="500" y="99">fib(2)</text><text x="120" y="164">fib(2)</text>
+  </g>
+  <g text-anchor="middle" class="fig-on-ink" font-weight="700">
+    <text x="280" y="164">fib(1)</text><text x="440" y="164">fib(1)</text><text x="560" y="164">fib(0)</text><text x="60" y="229">fib(1)</text><text x="180" y="229">fib(0)</text>
+  </g>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="currentColor" class="fig-sub">
+    <text x="420" y="214">Filled: n &lt; 2, returns n with no more calls.</text>
+    <text x="420" y="232">Dashed: fib(2), worked out twice.</text>
+    <text x="420" y="250">fib(35) makes about 30 million calls.</text>
+  </g>
+</svg><figcaption><b>Figure 4-1:</b> The nine calls behind fib(4). The filled ones are base cases; the dashed fib(2) is worked out twice.</figcaption></figure>
+<aside class="box note"><p class="box-h">Note</p><p>Because Plank compiles to machine code, <code>fib(35)</code> and its 30 million calls take a few hundredths of a second. The same function in a tree-walking interpreter takes seconds.</p></aside>
+<h2 id="04-functions-summary">Summary</h2>
+<p>Every parameter and result has a type, and a function with a result must return on every path. Defaults and labels make calls read like sentences, tuples hand back more than one value, and recursion lets a function call itself. Next you will hold many values at once.</p>
 <aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Write <code>max3(a, b, c)</code> that returns the biggest of three ints.</li><li>Give one of its parameters a default and call it both ways.</li><li>Write a recursive <code>sum_to(n)</code> and check it against <code>n * (n + 1) / 2</code>.</li></ol></aside>
 <a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/04-functions.md">Edit this page</a>
 </section>
@@ -498,6 +550,8 @@ and 2</code></pre>
   print(len(seen), <span class="s">"a"</span> <span class="k">in</span> seen, seen.items())
 }</code></pre>
 <pre class="output" aria-label="Output"><code>4 true ["a", "b", "c", "d"]</code></pre>
+<h2 id="05-collections-summary">Summary</h2>
+<p>Lists keep values in order, dicts map keys to values and remember their order, and sets hold each value once. <code>map</code>, <code>filter</code> and <code>reduce</code> work on every item, and <code>sort(by:)</code> sorts by anything. Collections are shared, not copied. Next you will make types of your own.</p>
 <aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Make a list of five names, sort it and print the first and last.</li><li>Change the word counter so it ignores case.</li><li>Use a set to find the letters two words have in common.</li></ol></aside>
 <a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/05-collections.md">Edit this page</a>
 </section>
@@ -554,6 +608,27 @@ Account(owner: "ada", balance: 50)</code></pre>
 <pre class="output" aria-label="Output"><code>circle(r: 1) 3.14159
 rect(w: 2, h: 3) 6
 dot 0</code></pre>
+<p>Under the hood every <code>Shape</code> is the same size: a number saying which case it is, called the tag, and enough room for the biggest case's values. Figure 6-1 shows the three shapes from this program.</p>
+<figure class="fig"><svg viewBox="0 0 680 190" role="img" aria-label="An enum value is a tag and slots; match jumps on the tag" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="12">
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1" fill="currentColor" class="fig-sub">
+    <text x="210" y="18">TAG</text><text x="270" y="18">SLOT 1</text><text x="370" y="18">SLOT 2</text>
+  </g>
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <rect x="200" y="28" width="300" height="40" rx="3"/><path d="M260 28V68M360 28V68"/>
+    <rect x="200" y="84" width="300" height="40" rx="3"/><path d="M260 84V124M360 84V124"/>
+    <rect x="200" y="140" width="300" height="40" rx="3"/><path d="M260 140V180M360 140V180"/>
+    <path d="M512 28C540 28 540 104 556 104C540 104 540 180 512 180"/>
+  </g>
+  <g fill="currentColor">
+    <text x="4" y="53">Shape.circle(1.0)</text><text x="4" y="109">Shape.rect(2.0, 3.0)</text><text x="4" y="165">Shape.dot</text>
+    <g font-weight="700"><text x="224" y="53">0</text><text x="224" y="109">1</text><text x="224" y="165">2</text>
+    <text x="274" y="53">r 1.0</text><text x="274" y="109">w 2.0</text><text x="374" y="109">h 3.0</text></g>
+    <g class="fig-sub"><text x="374" y="53">unused</text><text x="274" y="165">unused</text><text x="374" y="165">unused</text></g>
+  </g>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="currentColor" class="fig-sub">
+    <text x="566" y="92">match reads the</text><text x="566" y="108">tag and jumps:</text><text x="566" y="124">one step, however</text><text x="566" y="140">many cases</text>
+  </g>
+</svg><figcaption><b>Figure 6-1:</b> An enum value is a tag and a row of slots. match looks at the tag and jumps straight to the right arm.</figcaption></figure>
 <h2 id="06-types-match">match</h2>
 <p><code>match</code> picks the arm that fits the value and can pull out what a case carries. The part that matters most: Plank checks that you covered every case. Add a <code>triangle</code> to <code>Shape</code> and forget to handle it, and the program will not compile:</p>
 <pre class="shell"><code>shapes.pk:7: match on Shape misses .triangle</code></pre>
@@ -594,6 +669,8 @@ dot 0</code></pre>
 }</code></pre>
 <pre class="output" aria-label="Output"><code>b 2</code></pre>
 <p>Plank compiles a separate version for each type you use, so a <code>Stack&lt;str&gt;</code> runs as fast as one written by hand for strings.</p>
+<h2 id="06-types-summary">Summary</h2>
+<p>Structs group named fields and carry methods. Enums are exactly one of a set of cases, and <code>match</code> refuses to compile if you forget one. Type parameters let one struct or function work for any type at full speed. Next you will handle values that might not be there.</p>
 <aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Add a <code>withdraw</code> method to <code>Account</code> that refuses to go below zero.</li><li>Add a <code>triangle</code> case to <code>Shape</code> and watch <code>match</code> refuse to compile until you handle it.</li><li>Give <code>Stack</code> a <code>pop</code> method, push three numbers and pop them all.</li></ol></aside>
 <a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/06-types.md">Edit this page</a>
 </section>
@@ -622,7 +699,27 @@ dot 0</code></pre>
 -1</code></pre>
 <p>You cannot do arithmetic on an <code>int?</code> directly; you have to say what happens when it is <code>nil</code>. There are three ways:</p>
 <ul><li><code>if let i = maybe { ... }</code> runs the block only when there is a value, with <code>i</code> as a plain <code>int</code> inside</li><li><code>maybe ?? fallback</code> gives the value, or the fallback</li><li><code>maybe!</code> gives the value, or stops the program with the line number if there is none</li></ul>
-<p>Nothing that is not marked with <code>?</code> can ever be <code>nil</code>. When you see a plain <code>int</code>, it is always there.</p>
+<p>Nothing that is not marked with <code>?</code> can ever be <code>nil</code>. When you see a plain <code>int</code>, it is always there. Figure 7-1 shows what an optional is in memory, and the three ways to open one.</p>
+<figure class="fig"><svg viewBox="0 0 680 170" role="img" aria-label="An optional int is a pointer to a boxed int, or null for nil" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="13">
+  <defs><marker id="a7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <rect x="4" y="24" width="140" height="40" rx="3"/><rect x="4" y="100" width="140" height="40" rx="3"/>
+    <path d="M120 44H196" marker-end="url(#a7)"/><rect x="198" y="24" width="70" height="40" rx="3"/>
+    <path d="M120 120H170M164 110L176 130M176 110L164 130"/>
+  </g>
+  <g fill="currentColor">
+    <text x="16" y="49">a: int?</text><circle cx="120" cy="44" r="4"/>
+    <text x="16" y="125">b: int?</text><circle cx="120" cy="120" r="4"/>
+    <text x="233" y="49" text-anchor="middle" font-weight="700">42</text>
+    <text x="186" y="125" class="fig-sub">nil</text>
+    <text x="330" y="40">if let i = a { ... }</text><text x="330" y="86">a ?? 0</text><text x="330" y="132">a!</text>
+  </g>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="currentColor" class="fig-sub">
+    <text x="330" y="58">runs the block only when there is a box</text>
+    <text x="330" y="104">the value in the box, or the fallback</text>
+    <text x="330" y="150">the value, or stop the program here</text>
+  </g>
+</svg><figcaption><b>Figure 7-1:</b> An int? is a pointer to a box holding the int, or no box at all.</figcaption></figure>
 <h2 id="07-missing-and-wrong-errors-that-stop-the-program">Errors that stop the program</h2>
 <p>Some mistakes only show up when the program runs: reading past the end of a list, a missing dict key, <code>int("forty")</code>. Plank stops and tells you exactly where:</p>
 <pre class="shell"><code>prog.pk:3: int() got text that is not a whole number</code></pre>
@@ -669,7 +766,9 @@ no good: int() got text that is not a whole number</code></pre>
 <pre class="output" aria-label="Output"><code>2
 3 is odd
 0</code></pre>
-<p>A rule of thumb: throw for bugs and broken input, return a <code>Result</code> when the caller is expected to handle the failure.</p>
+<aside class="box note"><p class="box-h">Note</p><p>A rule of thumb: throw for bugs and broken input, return a <code>Result</code> when the caller is expected to handle the failure.</p></aside>
+<h2 id="07-missing-and-wrong-summary">Summary</h2>
+<p>An optional <code>T?</code> is either a value or <code>nil</code>, and you must say what happens in both cases. Run-time errors stop the program with a line number unless you catch them with <code>try</code>. <code>Result</code> makes failure an ordinary answer, and <code>?</code> passes it up. Next you will pass functions around as values.</p>
 <aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Write <code>find(xs, x) -&gt; int?</code> that returns the index or <code>nil</code>.</li><li>Use <code>??</code> to print <code>none</code> when it finds nothing.</li><li>Wrap a division by zero in <code>try</code> and print the message you catch.</li></ol></aside>
 <a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/07-missing-and-wrong.md">Edit this page</a>
 </section>
@@ -718,6 +817,32 @@ no good: int() got text that is not a whole number</code></pre>
   print(next())
 }</code></pre>
 <pre class="output" aria-label="Output"><code>3</code></pre>
+<p>How can <code>n</code> still exist after <code>make_counter</code> has returned? Plank noticed that a closure uses it and put it on the heap instead of the stack. Figure 8-1 shows what <code>next</code> really holds.</p>
+<figure class="fig"><svg viewBox="0 0 680 200" role="img" aria-label="A closure is two words, code and environment; the environment points at the variable n on the heap" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="12">
+  <defs><marker id="a8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1" fill="currentColor" class="fig-sub">
+    <text x="4" y="14">STACK (main)</text><text x="170" y="14">HEAP</text>
+  </g>
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <rect x="4" y="24" width="120" height="40" rx="3"/>
+    <rect x="170" y="24" width="180" height="40" rx="3"/><path d="M260 24V64"/>
+    <rect x="400" y="20" width="276" height="48" rx="3"/>
+    <rect x="170" y="120" width="100" height="40" rx="3"/>
+    <rect x="330" y="120" width="100" height="40" rx="3" class="fig-ink"/>
+    <path d="M100 44H168M236 40C240 6 380 6 404 22M320 44C320 90 220 80 220 118M250 140H328" marker-end="url(#a8)"/>
+  </g>
+  <g fill="currentColor">
+    <text x="16" y="49">next</text><circle cx="100" cy="44" r="4"/>
+    <text x="182" y="49">code</text><circle cx="236" cy="44" r="4"/><text x="272" y="49">env</text><circle cx="320" cy="44" r="4"/>
+    <text x="412" y="40">n += 1</text><text x="412" y="56">return n</text>
+    <text x="182" y="145">[ &amp;n ]</text><circle cx="250" cy="140" r="4"/>
+    <text x="342" y="145" class="fig-on-ink" font-weight="700">n  3</text>
+  </g>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="currentColor" class="fig-sub">
+    <text x="170" y="186">the environment</text><text x="330" y="186">n, moved to the heap because a closure uses it,</text>
+    <text x="330" y="200">so it outlives make_counter</text>
+  </g>
+</svg><figcaption><b>Figure 8-1:</b> A closure is two words: where its code is, and an environment that points at the variables it uses.</figcaption></figure>
 <h2 id="08-closures-sorting-by-anything">Sorting by anything</h2>
 <p>Closures are how you tell library functions what you want. Sort people by age:</p>
 <pre class="code"><code><span class="k">struct</span> <span class="t">Person</span> {
@@ -731,6 +856,8 @@ no good: int() got text that is not a whole number</code></pre>
   print(people.map(<span class="k">fn</span>(p) =&gt; p.name))
 }</code></pre>
 <pre class="output" aria-label="Output"><code>["linus", "ada", "grace"]</code></pre>
+<h2 id="08-closures-summary">Summary</h2>
+<p>Functions are values you can store, pass and return. A closure is a function written in place that keeps the variables it uses, even after the function that made it has returned. Closures are how you tell <code>sort</code>, <code>map</code> and friends what you want. Next you will talk to files, the shell and the web.</p>
 <aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Write <code>make_adder(n)</code> that returns a function adding <code>n</code> to its argument.</li><li>Sort a list of words by their length, longest first.</li><li>Make a counter closure that returns 1, 2, 3 on each call.</li></ol></aside>
 <a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/08-closures.md">Edit this page</a>
 </section>
@@ -784,6 +911,8 @@ if status() != 200 {
   print("failed:", status())
 }</code></pre>
 <p>Together these cover most of what people reach for Python to do: read some files, call a command, hit an API, write a report.</p>
+<h2 id="09-scripts-summary">Summary</h2>
+<p>Files, folders, arguments, standard input, the shell, JSON and HTTP are all built in, which covers most everyday scripting. Missing files come back as <code>nil</code>, so you decide what that means. Next you will split a program across files.</p>
 <aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Write a script that counts the lines in a file named on the command line.</li><li>Run <code>ls</code> from Plank and print how many entries it found.</li><li>Read a JSON file and print one field from it.</li></ol></aside>
 <a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/09-scripts.md">Edit this page</a>
 </section>
@@ -803,7 +932,8 @@ fn main() {
 <h2 id="10-modules-packages">Packages</h2>
 <p>An import that starts with <code>github.com/</code> is a package. Plank fetches the file the first time, keeps it under <code>~/.plank/pkg</code>, and reads it from there after that:</p>
 <pre class="shell"><code>import "github.com/nulljosh/plank@v3.1.0/examples/lib/money.pk" as money</code></pre>
-<p><code>@v3.1.0</code> pins a tag. There is no registry and no lock file: a package is a file in a git repository, and the tag says which version of it you mean.</p>
+<p><code>@v3.1.0</code> pins a tag.</p>
+<aside class="box note"><p class="box-h">Note</p><p>There is no registry and no lock file. A package is a file in a git repository, and the tag says which version of it you mean.</p></aside>
 <h2 id="10-modules-tests">Tests</h2>
 <p>A test in Plank is a program that prints <code>ok</code>. Put checks in it with <code>assert</code>:</p>
 <pre class="code"><code><span class="k">fn</span> add(a: <span class="t">int</span>, b: <span class="t">int</span>) -&gt; <span class="t">int</span> {
@@ -821,6 +951,8 @@ fn main() {
 <p><code>plank fmt</code> lays out your files the house way: two-space indents, one statement per line, blocks opened on the same line. <code>plank fmt --check</code> only reports, which is what you want in CI. Every program in this book passes it.</p>
 <h2 id="10-modules-shipping">Shipping</h2>
 <p><code>plank build app.pk</code> makes a native binary. On Linux, <code>plank build app.pk --static</code> makes one with no shared libraries at all, which you can copy to any Linux machine and run.</p>
+<h2 id="10-modules-summary">Summary</h2>
+<p><code>import</code> pulls in another file, and <code>as</code> keeps its names under one prefix. A package is a file in a git repository, pinned by tag. Tests are programs that print <code>ok</code>, <code>plank fmt</code> keeps code tidy, and <code>plank build</code> ships a binary. Next you will script a model.</p>
 <aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Move a struct into its own file and import it.</li><li>Import the same file <code>as</code> a module and call one function through the module name.</li><li>Write a test file with three <code>assert</code>s and run <code>plank test</code> on its folder.</li></ol></aside>
 <a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/10-modules.md">Edit this page</a>
 </section>
@@ -852,11 +984,36 @@ tool fn add(a: int, b: int) -&gt; int {
 }</code></pre>
 <p>Plank writes <code>add_tool()</code> for you, with a schema read off the function's signature. The schema can never drift from the code because it is the code.</p>
 <h2 id="11-ai-agents">Agents</h2>
-<p>An agent is a loop: ask the model, run the tools it asks for, hand back the results, repeat until it answers in plain words.</p>
+<p>An agent is a loop: ask the model, run the tools it asks for, hand back the results, repeat until it answers in plain words. Figure 11-1 draws one turn of it.</p>
+<figure class="fig"><svg viewBox="0 0 680 190" role="img" aria-label="The agent loop: ask the model, run any tools it asks for, add the results, ask again, until it answers in words" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="13">
+  <defs><marker id="a11" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <rect x="4" y="60" width="130" height="48" rx="3"/>
+    <path d="M250 54L306 84L250 114L194 84Z"/>
+    <rect x="370" y="60" width="130" height="48" rx="3"/>
+    <rect x="546" y="60" width="130" height="48" rx="3"/>
+    <rect x="194" y="4" width="112" height="30" rx="3" class="fig-ink"/>
+    <path d="M134 84H192M306 84H368M500 84H544M250 54V36" marker-end="url(#a11)"/>
+    <path d="M611 108V150H69V110" marker-end="url(#a11)"/>
+  </g>
+  <g fill="currentColor" text-anchor="middle" font-weight="700">
+    <text x="69" y="80">ask the model</text><text x="69" y="96" font-weight="400" class="fig-sub">history + tools</text>
+    <text x="250" y="80">tool calls?</text>
+    <text x="435" y="80">run each tool</text><text x="435" y="96" font-weight="400" class="fig-sub">inside attempt</text>
+    <text x="611" y="80">add the results</text><text x="611" y="96" font-weight="400" class="fig-sub">to the history</text>
+    <text x="250" y="24" class="fig-on-ink">the answer</text>
+  </g>
+  <g fill="currentColor" font-size="12" class="fig-sub">
+    <text x="256" y="48">no</text><text x="314" y="76">yes</text>
+    <text x="340" y="170" text-anchor="middle">and again, until a reply has no tool calls; the history is saved to the memory file</text>
+  </g>
+</svg><figcaption><b>Figure 11-1:</b> The agent loop. Each pass through the bottom arrow is one more question to the model.</figcaption></figure>
 <pre class="shell"><code>let bot = ai.agent(ai.model("claude-haiku-5-5"), [add_tool()], "memory.json")
 print(bot.run("What is 20 + 22?"))</code></pre>
 <p>The third argument is a file. The agent saves the conversation there after each run and reads it back at the start of the next, so it remembers. <code>keep: 20</code> caps how much it keeps.</p>
-<p>One piece of advice that matters more than any code: the tool's comment is the only thing telling the model when to use it. "Adds two whole numbers" works. "math" does not.</p>
+<aside class="box note"><p class="box-h">Note</p><p>The tool's comment is the only thing telling the model when to use it. "Adds two whole numbers" works. "math" does not.</p></aside>
+<h2 id="11-ai-summary">Summary</h2>
+<p><code>lib/ai.pk</code> is plain Plank that talks to Anthropic, local models or a mock. <code>tool fn</code> turns a function and its comment into something a model can call, and an agent loops until the model answers in words, remembering the conversation in a file. Next you will open the compiler itself.</p>
 <aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Turn one of your earlier functions into a <code>tool fn</code> with a comment above it.</li><li>Run the agent with the mock model and change what the mock says.</li><li>Point the program at a local model and ask it to use your tool.</li></ol></aside>
 <a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/11-ai.md">Edit this page</a>
 </section>
@@ -876,12 +1033,15 @@ print(bot.run("What is 20 + 22?"))</code></pre>
 <p>You will see <code>fib</code> as a function that compares, branches and calls itself, much like the source. Run it on a program with a list or a closure to see how those are built out of plain memory and function pointers.</p>
 <h2 id="12-inside-where-values-live">Where values live</h2>
 <p>Ints, floats and bools live in registers and on the stack, like in C. Strings, lists, dicts, structs, enums and closures live on the heap and are passed around as pointers, which is why they are shared, as Figure 5-1 showed.</p>
-<p>Nothing is ever freed by hand. A garbage collector runs now and then: it finds every object the program can still reach, starting from the stack and globals, marks them, and frees the rest. It never moves anything, which keeps it short. The test suite runs everything a second time with the collector firing every 4KB, to shake out any place that forgets to tell it about a pointer.</p>
+<p>Nothing is ever freed by hand. A garbage collector runs now and then: it finds every object the program can still reach, starting from the stack and globals, marks them, and frees the rest. Figure 12-1 shows one collection.</p>
+<p>!<a href="art/collector.svg">Mark and sweep. Anything a root can reach, directly or through other blocks, survives.</a> It never moves anything, which keeps it short. The test suite runs everything a second time with the collector firing every 4KB, to shake out any place that forgets to tell it about a pointer.</p>
 <h2 id="12-inside-why-llvm">Why LLVM</h2>
 <p>Writing a code generator for every processor is the part of a compiler that takes years. LLVM already did it, and does register allocation and optimization better than a small project could. Plank's job ends at producing correct IR, which is a job one file can do. That is the whole trick: pick the one piece you can borrow without hiding how anything works.</p>
 <h2 id="12-inside-where-to-go-next">Where to go next</h2>
 <ul><li>Appendix A is the reference: every rule of the language on one page. It is <code>docs/SPEC.md</code>, printed here.</li><li>Appendix B maps <code>plank.py</code>, section by section. It is <code>docs/ARCHITECTURE.md</code>, printed here.</li><li><code>apps/calc.pk</code> is a calculator with its own tokenizer and parser, written in Plank. It is the same four steps in miniature.</li><li><code>compiler/plank.pk</code> is Plank's compiler written in Plank. It already has the lexer and parser from this chapter and grows a step per release until it can compile itself.</li></ul>
 <p>Change something. Add a built-in, make an error message friendlier, add a case to <code>match</code>. Run <code>python3 test.py</code>. That is how every feature in this book got there.</p>
+<h2 id="12-inside-summary">Summary</h2>
+<p>Plank's compiler is four steps in one file: lex, parse, generate and link. <code>plank tokens</code>, <code>plank ast</code> and <code>plank emit</code> let you watch each one. Simple values live in registers and on the stack, everything else on the heap, and a mark-and-sweep collector frees what nothing reaches. LLVM does the part that takes years, so the rest fits in a file you can read.</p>
 <aside class="box try"><p class="box-h">Try it yourself</p><ol><li>Run <code>plank tokens</code>, <code>plank ast</code> and <code>plank emit</code> on the same small program and match each line of output to Figure 1-1.</li><li>Find <code>def lex</code> in <code>plank.py</code> and read it start to finish. How long did it take?</li><li>Make one error message in <code>plank.py</code> friendlier and run <code>python3 test.py</code>.</li></ol></aside>
 <a class="edit" href="https://github.com/nulljosh/plank/edit/main/book/12-inside.md">Edit this page</a>
 </section>

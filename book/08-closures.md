@@ -65,6 +65,10 @@ fn main() {
 3
 ```
 
+How can `n` still exist after `make_counter` has returned? Plank noticed that a closure uses it and put it on the heap instead of the stack. Figure 8-1 shows what `next` really holds.
+
+![A closure is two words: where its code is, and an environment that points at the variables it uses.](art/closure.svg)
+
 ## Sorting by anything
 
 Closures are how you tell library functions what you want. Sort people by age:
@@ -85,6 +89,10 @@ fn main() {
 ```output
 ["linus", "ada", "grace"]
 ```
+
+## Summary
+
+Functions are values you can store, pass and return. A closure is a function written in place that keeps the variables it uses, even after the function that made it has returned. Closures are how you tell `sort`, `map` and friends what you want. Next you will talk to files, the shell and the web.
 
 > **Try it yourself**
 >

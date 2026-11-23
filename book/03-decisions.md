@@ -66,7 +66,9 @@ hi grace
 2 c
 ```
 
-`0..3` counts 0, 1 and 2. It stops before the end, the same as a slice, so `0..len(xs)` visits every index of `xs`.
+`0..3` counts 0, 1 and 2. It stops before the end, the same as a slice, so `0..len(xs)` visits every index of `xs`. Figure 3-1 draws it.
+
+![A range includes its start and stops just before its end.](art/range.svg)
 
 ## while
 
@@ -129,6 +131,10 @@ Fizz
 14
 FizzBuzz
 ```
+
+## Summary
+
+`if` takes a real `bool` and can produce a value. `for` walks ranges, lists, dict keys and strings, and a range stops just before its end. `while` repeats with `break` and `continue` for the exits. That was enough to write FizzBuzz. Next you will package code into functions.
 
 > **Try it yourself**
 >

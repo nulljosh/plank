@@ -35,7 +35,9 @@ You will see `fib` as a function that compares, branches and calls itself, much 
 
 Ints, floats and bools live in registers and on the stack, like in C. Strings, lists, dicts, structs, enums and closures live on the heap and are passed around as pointers, which is why they are shared, as Figure 5-1 showed.
 
-Nothing is ever freed by hand. A garbage collector runs now and then: it finds every object the program can still reach, starting from the stack and globals, marks them, and frees the rest. It never moves anything, which keeps it short. The test suite runs everything a second time with the collector firing every 4KB, to shake out any place that forgets to tell it about a pointer.
+Nothing is ever freed by hand. A garbage collector runs now and then: it finds every object the program can still reach, starting from the stack and globals, marks them, and frees the rest. Figure 12-1 shows one collection.
+
+![Mark and sweep. Anything a root can reach, directly or through other blocks, survives.](art/collector.svg) It never moves anything, which keeps it short. The test suite runs everything a second time with the collector firing every 4KB, to shake out any place that forgets to tell it about a pointer.
 
 ## Why LLVM
 
@@ -49,6 +51,10 @@ Writing a code generator for every processor is the part of a compiler that take
 - `compiler/plank.pk` is Plank's compiler written in Plank. It already has the lexer and parser from this chapter and grows a step per release until it can compile itself.
 
 Change something. Add a built-in, make an error message friendlier, add a case to `match`. Run `python3 test.py`. That is how every feature in this book got there.
+
+## Summary
+
+Plank's compiler is four steps in one file: lex, parse, generate and link. `plank tokens`, `plank ast` and `plank emit` let you watch each one. Simple values live in registers and on the stack, everything else on the heap, and a mark-and-sweep collector frees what nothing reaches. LLVM does the part that takes years, so the rest fits in a file you can read.
 
 > **Try it yourself**
 >

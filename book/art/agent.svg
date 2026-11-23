@@ -1,0 +1,23 @@
+<svg viewBox="0 0 680 190" role="img" aria-label="The agent loop: ask the model, run any tools it asks for, add the results, ask again, until it answers in words" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="13">
+  <defs><marker id="a11" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <rect x="4" y="60" width="130" height="48" rx="3"/>
+    <path d="M250 54L306 84L250 114L194 84Z"/>
+    <rect x="370" y="60" width="130" height="48" rx="3"/>
+    <rect x="546" y="60" width="130" height="48" rx="3"/>
+    <rect x="194" y="4" width="112" height="30" rx="3" class="fig-ink"/>
+    <path d="M134 84H192M306 84H368M500 84H544M250 54V36" marker-end="url(#a11)"/>
+    <path d="M611 108V150H69V110" marker-end="url(#a11)"/>
+  </g>
+  <g fill="currentColor" text-anchor="middle" font-weight="700">
+    <text x="69" y="80">ask the model</text><text x="69" y="96" font-weight="400" class="fig-sub">history + tools</text>
+    <text x="250" y="80">tool calls?</text>
+    <text x="435" y="80">run each tool</text><text x="435" y="96" font-weight="400" class="fig-sub">inside attempt</text>
+    <text x="611" y="80">add the results</text><text x="611" y="96" font-weight="400" class="fig-sub">to the history</text>
+    <text x="250" y="24" class="fig-on-ink">the answer</text>
+  </g>
+  <g fill="currentColor" font-size="12" class="fig-sub">
+    <text x="256" y="48">no</text><text x="314" y="76">yes</text>
+    <text x="340" y="170" text-anchor="middle">and again, until a reply has no tool calls; the history is saved to the memory file</text>
+  </g>
+</svg>

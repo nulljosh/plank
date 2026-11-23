@@ -28,7 +28,9 @@ An import that starts with `github.com/` is a package. Plank fetches the file th
 import "github.com/nulljosh/plank@v3.1.0/examples/lib/money.pk" as money
 ```
 
-`@v3.1.0` pins a tag. There is no registry and no lock file: a package is a file in a git repository, and the tag says which version of it you mean.
+`@v3.1.0` pins a tag.
+
+> **Note** There is no registry and no lock file. A package is a file in a git repository, and the tag says which version of it you mean.
 
 ## Tests
 
@@ -59,6 +61,10 @@ ok
 ## Shipping
 
 `plank build app.pk` makes a native binary. On Linux, `plank build app.pk --static` makes one with no shared libraries at all, which you can copy to any Linux machine and run.
+
+## Summary
+
+`import` pulls in another file, and `as` keeps its names under one prefix. A package is a file in a git repository, pinned by tag. Tests are programs that print `ok`, `plank fmt` keeps code tidy, and `plank build` ships a binary. Next you will script a model.
 
 > **Try it yourself**
 >

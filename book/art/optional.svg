@@ -1,0 +1,20 @@
+<svg viewBox="0 0 680 170" role="img" aria-label="An optional int is a pointer to a boxed int, or null for nil" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="13">
+  <defs><marker id="a7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <rect x="4" y="24" width="140" height="40" rx="3"/><rect x="4" y="100" width="140" height="40" rx="3"/>
+    <path d="M120 44H196" marker-end="url(#a7)"/><rect x="198" y="24" width="70" height="40" rx="3"/>
+    <path d="M120 120H170M164 110L176 130M176 110L164 130"/>
+  </g>
+  <g fill="currentColor">
+    <text x="16" y="49">a: int?</text><circle cx="120" cy="44" r="4"/>
+    <text x="16" y="125">b: int?</text><circle cx="120" cy="120" r="4"/>
+    <text x="233" y="49" text-anchor="middle" font-weight="700">42</text>
+    <text x="186" y="125" class="fig-sub">nil</text>
+    <text x="330" y="40">if let i = a { ... }</text><text x="330" y="86">a ?? 0</text><text x="330" y="132">a!</text>
+  </g>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="currentColor" class="fig-sub">
+    <text x="330" y="58">runs the block only when there is a box</text>
+    <text x="330" y="104">the value in the box, or the fallback</text>
+    <text x="330" y="150">the value, or stop the program here</text>
+  </g>
+</svg>

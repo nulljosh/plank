@@ -134,6 +134,10 @@ fn main() {
 4 true ["a", "b", "c", "d"]
 ```
 
+## Summary
+
+Lists keep values in order, dicts map keys to values and remember their order, and sets hold each value once. `map`, `filter` and `reduce` work on every item, and `sort(by:)` sorts by anything. Collections are shared, not copied. Next you will make types of your own.
+
 > **Try it yourself**
 >
 > 1. Make a list of five names, sort it and print the first and last.

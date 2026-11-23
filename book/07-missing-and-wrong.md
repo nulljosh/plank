@@ -34,7 +34,9 @@ You cannot do arithmetic on an `int?` directly; you have to say what happens whe
 - `maybe ?? fallback` gives the value, or the fallback
 - `maybe!` gives the value, or stops the program with the line number if there is none
 
-Nothing that is not marked with `?` can ever be `nil`. When you see a plain `int`, it is always there.
+Nothing that is not marked with `?` can ever be `nil`. When you see a plain `int`, it is always there. Figure 7-1 shows what an optional is in memory, and the three ways to open one.
+
+![An int? is a pointer to a box holding the int, or no box at all.](art/optional.svg)
 
 ## Errors that stop the program
 
@@ -103,7 +105,11 @@ fn main() {
 0
 ```
 
-A rule of thumb: throw for bugs and broken input, return a `Result` when the caller is expected to handle the failure.
+> **Note** A rule of thumb: throw for bugs and broken input, return a `Result` when the caller is expected to handle the failure.
+
+## Summary
+
+An optional `T?` is either a value or `nil`, and you must say what happens in both cases. Run-time errors stop the program with a line number unless you catch them with `try`. `Result` makes failure an ordinary answer, and `?` passes it up. Next you will pass functions around as values.
 
 > **Try it yourself**
 >

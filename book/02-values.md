@@ -117,7 +117,7 @@ p la k
 
 Indexes count characters, not bytes, so `"héllo"[1]` is `"é"`. A slice like `[1..3]` takes characters 1 and 2: the start is included, the end is not. Negative numbers count from the end.
 
-Strings never change in place. Every tool hands back a new string and leaves the old one alone.
+> **Note** Strings never change in place. Every tool hands back a new string and leaves the old one alone.
 
 ## Doing arithmetic
 
@@ -140,6 +140,10 @@ fn main() {
 ```
 
 Floats print with up to 15 significant digits, so `0.1 + 0.2` shows as `0.3`. `fixed` gives you exactly as many digits as you ask for.
+
+## Summary
+
+Plank has four simple kinds of value, and it never converts one into another unless you ask. `let` names a value for good; `var` names one you can change. Strings interpolate with `\( )`, count characters rather than bytes, and never change in place. Next you will make your programs choose and repeat.
 
 > **Try it yourself**
 >

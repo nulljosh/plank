@@ -85,7 +85,15 @@ fn main() {
 6765
 ```
 
-Because Plank compiles to machine code, `fib(35)` takes a few hundredths of a second. The same function in a tree-walking interpreter takes seconds.
+Every call that is not a base case makes two more. Figure 4-1 shows the whole tree for `fib(4)`.
+
+![The nine calls behind fib(4). The filled ones are base cases; the dashed fib(2) is worked out twice.](art/recursion.svg)
+
+> **Note** Because Plank compiles to machine code, `fib(35)` and its 30 million calls take a few hundredths of a second. The same function in a tree-walking interpreter takes seconds.
+
+## Summary
+
+Every parameter and result has a type, and a function with a result must return on every path. Defaults and labels make calls read like sentences, tuples hand back more than one value, and recursion lets a function call itself. Next you will hold many values at once.
 
 > **Try it yourself**
 >

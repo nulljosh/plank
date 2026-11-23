@@ -1,0 +1,24 @@
+<svg viewBox="0 0 680 270" role="img" aria-label="The calls fib(4) makes: a tree of nine calls, with fib(2) worked out twice" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="12">
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <path d="M340 44L200 81M340 44L500 81M200 109L120 146M200 109L280 146M500 109L440 146M500 109L560 146M120 174L60 211M120 174L180 211"/>
+    <rect x="302" y="16" width="76" height="28" rx="3"/>
+    <rect x="162" y="81" width="76" height="28" rx="3"/>
+    <rect x="462" y="81" width="76" height="28" rx="3" stroke-dasharray="5 4"/>
+    <rect x="82" y="146" width="76" height="28" rx="3" stroke-dasharray="5 4"/>
+  </g>
+  <g class="fig-ink">
+    <rect x="242" y="146" width="76" height="28" rx="3"/><rect x="402" y="146" width="76" height="28" rx="3"/><rect x="522" y="146" width="76" height="28" rx="3"/>
+    <rect x="22" y="211" width="76" height="28" rx="3"/><rect x="142" y="211" width="76" height="28" rx="3"/>
+  </g>
+  <g text-anchor="middle" fill="currentColor" font-weight="700">
+    <text x="340" y="34">fib(4)</text><text x="200" y="99">fib(3)</text><text x="500" y="99">fib(2)</text><text x="120" y="164">fib(2)</text>
+  </g>
+  <g text-anchor="middle" class="fig-on-ink" font-weight="700">
+    <text x="280" y="164">fib(1)</text><text x="440" y="164">fib(1)</text><text x="560" y="164">fib(0)</text><text x="60" y="229">fib(1)</text><text x="180" y="229">fib(0)</text>
+  </g>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="currentColor" class="fig-sub">
+    <text x="420" y="214">Filled: n &lt; 2, returns n with no more calls.</text>
+    <text x="420" y="232">Dashed: fib(2), worked out twice.</text>
+    <text x="420" y="250">fib(35) makes about 30 million calls.</text>
+  </g>
+</svg>

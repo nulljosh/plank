@@ -80,6 +80,10 @@ if status() != 200 {
 
 Together these cover most of what people reach for Python to do: read some files, call a command, hit an API, write a report.
 
+## Summary
+
+Files, folders, arguments, standard input, the shell, JSON and HTTP are all built in, which covers most everyday scripting. Missing files come back as `nil`, so you decide what that means. Next you will split a program across files.
+
 > **Try it yourself**
 >
 > 1. Write a script that counts the lines in a file named on the command line.

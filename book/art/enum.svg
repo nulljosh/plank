@@ -1,0 +1,20 @@
+<svg viewBox="0 0 680 190" role="img" aria-label="An enum value is a tag and slots; match jumps on the tag" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="12">
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1" fill="currentColor" class="fig-sub">
+    <text x="210" y="18">TAG</text><text x="270" y="18">SLOT 1</text><text x="370" y="18">SLOT 2</text>
+  </g>
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <rect x="200" y="28" width="300" height="40" rx="3"/><path d="M260 28V68M360 28V68"/>
+    <rect x="200" y="84" width="300" height="40" rx="3"/><path d="M260 84V124M360 84V124"/>
+    <rect x="200" y="140" width="300" height="40" rx="3"/><path d="M260 140V180M360 140V180"/>
+    <path d="M512 28C540 28 540 104 556 104C540 104 540 180 512 180"/>
+  </g>
+  <g fill="currentColor">
+    <text x="4" y="53">Shape.circle(1.0)</text><text x="4" y="109">Shape.rect(2.0, 3.0)</text><text x="4" y="165">Shape.dot</text>
+    <g font-weight="700"><text x="224" y="53">0</text><text x="224" y="109">1</text><text x="224" y="165">2</text>
+    <text x="274" y="53">r 1.0</text><text x="274" y="109">w 2.0</text><text x="374" y="109">h 3.0</text></g>
+    <g class="fig-sub"><text x="374" y="53">unused</text><text x="274" y="165">unused</text><text x="374" y="165">unused</text></g>
+  </g>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="currentColor" class="fig-sub">
+    <text x="566" y="92">match reads the</text><text x="566" y="108">tag and jumps:</text><text x="566" y="124">one step, however</text><text x="566" y="140">many cases</text>
+  </g>
+</svg>

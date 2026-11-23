@@ -1,0 +1,25 @@
+<svg viewBox="0 0 680 200" role="img" aria-label="A closure is two words, code and environment; the environment points at the variable n on the heap" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="12">
+  <defs><marker id="a8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1" fill="currentColor" class="fig-sub">
+    <text x="4" y="14">STACK (main)</text><text x="170" y="14">HEAP</text>
+  </g>
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <rect x="4" y="24" width="120" height="40" rx="3"/>
+    <rect x="170" y="24" width="180" height="40" rx="3"/><path d="M260 24V64"/>
+    <rect x="400" y="20" width="276" height="48" rx="3"/>
+    <rect x="170" y="120" width="100" height="40" rx="3"/>
+    <rect x="330" y="120" width="100" height="40" rx="3" class="fig-ink"/>
+    <path d="M100 44H168M236 40C240 6 380 6 404 22M320 44C320 90 220 80 220 118M250 140H328" marker-end="url(#a8)"/>
+  </g>
+  <g fill="currentColor">
+    <text x="16" y="49">next</text><circle cx="100" cy="44" r="4"/>
+    <text x="182" y="49">code</text><circle cx="236" cy="44" r="4"/><text x="272" y="49">env</text><circle cx="320" cy="44" r="4"/>
+    <text x="412" y="40">n += 1</text><text x="412" y="56">return n</text>
+    <text x="182" y="145">[ &amp;n ]</text><circle cx="250" cy="140" r="4"/>
+    <text x="342" y="145" class="fig-on-ink" font-weight="700">n  3</text>
+  </g>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="currentColor" class="fig-sub">
+    <text x="170" y="186">the environment</text><text x="330" y="186">n, moved to the heap because a closure uses it,</text>
+    <text x="330" y="200">so it outlives make_counter</text>
+  </g>
+</svg>
