@@ -1,4 +1,4 @@
-# Plank loop handoff (2026-11-27, afternoon)
+# Plank loop handoff (2026-11-27, small hours)
 
 ## What the loop is
 
