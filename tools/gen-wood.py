@@ -62,16 +62,55 @@ def logs(seed=5):
 
 def hatch(seed=6):
     """flat-sawn board, long straight grain, a little like a woodcut block"""
-    g = rings(Y * 0.9 + noise(200, seed) * 160 + noise(30, seed + 1) * 12, 0.5)
+    g = rings(Y * 0.9 + noise(200, seed) * 160 + noise(30, seed + 1) * 12, 0.25)
     return g * 0.6 + noise(3, seed + 2) * 0.1 + noise(300, seed + 3) * 0.3
 
 
-def dither(g, name):
+def screen(kind):
+    """Threshold map: a dot grid, an engraver's line screen, or None for Floyd-Steinberg stipple."""
+    if kind == "dots":
+        return (np.sin((X + Y) * 0.55) * np.sin((X - Y) * 0.55) + 1) / 2
+    if kind == "lines":
+        return (np.sin(Y * 0.9 + noise(60, 7) * 4) + 1) / 2
+    return None
+
+
+def stack(seed=7):
+    """lumber piled end-on: square boards, each with its own off-centre rings"""
+    r, out = np.random.default_rng(seed), np.ones((H, W))
+    for row in range(4):
+        for col in range(6):
+            x0, y0, x1, y1 = col * 200 + 4, row * 200 + 4, col * 200 + 196, row * 200 + 196
+            cx, cy = r.integers(x0 - 120, x1 + 120), r.integers(y0 - 120, y1 + 120)
+            d = np.hypot(X - cx + noise(60, seed + col) * 18, (Y - cy) * r.uniform(0.8, 1.2))
+            g = rings(d, r.uniform(0.18, 0.4)) * 0.8 + noise(4, seed + row) * 0.2
+            out[y0:y1, x0:x1] = g[y0:y1, x0:x1] * r.uniform(0.7, 1)
+    return out
+
+
+def cabin(seed=8):
+    """a log wall: stacked round logs, shaded like cylinders, grain running along each"""
+    out = np.ones((H, W))
+    for i in range(8):
+        y0 = i * 100 - 20 + (i % 2) * 6
+        v = np.clip((Y - y0) / 108, 0, 1)
+        shade = np.sin(np.pi * v) ** 0.6
+        grain = rings(Y * 0.6 + noise(220, seed + i) * 90 + noise(40, seed + 50 + i) * 8, 0.3)
+        g = shade * (0.35 + 0.5 * grain) + 0.1
+        out = np.where((Y >= y0) & (Y < y0 + 108), g, out)
+    return out
+
+
+def dither(g, name, kind):
     g = np.clip((g - g.min()) / (g.max() - g.min()), 0, 1)
-    ink = Image.fromarray(((1 - g) * 255).astype("uint8")).convert("1")  # Floyd-Steinberg, dark wood = ink
-    a = np.asarray(ink).astype("uint8") * 255
+    t = screen(kind)
+    if t is None:  # dark wood = ink
+        a = np.asarray(Image.fromarray(((1 - g) * 255).astype("uint8")).convert("1")).astype("uint8") * 255
+    else:
+        a = ((1 - g) > t * 0.92).astype("uint8") * 255
     Image.merge("LA", (Image.new("L", (W, H), 255), Image.fromarray(a))).save(f"site/art/wood-{name}.png", optimize=True)
 
 
-for f in (planks, endgrain, cathedral, burl, logs, hatch):
-    dither(f(), f.__name__)
+KIND = {"planks": "lines", "endgrain": None, "cathedral": "dots", "burl": None, "logs": "dots", "hatch": "lines", "stack": None, "cabin": None}
+for f in (planks, endgrain, cathedral, burl, logs, hatch, stack, cabin):
+    dither(f(), f.__name__, KIND[f.__name__])
