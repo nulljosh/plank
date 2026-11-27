@@ -5,7 +5,7 @@
 - [ ] Landing: the hero headline clips off the right edge on phone width (pre-existing)
 - [ ] Book: chapters are 350 to 700 words; deepen the thin ones (4, 8, 9, 10, 11) toward No Starch depth with one worked example each
 - [ ] Book: a hands-on project chapter (build a small tool end to end, like apps/todo.pk) between chapters 11 and 12
-- [ ] Book: an index at the back of the web page and PDF, and check the halftone plates look clean at phone width
+- [ ] Book: an index at the back of the web page and PDF, and check the wood plates look clean at phone width
 
 ## Ingested 2026-10-30
 
