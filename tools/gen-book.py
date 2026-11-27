@@ -19,7 +19,7 @@ CHAPTERS = sorted(glob.glob("book/*.md"))
 OUT = "site/book/index.html"
 PDF = "site/book/plank-book.pdf"
 APPENDICES = [("docs/SPEC.md", "A", "The language reference"), ("docs/ARCHITECTURE.md", "B", "A map of plank.py")]
-ART = ["babel", "masons", "littlebabel", "jacquard"]  # halftone plates from site/art, one per chapter opener in turn
+ART = ["wood-logs", "wood-planks", "wood-burl", "wood-endgrain", "wood-cathedral", "wood-hatch"]  # halftone plates from site/art (tools/gen-wood.py), one per chapter opener in turn
 
 KW = r"\b(fn|tool|let|var|if|else|while|for|in|return|break|continue|true|false|and|or|not|struct|enum|match|nil|import|as|try|catch|throw|extern|self)\b"
 TY = r"\b(int|float|bool|str|Result|Json|Set)\b|\b[A-Z]\w*\b"
